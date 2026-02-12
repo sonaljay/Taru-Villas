@@ -648,7 +648,7 @@ function QuestionRow({
         <div className="flex-1 space-y-3">
           <div className="space-y-2">
             <Label className="text-xs text-muted-foreground">
-              Question {questionIndex + 1}
+              Question {questionIndex + 1} — Title
             </Label>
             <Textarea
               placeholder="Enter your survey question..."
@@ -662,6 +662,16 @@ function QuestionRow({
                 {questionErrors.text.message}
               </p>
             )}
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">
+              Description (optional)
+            </Label>
+            <Textarea
+              placeholder="Add helper text or guidance for this question..."
+              rows={2}
+              {...register(`${prefix}.description`)}
+            />
           </div>
 
           <div className="flex flex-wrap items-center gap-4">

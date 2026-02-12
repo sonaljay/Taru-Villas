@@ -23,6 +23,8 @@ import {
   CardContent,
 } from '@/components/ui/card'
 import { SurveyFilters } from '@/components/surveys/survey-filters'
+import { CopyLinkButton } from '@/components/surveys/copy-link-button'
+import { DeleteSurveyButton } from '@/components/surveys/delete-survey-button'
 import { Plus, ClipboardList } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -190,16 +192,24 @@ export default async function SurveysPage({ searchParams }: SurveysPageProps) {
                   <TableCell>{getStatusBadge(submission.status)}</TableCell>
                   <TableCell>{submission.submitterName}</TableCell>
                   <TableCell className="text-right">
-                    {submission.status === 'draft' &&
-                    submission.submittedBy === profile.id ? (
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={`/surveys/${submission.id}`}>Continue</Link>
-                      </Button>
-                    ) : (
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/surveys/${submission.id}`}>View</Link>
-                      </Button>
-                    )}
+                    <div className="flex items-center justify-end gap-1">
+                      {submission.slug && isAdmin && submission.status === 'draft' && (
+                        <CopyLinkButton slug={submission.slug} />
+                      )}
+                      {submission.status === 'draft' &&
+                      submission.submittedBy === profile.id ? (
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/surveys/${submission.id}`}>Continue</Link>
+                        </Button>
+                      ) : (
+                        <Button variant="ghost" size="sm" asChild>
+                          <Link href={`/surveys/${submission.id}`}>View</Link>
+                        </Button>
+                      )}
+                      {(isAdmin || (submission.submittedBy === profile.id && submission.status === 'draft')) && (
+                        <DeleteSurveyButton submissionId={submission.id} />
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

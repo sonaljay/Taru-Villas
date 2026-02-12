@@ -258,6 +258,7 @@ export const surveySubmissions = pgTable('survey_submissions', {
   status: submissionStatusEnum('status').default('draft').notNull(),
   visitDate: date('visit_date').notNull(),
   notes: text('notes'),
+  slug: varchar('slug', { length: 255 }).unique(),
   submittedAt: timestamp('submitted_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

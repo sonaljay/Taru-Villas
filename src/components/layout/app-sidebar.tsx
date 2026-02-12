@@ -63,10 +63,10 @@ const propertyNavItems: NavItem[] = [
 ]
 
 const adminNavItems: NavItem[] = [
-  { title: 'Properties', href: '/admin/properties', icon: Building2 },
-  { title: 'Surveys', href: '/admin/surveys', icon: ClipboardCheck },
-  { title: 'Templates', href: '/admin/templates', icon: FileText },
-  { title: 'Users', href: '/admin/users', icon: Users },
+  { title: 'Manage Properties', href: '/admin/properties', icon: Building2 },
+  { title: 'Manage Surveys', href: '/admin/surveys', icon: ClipboardCheck },
+  { title: 'Manage Templates', href: '/admin/templates', icon: FileText },
+  { title: 'Manage Users', href: '/admin/users', icon: Users },
 ]
 
 // ---------------------------------------------------------------------------
@@ -122,9 +122,11 @@ export function AppSidebar() {
       {/* ---- Brand Header ---- */}
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-3">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
-            TV
-          </div>
+          <img
+            src="/TVPL.png"
+            alt="Taru Villas logo"
+            className="size-8 shrink-0"
+          />
           <div className="flex flex-col gap-0.5 leading-none">
             <span className="font-semibold tracking-tight">Taru Villas</span>
             <span className="text-[11px] text-muted-foreground">

@@ -1,4 +1,4 @@
-import { eq, and, desc, sql } from 'drizzle-orm'
+import { eq, and, desc, sql, like } from 'drizzle-orm'
 import { db } from '..'
 import {
   surveyTemplates,
@@ -251,6 +251,7 @@ export async function getSubmissionsWithDetails(
       status: surveySubmissions.status,
       visitDate: surveySubmissions.visitDate,
       notes: surveySubmissions.notes,
+      slug: surveySubmissions.slug,
       submittedAt: surveySubmissions.submittedAt,
       createdAt: surveySubmissions.createdAt,
       updatedAt: surveySubmissions.updatedAt,
@@ -295,6 +296,7 @@ export async function getSubmissionsForUser(userId: string) {
       status: surveySubmissions.status,
       visitDate: surveySubmissions.visitDate,
       notes: surveySubmissions.notes,
+      slug: surveySubmissions.slug,
       submittedAt: surveySubmissions.submittedAt,
       createdAt: surveySubmissions.createdAt,
       updatedAt: surveySubmissions.updatedAt,
@@ -337,6 +339,59 @@ export async function getSubmissionById(id: string) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Slug helpers
+// ---------------------------------------------------------------------------
+
+function toKebab(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+}
+
+/**
+ * Generate a unique slug for a submission.
+ * Format: template-name-property-code-2025-02-11
+ * Appends -2, -3, etc. on collision.
+ */
+async function generateSlug(
+  templateName: string,
+  propertyCode: string,
+  visitDate: string,
+): Promise<string> {
+  const base = `${toKebab(templateName)}-${toKebab(propertyCode)}-${visitDate}`
+
+  // Check if base slug is taken
+  const existing = await db
+    .select({ slug: surveySubmissions.slug })
+    .from(surveySubmissions)
+    .where(like(surveySubmissions.slug, `${base}%`))
+
+  const taken = new Set(existing.map((r) => r.slug))
+
+  if (!taken.has(base)) return base
+
+  let counter = 2
+  while (taken.has(`${base}-${counter}`)) {
+    counter++
+  }
+  return `${base}-${counter}`
+}
+
+/**
+ * Get a submission by its slug.
+ */
+export async function getSubmissionBySlug(slug: string) {
+  const rows = await db
+    .select()
+    .from(surveySubmissions)
+    .where(eq(surveySubmissions.slug, slug))
+    .limit(1)
+
+  return rows[0] ?? null
+}
+
 /**
  * Create a new submission with its responses.
  */
@@ -357,6 +412,34 @@ export async function createSubmission(data: {
           submissionId: submission.id,
         }))
       )
+    }
+
+    // Generate a slug for the new submission
+    // Look up template name and property code
+    const [template] = await tx
+      .select({ name: surveyTemplates.name })
+      .from(surveyTemplates)
+      .where(eq(surveyTemplates.id, submission.templateId))
+      .limit(1)
+
+    const [property] = await tx
+      .select({ code: properties.code })
+      .from(properties)
+      .where(eq(properties.id, submission.propertyId))
+      .limit(1)
+
+    if (template && property) {
+      const slug = await generateSlug(
+        template.name,
+        property.code,
+        submission.visitDate,
+      )
+      await tx
+        .update(surveySubmissions)
+        .set({ slug })
+        .where(eq(surveySubmissions.id, submission.id))
+
+      return { ...submission, slug }
     }
 
     return submission
@@ -455,6 +538,13 @@ export async function deleteTemplate(id: string): Promise<void> {
     // 5. Delete the template
     await tx.delete(surveyTemplates).where(eq(surveyTemplates.id, id))
   })
+}
+
+/**
+ * Delete a submission and its responses (responses cascade-delete).
+ */
+export async function deleteSubmission(id: string): Promise<void> {
+  await db.delete(surveySubmissions).where(eq(surveySubmissions.id, id))
 }
 
 export async function submitSubmission(

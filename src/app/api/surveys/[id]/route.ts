@@ -5,6 +5,7 @@ import {
   getSubmissionById,
   updateSubmission,
   submitSubmission,
+  deleteSubmission,
 } from '@/lib/db/queries/surveys'
 
 // ---------------------------------------------------------------------------
@@ -140,6 +141,61 @@ export async function PATCH(
     console.error('PATCH /api/surveys/[id] error:', error)
     return NextResponse.json(
       { error: 'Failed to update submission' },
+      { status: 500 }
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
+// DELETE /api/surveys/[id] — Delete a submission
+// Users can delete their own drafts; admins can delete any submission.
+// ---------------------------------------------------------------------------
+
+export async function DELETE(
+  _request: NextRequest,
+  context: RouteContext
+) {
+  try {
+    const { id } = await context.params
+    const profile = await getProfile()
+    if (!profile) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    if (!profile.isActive) {
+      return NextResponse.json({ error: 'Account is inactive' }, { status: 403 })
+    }
+
+    const existing = await getSubmissionById(id)
+    if (!existing) {
+      return NextResponse.json({ error: 'Submission not found' }, { status: 404 })
+    }
+
+    const isAdmin = profile.role === 'admin'
+    const isOwner = existing.submittedBy === profile.id
+
+    // Non-admins can only delete their own drafts
+    if (!isAdmin) {
+      if (!isOwner) {
+        return NextResponse.json(
+          { error: 'Forbidden: you can only delete your own surveys' },
+          { status: 403 }
+        )
+      }
+      if (existing.status !== 'draft') {
+        return NextResponse.json(
+          { error: 'Only draft surveys can be deleted' },
+          { status: 400 }
+        )
+      }
+    }
+
+    await deleteSubmission(id)
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('DELETE /api/surveys/[id] error:', error)
+    return NextResponse.json(
+      { error: 'Failed to delete submission' },
       { status: 500 }
     )
   }

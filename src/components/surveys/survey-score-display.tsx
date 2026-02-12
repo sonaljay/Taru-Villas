@@ -219,7 +219,12 @@ export function SurveyScoreDisplay({
             {questionScores.map(({ question, response }, index) => (
               <div key={question.id}>
                 <div className="flex items-start justify-between gap-4">
-                  <p className="text-sm flex-1">{question.text}</p>
+                  <div className="flex-1">
+                    <p className="text-sm">{question.text}</p>
+                    {question.description && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{question.description}</p>
+                    )}
+                  </div>
                   {response ? (
                     <span
                       className={`text-lg font-bold tabular-nums min-w-[3ch] text-right ${getScoreTextColor(response.score, question.scaleMin, question.scaleMax)}`}
