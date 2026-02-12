@@ -6,6 +6,7 @@ import { getPropertyById } from '@/lib/db/queries/properties'
 import {
   getPropertyScores,
   getCategoryBreakdown,
+  getSubcategoryBreakdown,
   getTrends,
   getRecentNotes,
 } from '@/lib/db/queries/dashboard'
@@ -13,6 +14,7 @@ import {
   PropertyDashboard,
   type PropertyInfo,
   type CategoryScoreData,
+  type SubcategoryScoreData,
   type PropertyTrendPoint,
 } from '@/components/dashboard/property-dashboard'
 
@@ -22,10 +24,14 @@ import {
 
 export default async function PropertyDashboardPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ propertyId: string }>
+  searchParams: Promise<{ surveyType?: string }>
 }) {
   const { propertyId } = await params
+  const sp = await searchParams
+  const surveyType = (sp.surveyType as 'internal' | 'guest') || undefined
   const profile = await requireAuth()
 
   if (!profile) {
@@ -39,10 +45,11 @@ export default async function PropertyDashboardPage({
   }
 
   // Fetch all dashboard data in parallel — only submitted surveys
-  const [scores, categories, trends, notes] = await Promise.all([
-    getPropertyScores(propertyId),
-    getCategoryBreakdown(propertyId),
-    getTrends(propertyId, 12),
+  const [scores, categories, subcategories, trends, notes] = await Promise.all([
+    getPropertyScores(propertyId, undefined, surveyType),
+    getCategoryBreakdown(propertyId, undefined, surveyType),
+    getSubcategoryBreakdown(propertyId, undefined, surveyType),
+    getTrends(propertyId, 12, surveyType),
     getRecentNotes(propertyId, 20),
   ])
 
@@ -66,15 +73,27 @@ export default async function PropertyDashboardPage({
     submissionCount: scores?.submissionCount ?? 0,
   }
 
-  // Build CategoryScoreData with trend (compare last two months if available)
-  // We need per-category monthly data for trends, but we can approximate
-  // using the overall category breakdown as the current score
+  // Build subcategory data grouped by category
+  const subcatsByCategory = new Map<string, SubcategoryScoreData[]>()
+  for (const sub of subcategories) {
+    const existing = subcatsByCategory.get(sub.categoryId) ?? []
+    existing.push({
+      subcategoryId: sub.subcategoryId,
+      subcategoryName: sub.subcategoryName,
+      score: Math.round(sub.averageScore * 10) / 10,
+      trend: 0,
+    })
+    subcatsByCategory.set(sub.categoryId, existing)
+  }
+
+  // Build CategoryScoreData with subcategories
   const categoryData: CategoryScoreData[] = categories.map((c) => ({
     categoryId: c.categoryId,
     categoryName: c.categoryName,
     score: Math.round(c.averageScore * 10) / 10,
     weight: c.weight,
-    trend: 0, // No per-category trend data available from single breakdown
+    trend: 0,
+    subcategories: subcatsByCategory.get(c.categoryId) ?? [],
   }))
 
   // Build PropertyTrendPoint array
@@ -96,6 +115,7 @@ export default async function PropertyDashboardPage({
       categories={categoryData}
       trendData={trendData}
       notes={notes}
+      surveyType={surveyType ?? 'internal'}
     />
   )
 }

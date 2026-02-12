@@ -20,6 +20,7 @@ interface SurveyFiltersProps {
   currentStatus?: string
   currentDateFrom?: string
   currentDateTo?: string
+  currentSurveyType?: string
 }
 
 export function SurveyFilters({
@@ -28,6 +29,7 @@ export function SurveyFilters({
   currentStatus,
   currentDateFrom,
   currentDateTo,
+  currentSurveyType,
 }: SurveyFiltersProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -58,10 +60,29 @@ export function SurveyFilters({
   }
 
   const hasFilters =
-    currentPropertyId || currentStatus || currentDateFrom || currentDateTo
+    currentPropertyId || currentStatus || currentDateFrom || currentDateTo || currentSurveyType
 
   return (
     <div className="flex flex-wrap items-end gap-4">
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">Survey Type</Label>
+        <Select
+          value={currentSurveyType ?? 'all'}
+          onValueChange={(value) =>
+            updateFilter('surveyType', value === 'all' ? undefined : value)
+          }
+        >
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="All Types" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="internal">Internal</SelectItem>
+            <SelectItem value="guest">Guest</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="space-y-1.5">
         <Label className="text-xs text-muted-foreground">Property</Label>
         <Select

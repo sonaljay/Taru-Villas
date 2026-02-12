@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
@@ -29,6 +29,7 @@ interface Template {
   id: string
   name: string
   description: string | null
+  surveyType: 'internal' | 'guest'
 }
 
 interface Property {
@@ -49,14 +50,19 @@ interface TemplateData {
     name: string
     weight: string
     sortOrder: number
-    questions: {
+    subcategories: {
       id: string
-      text: string
-      description: string | null
-      scaleMin: number
-      scaleMax: number
-      isRequired: boolean
+      name: string
       sortOrder: number
+      questions: {
+        id: string
+        text: string
+        description: string | null
+        scaleMin: number
+        scaleMax: number
+        isRequired: boolean
+        sortOrder: number
+      }[]
     }[]
   }[]
 }
@@ -67,6 +73,7 @@ export function NewSurveyWizard({
 }: NewSurveyWizardProps) {
   const router = useRouter()
   const [step, setStep] = useState(1)
+  const [surveyType, setSurveyType] = useState<'internal' | 'guest'>('internal')
   const [templateId, setTemplateId] = useState('')
   const [propertyId, setPropertyId] = useState('')
   const [visitDate, setVisitDate] = useState(
@@ -74,6 +81,18 @@ export function NewSurveyWizard({
   )
   const [templateData, setTemplateData] = useState<TemplateData | null>(null)
   const [isLoadingTemplate, setIsLoadingTemplate] = useState(false)
+
+  // Filter templates by selected survey type
+  const filteredTemplates = useMemo(
+    () => templates.filter((t) => t.surveyType === surveyType),
+    [templates, surveyType]
+  )
+
+  // Reset template selection when type changes
+  function handleSurveyTypeChange(type: 'internal' | 'guest') {
+    setSurveyType(type)
+    setTemplateId('')
+  }
 
   async function handleNext() {
     if (!templateId) {
@@ -127,10 +146,24 @@ export function NewSurveyWizard({
       <CardHeader>
         <CardTitle>Survey Setup</CardTitle>
         <CardDescription>
-          Select the template, property, and visit date for this assessment.
+          Select the survey type, template, property, and visit date for this assessment.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Survey Type */}
+        <div className="space-y-2">
+          <Label>Survey Type</Label>
+          <Select value={surveyType} onValueChange={(v) => handleSurveyTypeChange(v as 'internal' | 'guest')}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="internal">Internal Assessment</SelectItem>
+              <SelectItem value="guest">Guest Survey</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* Template */}
         <div className="space-y-2">
           <Label>Survey Template</Label>
@@ -139,16 +172,16 @@ export function NewSurveyWizard({
               <SelectValue placeholder="Select a template..." />
             </SelectTrigger>
             <SelectContent>
-              {templates.map((t) => (
+              {filteredTemplates.map((t) => (
                 <SelectItem key={t.id} value={t.id}>
                   {t.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          {templates.length === 0 && (
+          {filteredTemplates.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              No active templates available. Ask your administrator to create
+              No active {surveyType} templates available. Ask your administrator to create
               one.
             </p>
           )}

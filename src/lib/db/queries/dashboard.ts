@@ -4,7 +4,9 @@ import {
   surveySubmissions,
   surveyResponses,
   surveyQuestions,
+  surveySubcategories,
   surveyCategories,
+  surveyTemplates,
   properties,
   profiles,
 } from '../schema'
@@ -34,6 +36,15 @@ export interface CategoryScore {
   questionCount: number
 }
 
+export interface SubcategoryScore {
+  subcategoryId: string
+  subcategoryName: string
+  categoryId: string
+  categoryName: string
+  averageScore: number
+  questionCount: number
+}
+
 export interface TrendPoint {
   month: string // YYYY-MM
   averageScore: number
@@ -55,6 +66,13 @@ function dateRangeConditions(dateRange?: DateRange) {
   return conditions
 }
 
+function surveyTypeCondition(surveyType?: 'internal' | 'guest') {
+  if (surveyType) {
+    return [eq(surveyTemplates.surveyType, surveyType)]
+  }
+  return []
+}
+
 // ---------------------------------------------------------------------------
 // Queries
 // ---------------------------------------------------------------------------
@@ -64,15 +82,19 @@ function dateRangeConditions(dateRange?: DateRange) {
  *
  * Normalization: ((score - scale_min) / (scale_max - scale_min)) * 100
  * Weighted average: sum(normalized_score * weight) / sum(weight)
+ *
+ * JOIN chain: responses -> questions -> subcategories -> categories
  */
 export async function getPropertyScores(
   propertyId: string,
-  dateRange?: DateRange
+  dateRange?: DateRange,
+  surveyType?: 'internal' | 'guest'
 ): Promise<PropertyScore | null> {
   const conditions = [
     eq(surveySubmissions.propertyId, propertyId),
     eq(surveySubmissions.status, 'submitted'),
     ...dateRangeConditions(dateRange),
+    ...surveyTypeCondition(surveyType),
   ]
 
   const result = await db
@@ -86,7 +108,7 @@ export async function getPropertyScores(
             (
               (${surveyResponses.score}::numeric - ${surveyQuestions.scaleMin}::numeric)
               / NULLIF(${surveyQuestions.scaleMax}::numeric - ${surveyQuestions.scaleMin}::numeric, 0)
-            ) * 100.0 * ${surveyCategories.weight}::numeric
+            ) * 10.0 * ${surveyCategories.weight}::numeric
           ) / NULLIF(SUM(${surveyCategories.weight}::numeric), 0),
           0
         )
@@ -100,14 +122,22 @@ export async function getPropertyScores(
       surveySubmissions,
       eq(surveyResponses.submissionId, surveySubmissions.id)
     )
+    .innerJoin(
+      surveyTemplates,
+      eq(surveySubmissions.templateId, surveyTemplates.id)
+    )
     .innerJoin(properties, eq(surveySubmissions.propertyId, properties.id))
     .innerJoin(
       surveyQuestions,
       eq(surveyResponses.questionId, surveyQuestions.id)
     )
     .innerJoin(
+      surveySubcategories,
+      eq(surveyQuestions.subcategoryId, surveySubcategories.id)
+    )
+    .innerJoin(
       surveyCategories,
-      eq(surveyQuestions.categoryId, surveyCategories.id)
+      eq(surveySubcategories.categoryId, surveyCategories.id)
     )
     .where(and(...conditions))
     .groupBy(
@@ -132,12 +162,14 @@ export async function getPropertyScores(
  */
 export async function getAllPropertyScores(
   orgId: string,
-  dateRange?: DateRange
+  dateRange?: DateRange,
+  surveyType?: 'internal' | 'guest'
 ): Promise<PropertyScore[]> {
   const conditions = [
     eq(properties.orgId, orgId),
     eq(surveySubmissions.status, 'submitted'),
     ...dateRangeConditions(dateRange),
+    ...surveyTypeCondition(surveyType),
   ]
 
   const results = await db
@@ -151,7 +183,7 @@ export async function getAllPropertyScores(
             (
               (${surveyResponses.score}::numeric - ${surveyQuestions.scaleMin}::numeric)
               / NULLIF(${surveyQuestions.scaleMax}::numeric - ${surveyQuestions.scaleMin}::numeric, 0)
-            ) * 100.0 * ${surveyCategories.weight}::numeric
+            ) * 10.0 * ${surveyCategories.weight}::numeric
           ) / NULLIF(SUM(${surveyCategories.weight}::numeric), 0),
           0
         )
@@ -165,14 +197,22 @@ export async function getAllPropertyScores(
       surveySubmissions,
       eq(surveyResponses.submissionId, surveySubmissions.id)
     )
+    .innerJoin(
+      surveyTemplates,
+      eq(surveySubmissions.templateId, surveyTemplates.id)
+    )
     .innerJoin(properties, eq(surveySubmissions.propertyId, properties.id))
     .innerJoin(
       surveyQuestions,
       eq(surveyResponses.questionId, surveyQuestions.id)
     )
     .innerJoin(
+      surveySubcategories,
+      eq(surveyQuestions.subcategoryId, surveySubcategories.id)
+    )
+    .innerJoin(
       surveyCategories,
-      eq(surveyQuestions.categoryId, surveyCategories.id)
+      eq(surveySubcategories.categoryId, surveyCategories.id)
     )
     .where(and(...conditions))
     .groupBy(
@@ -196,12 +236,14 @@ export async function getAllPropertyScores(
  */
 export async function getCategoryBreakdown(
   propertyId: string,
-  dateRange?: DateRange
+  dateRange?: DateRange,
+  surveyType?: 'internal' | 'guest'
 ): Promise<CategoryScore[]> {
   const conditions = [
     eq(surveySubmissions.propertyId, propertyId),
     eq(surveySubmissions.status, 'submitted'),
     ...dateRangeConditions(dateRange),
+    ...surveyTypeCondition(surveyType),
   ]
 
   const results = await db
@@ -215,7 +257,7 @@ export async function getCategoryBreakdown(
             (
               (${surveyResponses.score}::numeric - ${surveyQuestions.scaleMin}::numeric)
               / NULLIF(${surveyQuestions.scaleMax}::numeric - ${surveyQuestions.scaleMin}::numeric, 0)
-            ) * 100.0
+            ) * 10.0
           ),
           0
         )
@@ -230,12 +272,20 @@ export async function getCategoryBreakdown(
       eq(surveyResponses.submissionId, surveySubmissions.id)
     )
     .innerJoin(
+      surveyTemplates,
+      eq(surveySubmissions.templateId, surveyTemplates.id)
+    )
+    .innerJoin(
       surveyQuestions,
       eq(surveyResponses.questionId, surveyQuestions.id)
     )
     .innerJoin(
+      surveySubcategories,
+      eq(surveyQuestions.subcategoryId, surveySubcategories.id)
+    )
+    .innerJoin(
       surveyCategories,
-      eq(surveyQuestions.categoryId, surveyCategories.id)
+      eq(surveySubcategories.categoryId, surveyCategories.id)
     )
     .where(and(...conditions))
     .groupBy(
@@ -255,15 +305,99 @@ export async function getCategoryBreakdown(
 }
 
 /**
+ * Get scores broken down by subcategory for a property.
+ */
+export async function getSubcategoryBreakdown(
+  propertyId: string,
+  dateRange?: DateRange,
+  surveyType?: 'internal' | 'guest'
+): Promise<SubcategoryScore[]> {
+  const conditions = [
+    eq(surveySubmissions.propertyId, propertyId),
+    eq(surveySubmissions.status, 'submitted'),
+    ...dateRangeConditions(dateRange),
+    ...surveyTypeCondition(surveyType),
+  ]
+
+  const results = await db
+    .select({
+      subcategoryId: surveySubcategories.id,
+      subcategoryName: surveySubcategories.name,
+      categoryId: surveyCategories.id,
+      categoryName: surveyCategories.name,
+      averageScore: sql<number>`
+        COALESCE(
+          AVG(
+            (
+              (${surveyResponses.score}::numeric - ${surveyQuestions.scaleMin}::numeric)
+              / NULLIF(${surveyQuestions.scaleMax}::numeric - ${surveyQuestions.scaleMin}::numeric, 0)
+            ) * 10.0
+          ),
+          0
+        )
+      `.as('average_score'),
+      questionCount: sql<number>`
+        COUNT(DISTINCT ${surveyQuestions.id})
+      `.as('question_count'),
+    })
+    .from(surveyResponses)
+    .innerJoin(
+      surveySubmissions,
+      eq(surveyResponses.submissionId, surveySubmissions.id)
+    )
+    .innerJoin(
+      surveyTemplates,
+      eq(surveySubmissions.templateId, surveyTemplates.id)
+    )
+    .innerJoin(
+      surveyQuestions,
+      eq(surveyResponses.questionId, surveyQuestions.id)
+    )
+    .innerJoin(
+      surveySubcategories,
+      eq(surveyQuestions.subcategoryId, surveySubcategories.id)
+    )
+    .innerJoin(
+      surveyCategories,
+      eq(surveySubcategories.categoryId, surveyCategories.id)
+    )
+    .where(and(...conditions))
+    .groupBy(
+      surveySubcategories.id,
+      surveySubcategories.name,
+      surveyCategories.id,
+      surveyCategories.name
+    )
+    .orderBy(surveyCategories.sortOrder, surveySubcategories.sortOrder)
+
+  return results.map((r) => ({
+    subcategoryId: r.subcategoryId,
+    subcategoryName: r.subcategoryName,
+    categoryId: r.categoryId,
+    categoryName: r.categoryName,
+    averageScore: Number(r.averageScore),
+    questionCount: Number(r.questionCount),
+  }))
+}
+
+/**
  * Get monthly trend data for a property.
  */
 export async function getTrends(
   propertyId: string,
-  months: number = 12
+  months: number = 12,
+  surveyType?: 'internal' | 'guest'
 ): Promise<TrendPoint[]> {
   const cutoffDate = new Date()
   cutoffDate.setMonth(cutoffDate.getMonth() - months)
   const cutoff = cutoffDate.toISOString().split('T')[0]
+
+  const conditions = [
+    eq(surveySubmissions.propertyId, propertyId),
+    eq(surveySubmissions.status, 'submitted'),
+    gte(surveySubmissions.visitDate, cutoff),
+    ...surveyTypeCondition(surveyType),
+  ]
 
   const results = await db
     .select({
@@ -276,7 +410,7 @@ export async function getTrends(
             (
               (${surveyResponses.score}::numeric - ${surveyQuestions.scaleMin}::numeric)
               / NULLIF(${surveyQuestions.scaleMax}::numeric - ${surveyQuestions.scaleMin}::numeric, 0)
-            ) * 100.0 * ${surveyCategories.weight}::numeric
+            ) * 10.0 * ${surveyCategories.weight}::numeric
           ) / NULLIF(SUM(${surveyCategories.weight}::numeric), 0),
           0
         )
@@ -291,20 +425,22 @@ export async function getTrends(
       eq(surveyResponses.submissionId, surveySubmissions.id)
     )
     .innerJoin(
+      surveyTemplates,
+      eq(surveySubmissions.templateId, surveyTemplates.id)
+    )
+    .innerJoin(
       surveyQuestions,
       eq(surveyResponses.questionId, surveyQuestions.id)
     )
     .innerJoin(
+      surveySubcategories,
+      eq(surveyQuestions.subcategoryId, surveySubcategories.id)
+    )
+    .innerJoin(
       surveyCategories,
-      eq(surveyQuestions.categoryId, surveyCategories.id)
+      eq(surveySubcategories.categoryId, surveyCategories.id)
     )
-    .where(
-      and(
-        eq(surveySubmissions.propertyId, propertyId),
-        eq(surveySubmissions.status, 'submitted'),
-        gte(surveySubmissions.visitDate, cutoff)
-      )
-    )
+    .where(and(...conditions))
     .groupBy(
       sql`TO_CHAR(${surveySubmissions.visitDate}::date, 'YYYY-MM')`
     )
@@ -326,23 +462,35 @@ export async function getTrends(
 /**
  * Get count of submitted surveys for an org in the current month.
  */
-export async function getSurveysThisMonth(orgId: string): Promise<number> {
+export async function getSurveysThisMonth(
+  orgId: string,
+  surveyType?: 'internal' | 'guest'
+): Promise<number> {
   const now = new Date()
   const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
 
-  const result = await db
+  const conditions = [
+    eq(properties.orgId, orgId),
+    eq(surveySubmissions.status, 'submitted'),
+    gte(surveySubmissions.visitDate, monthStart),
+    ...surveyTypeCondition(surveyType),
+  ]
+
+  let query = db
     .select({
       count: sql<number>`COUNT(*)`.as('count'),
     })
     .from(surveySubmissions)
     .innerJoin(properties, eq(surveySubmissions.propertyId, properties.id))
-    .where(
-      and(
-        eq(properties.orgId, orgId),
-        eq(surveySubmissions.status, 'submitted'),
-        gte(surveySubmissions.visitDate, monthStart)
-      )
-    )
+
+  if (surveyType) {
+    query = query.innerJoin(
+      surveyTemplates,
+      eq(surveySubmissions.templateId, surveyTemplates.id)
+    ) as typeof query
+  }
+
+  const result = await query.where(and(...conditions))
 
   return Number(result[0]?.count ?? 0)
 }
@@ -351,21 +499,32 @@ export async function getSurveysThisMonth(orgId: string): Promise<number> {
  * Get the last survey date per property for an org.
  */
 export async function getLastSurveyDates(
-  orgId: string
+  orgId: string,
+  surveyType?: 'internal' | 'guest'
 ): Promise<Map<string, string>> {
-  const results = await db
+  const conditions = [
+    eq(properties.orgId, orgId),
+    eq(surveySubmissions.status, 'submitted'),
+    ...surveyTypeCondition(surveyType),
+  ]
+
+  let query = db
     .select({
       propertyId: surveySubmissions.propertyId,
       lastDate: sql<string>`MAX(${surveySubmissions.visitDate})`.as('last_date'),
     })
     .from(surveySubmissions)
     .innerJoin(properties, eq(surveySubmissions.propertyId, properties.id))
-    .where(
-      and(
-        eq(properties.orgId, orgId),
-        eq(surveySubmissions.status, 'submitted')
-      )
-    )
+
+  if (surveyType) {
+    query = query.innerJoin(
+      surveyTemplates,
+      eq(surveySubmissions.templateId, surveyTemplates.id)
+    ) as typeof query
+  }
+
+  const results = await query
+    .where(and(...conditions))
     .groupBy(surveySubmissions.propertyId)
 
   const map = new Map<string, string>()
@@ -377,15 +536,23 @@ export async function getLastSurveyDates(
 
 /**
  * Get monthly sparkline scores (last 6 months) per property for an org.
- * Returns a map: propertyId → number[] of up to 6 monthly scores.
+ * Returns a map: propertyId -> number[] of up to 6 monthly scores.
  */
 export async function getSparklines(
   orgId: string,
-  months: number = 6
+  months: number = 6,
+  surveyType?: 'internal' | 'guest'
 ): Promise<Map<string, number[]>> {
   const cutoffDate = new Date()
   cutoffDate.setMonth(cutoffDate.getMonth() - months)
   const cutoff = cutoffDate.toISOString().split('T')[0]
+
+  const conditions = [
+    eq(properties.orgId, orgId),
+    eq(surveySubmissions.status, 'submitted'),
+    gte(surveySubmissions.visitDate, cutoff),
+    ...surveyTypeCondition(surveyType),
+  ]
 
   const results = await db
     .select({
@@ -397,7 +564,7 @@ export async function getSparklines(
             (
               (${surveyResponses.score}::numeric - ${surveyQuestions.scaleMin}::numeric)
               / NULLIF(${surveyQuestions.scaleMax}::numeric - ${surveyQuestions.scaleMin}::numeric, 0)
-            ) * 100.0 * ${surveyCategories.weight}::numeric
+            ) * 10.0 * ${surveyCategories.weight}::numeric
           ) / NULLIF(SUM(${surveyCategories.weight}::numeric), 0),
           0
         )
@@ -405,16 +572,12 @@ export async function getSparklines(
     })
     .from(surveyResponses)
     .innerJoin(surveySubmissions, eq(surveyResponses.submissionId, surveySubmissions.id))
+    .innerJoin(surveyTemplates, eq(surveySubmissions.templateId, surveyTemplates.id))
     .innerJoin(properties, eq(surveySubmissions.propertyId, properties.id))
     .innerJoin(surveyQuestions, eq(surveyResponses.questionId, surveyQuestions.id))
-    .innerJoin(surveyCategories, eq(surveyQuestions.categoryId, surveyCategories.id))
-    .where(
-      and(
-        eq(properties.orgId, orgId),
-        eq(surveySubmissions.status, 'submitted'),
-        gte(surveySubmissions.visitDate, cutoff)
-      )
-    )
+    .innerJoin(surveySubcategories, eq(surveyQuestions.subcategoryId, surveySubcategories.id))
+    .innerJoin(surveyCategories, eq(surveySubcategories.categoryId, surveyCategories.id))
+    .where(and(...conditions))
     .groupBy(
       surveySubmissions.propertyId,
       sql`TO_CHAR(${surveySubmissions.visitDate}::date, 'YYYY-MM')`
@@ -489,11 +652,19 @@ export async function getRecentNotes(
  */
 export async function getOrgTrends(
   orgId: string,
-  months: number = 6
+  months: number = 6,
+  surveyType?: 'internal' | 'guest'
 ): Promise<{ date: string; [key: string]: string | number }[]> {
   const cutoffDate = new Date()
   cutoffDate.setMonth(cutoffDate.getMonth() - months)
   const cutoff = cutoffDate.toISOString().split('T')[0]
+
+  const conditions = [
+    eq(properties.orgId, orgId),
+    eq(surveySubmissions.status, 'submitted'),
+    gte(surveySubmissions.visitDate, cutoff),
+    ...surveyTypeCondition(surveyType),
+  ]
 
   const results = await db
     .select({
@@ -505,7 +676,7 @@ export async function getOrgTrends(
             (
               (${surveyResponses.score}::numeric - ${surveyQuestions.scaleMin}::numeric)
               / NULLIF(${surveyQuestions.scaleMax}::numeric - ${surveyQuestions.scaleMin}::numeric, 0)
-            ) * 100.0 * ${surveyCategories.weight}::numeric
+            ) * 10.0 * ${surveyCategories.weight}::numeric
           ) / NULLIF(SUM(${surveyCategories.weight}::numeric), 0),
           0
         )
@@ -513,16 +684,12 @@ export async function getOrgTrends(
     })
     .from(surveyResponses)
     .innerJoin(surveySubmissions, eq(surveyResponses.submissionId, surveySubmissions.id))
+    .innerJoin(surveyTemplates, eq(surveySubmissions.templateId, surveyTemplates.id))
     .innerJoin(properties, eq(surveySubmissions.propertyId, properties.id))
     .innerJoin(surveyQuestions, eq(surveyResponses.questionId, surveyQuestions.id))
-    .innerJoin(surveyCategories, eq(surveyQuestions.categoryId, surveyCategories.id))
-    .where(
-      and(
-        eq(properties.orgId, orgId),
-        eq(surveySubmissions.status, 'submitted'),
-        gte(surveySubmissions.visitDate, cutoff)
-      )
-    )
+    .innerJoin(surveySubcategories, eq(surveyQuestions.subcategoryId, surveySubcategories.id))
+    .innerJoin(surveyCategories, eq(surveySubcategories.categoryId, surveyCategories.id))
+    .where(and(...conditions))
     .groupBy(
       properties.code,
       sql`TO_CHAR(${surveySubmissions.visitDate}::date, 'YYYY-MM')`

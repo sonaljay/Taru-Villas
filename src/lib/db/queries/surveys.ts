@@ -3,6 +3,7 @@ import { db } from '..'
 import {
   surveyTemplates,
   surveyCategories,
+  surveySubcategories,
   surveyQuestions,
   surveySubmissions,
   surveyResponses,
@@ -14,6 +15,7 @@ import {
   type SurveySubmission,
   type NewSurveySubmission,
   type NewSurveyCategory,
+  type NewSurveySubcategory,
   type NewSurveyQuestion,
   type NewSurveyResponse,
 } from '../schema'
@@ -25,13 +27,22 @@ import {
 /**
  * Get all active survey templates for an organization.
  */
-export async function getTemplates(orgId: string): Promise<SurveyTemplate[]> {
+export async function getTemplates(
+  orgId: string,
+  surveyType?: 'internal' | 'guest'
+): Promise<SurveyTemplate[]> {
+  const conditions = [
+    eq(surveyTemplates.orgId, orgId),
+    eq(surveyTemplates.isActive, true),
+  ]
+  if (surveyType) {
+    conditions.push(eq(surveyTemplates.surveyType, surveyType))
+  }
+
   return db
     .select()
     .from(surveyTemplates)
-    .where(
-      and(eq(surveyTemplates.orgId, orgId), eq(surveyTemplates.isActive, true))
-    )
+    .where(and(...conditions))
     .orderBy(desc(surveyTemplates.createdAt))
 }
 
@@ -39,19 +50,30 @@ export async function getTemplates(orgId: string): Promise<SurveyTemplate[]> {
  * Get all survey templates for an organization (including inactive).
  * Used in the admin templates list.
  */
-export async function getAllTemplates(orgId: string): Promise<SurveyTemplate[]> {
+export async function getAllTemplates(
+  orgId: string,
+  surveyType?: 'internal' | 'guest'
+): Promise<SurveyTemplate[]> {
+  const conditions = [eq(surveyTemplates.orgId, orgId)]
+  if (surveyType) {
+    conditions.push(eq(surveyTemplates.surveyType, surveyType))
+  }
+
   return db
     .select()
     .from(surveyTemplates)
-    .where(eq(surveyTemplates.orgId, orgId))
+    .where(and(...conditions))
     .orderBy(desc(surveyTemplates.createdAt))
 }
 
 /**
- * Get templates with their category and question counts for listing.
+ * Get templates with their category, subcategory, and question counts for listing.
  */
-export async function getTemplatesWithCounts(orgId: string) {
-  const templates = await getAllTemplates(orgId)
+export async function getTemplatesWithCounts(
+  orgId: string,
+  surveyType?: 'internal' | 'guest'
+) {
+  const templates = await getAllTemplates(orgId, surveyType)
 
   const templateIds = templates.map((t) => t.id)
   if (templateIds.length === 0) return []
@@ -62,12 +84,21 @@ export async function getTemplatesWithCounts(orgId: string) {
     .where(sql`${surveyCategories.templateId} IN ${templateIds}`)
 
   const categoryIds = categories.map((c) => c.id)
-  let questions: { categoryId: string }[] = []
+  let subcategories: { id: string; categoryId: string }[] = []
   if (categoryIds.length > 0) {
+    subcategories = await db
+      .select({ id: surveySubcategories.id, categoryId: surveySubcategories.categoryId })
+      .from(surveySubcategories)
+      .where(sql`${surveySubcategories.categoryId} IN ${categoryIds}`)
+  }
+
+  const subcategoryIds = subcategories.map((s) => s.id)
+  let questions: { subcategoryId: string }[] = []
+  if (subcategoryIds.length > 0) {
     questions = await db
-      .select({ categoryId: surveyQuestions.categoryId })
+      .select({ subcategoryId: surveyQuestions.subcategoryId })
       .from(surveyQuestions)
-      .where(sql`${surveyQuestions.categoryId} IN ${categoryIds}`)
+      .where(sql`${surveyQuestions.subcategoryId} IN ${subcategoryIds}`)
   }
 
   // Build lookup maps
@@ -78,30 +109,54 @@ export async function getTemplatesWithCounts(orgId: string) {
     categoriesByTemplate.set(cat.templateId, existing)
   }
 
-  const questionsByCategory = new Map<string, number>()
-  for (const q of questions) {
-    questionsByCategory.set(
-      q.categoryId,
-      (questionsByCategory.get(q.categoryId) ?? 0) + 1
+  const subcategoriesByCategory = new Map<string, number>()
+  for (const sub of subcategories) {
+    subcategoriesByCategory.set(
+      sub.categoryId,
+      (subcategoriesByCategory.get(sub.categoryId) ?? 0) + 1
     )
+  }
+
+  const questionsBySubcategory = new Map<string, number>()
+  for (const q of questions) {
+    questionsBySubcategory.set(
+      q.subcategoryId,
+      (questionsBySubcategory.get(q.subcategoryId) ?? 0) + 1
+    )
+  }
+
+  // Build subcategory-to-category map for question counting
+  const subcatToCat = new Map<string, string>()
+  for (const sub of subcategories) {
+    subcatToCat.set(sub.id, sub.categoryId)
   }
 
   return templates.map((template) => {
     const templateCategories = categoriesByTemplate.get(template.id) ?? []
-    const questionCount = templateCategories.reduce(
-      (sum, cat) => sum + (questionsByCategory.get(cat.id) ?? 0),
-      0
-    )
+    const catIds = new Set(templateCategories.map((c) => c.id))
+
+    let subcategoryCount = 0
+    let questionCount = 0
+
+    for (const sub of subcategories) {
+      if (catIds.has(sub.categoryId)) {
+        subcategoryCount++
+        questionCount += questionsBySubcategory.get(sub.id) ?? 0
+      }
+    }
+
     return {
       ...template,
       categoryCount: templateCategories.length,
+      subcategoryCount,
       questionCount,
     }
   })
 }
 
 /**
- * Get a template by ID including its categories and questions.
+ * Get a template by ID including its categories, subcategories, and questions.
+ * Returns a 3-level hierarchy: categories[].subcategories[].questions[]
  */
 export async function getTemplateById(id: string) {
   const template = await db
@@ -120,36 +175,57 @@ export async function getTemplateById(id: string) {
 
   const categoryIds = categories.map((c) => c.id)
 
-  let questions: (typeof surveyQuestions.$inferSelect)[] = []
+  let subcategoriesAll: (typeof surveySubcategories.$inferSelect)[] = []
   if (categoryIds.length > 0) {
+    subcategoriesAll = await db
+      .select()
+      .from(surveySubcategories)
+      .where(sql`${surveySubcategories.categoryId} IN ${categoryIds}`)
+      .orderBy(surveySubcategories.sortOrder)
+  }
+
+  const subcategoryIds = subcategoriesAll.map((s) => s.id)
+
+  let questions: (typeof surveyQuestions.$inferSelect)[] = []
+  if (subcategoryIds.length > 0) {
     questions = await db
       .select()
       .from(surveyQuestions)
-      .where(
-        sql`${surveyQuestions.categoryId} IN ${categoryIds}`
-      )
+      .where(sql`${surveyQuestions.subcategoryId} IN ${subcategoryIds}`)
       .orderBy(surveyQuestions.sortOrder)
   }
 
-  // Group questions under their categories
-  const categoriesWithQuestions = categories.map((category) => ({
-    ...category,
-    questions: questions.filter((q) => q.categoryId === category.id),
-  }))
+  // Group questions under subcategories, subcategories under categories
+  const categoriesWithHierarchy = categories.map((category) => {
+    const catSubcategories = subcategoriesAll
+      .filter((s) => s.categoryId === category.id)
+      .map((subcategory) => ({
+        ...subcategory,
+        questions: questions.filter((q) => q.subcategoryId === subcategory.id),
+      }))
+
+    return {
+      ...category,
+      subcategories: catSubcategories,
+    }
+  })
 
   return {
     ...template[0],
-    categories: categoriesWithQuestions,
+    categories: categoriesWithHierarchy,
   }
 }
 
 /**
- * Create a new template with its categories and questions in a transaction.
+ * Create a new template with its categories, subcategories, and questions in a transaction.
+ * Accepts a 3-level hierarchy: categories[].subcategories[].questions[]
  */
 export async function createTemplate(data: {
   template: NewSurveyTemplate
   categories: (Omit<NewSurveyCategory, 'templateId'> & {
-    questions: Omit<NewSurveyQuestion, 'categoryId'>[]
+    subcategories: (Omit<NewSurveySubcategory, 'categoryId'> & {
+      questions: Omit<NewSurveyQuestion, 'subcategoryId'>[]
+    })[]
   })[]
 }) {
   return db.transaction(async (tx) => {
@@ -159,22 +235,31 @@ export async function createTemplate(data: {
       .values(data.template)
       .returning()
 
-    // Insert each category and its questions
+    // Insert each category, its subcategories, and their questions
     for (const categoryData of data.categories) {
-      const { questions, ...categoryFields } = categoryData
+      const { subcategories, ...categoryFields } = categoryData
 
       const [category] = await tx
         .insert(surveyCategories)
         .values({ ...categoryFields, templateId: template.id })
         .returning()
 
-      if (questions.length > 0) {
-        await tx.insert(surveyQuestions).values(
-          questions.map((q) => ({
-            ...q,
-            categoryId: category.id,
-          }))
-        )
+      for (const subcategoryData of subcategories) {
+        const { questions, ...subcategoryFields } = subcategoryData
+
+        const [subcategory] = await tx
+          .insert(surveySubcategories)
+          .values({ ...subcategoryFields, categoryId: category.id })
+          .returning()
+
+        if (questions.length > 0) {
+          await tx.insert(surveyQuestions).values(
+            questions.map((q) => ({
+              ...q,
+              subcategoryId: subcategory.id,
+            }))
+          )
+        }
       }
     }
 
@@ -190,6 +275,7 @@ export interface SubmissionFilters {
   propertyId?: string
   userId?: string
   status?: 'draft' | 'submitted' | 'reviewed'
+  surveyType?: 'internal' | 'guest'
 }
 
 /**
@@ -209,9 +295,33 @@ export async function getSubmissions(
   if (filters.status) {
     conditions.push(eq(surveySubmissions.status, filters.status))
   }
+  if (filters.surveyType) {
+    conditions.push(eq(surveyTemplates.surveyType, filters.surveyType))
+  }
 
   const whereClause =
     conditions.length > 0 ? and(...conditions) : undefined
+
+  if (filters.surveyType) {
+    return db
+      .select({
+        id: surveySubmissions.id,
+        templateId: surveySubmissions.templateId,
+        propertyId: surveySubmissions.propertyId,
+        submittedBy: surveySubmissions.submittedBy,
+        status: surveySubmissions.status,
+        visitDate: surveySubmissions.visitDate,
+        notes: surveySubmissions.notes,
+        slug: surveySubmissions.slug,
+        submittedAt: surveySubmissions.submittedAt,
+        createdAt: surveySubmissions.createdAt,
+        updatedAt: surveySubmissions.updatedAt,
+      })
+      .from(surveySubmissions)
+      .innerJoin(surveyTemplates, eq(surveySubmissions.templateId, surveyTemplates.id))
+      .where(whereClause)
+      .orderBy(desc(surveySubmissions.createdAt))
+  }
 
   return db
     .select()
@@ -238,6 +348,9 @@ export async function getSubmissionsWithDetails(
   if (filters.status) {
     conditions.push(eq(surveySubmissions.status, filters.status))
   }
+  if (filters.surveyType) {
+    conditions.push(eq(surveyTemplates.surveyType, filters.surveyType))
+  }
 
   const whereClause =
     conditions.length > 0 ? and(...conditions) : undefined
@@ -258,6 +371,7 @@ export async function getSubmissionsWithDetails(
       propertyName: properties.name,
       templateName: surveyTemplates.name,
       submitterName: profiles.fullName,
+      surveyType: surveyTemplates.surveyType,
     })
     .from(surveySubmissions)
     .innerJoin(properties, eq(surveySubmissions.propertyId, properties.id))
@@ -272,7 +386,10 @@ export async function getSubmissionsWithDetails(
 /**
  * Get submissions for properties assigned to a user (non-admin).
  */
-export async function getSubmissionsForUser(userId: string) {
+export async function getSubmissionsForUser(
+  userId: string,
+  surveyType?: 'internal' | 'guest'
+) {
   // Get all property IDs the user has access to
   const assignments = await db
     .select({ propertyId: propertyAssignments.propertyId })
@@ -283,10 +400,17 @@ export async function getSubmissionsForUser(userId: string) {
 
   if (propertyIds.length === 0) {
     // Only get the user's own submissions
-    return getSubmissionsWithDetails({ userId })
+    return getSubmissionsWithDetails({ userId, surveyType })
   }
 
   // Get submissions by the user OR for their assigned properties
+  const conditions = [
+    sql`(${surveySubmissions.submittedBy} = ${userId} OR ${surveySubmissions.propertyId} IN ${propertyIds})`,
+  ]
+  if (surveyType) {
+    conditions.push(sql`${surveyTemplates.surveyType} = ${surveyType}`)
+  }
+
   const rows = await db
     .select({
       id: surveySubmissions.id,
@@ -303,14 +427,13 @@ export async function getSubmissionsForUser(userId: string) {
       propertyName: properties.name,
       templateName: surveyTemplates.name,
       submitterName: profiles.fullName,
+      surveyType: surveyTemplates.surveyType,
     })
     .from(surveySubmissions)
     .innerJoin(properties, eq(surveySubmissions.propertyId, properties.id))
     .innerJoin(surveyTemplates, eq(surveySubmissions.templateId, surveyTemplates.id))
     .innerJoin(profiles, eq(surveySubmissions.submittedBy, profiles.id))
-    .where(
-      sql`(${surveySubmissions.submittedBy} = ${userId} OR ${surveySubmissions.propertyId} IN ${propertyIds})`
-    )
+    .where(and(...conditions))
     .orderBy(desc(surveySubmissions.createdAt))
 
   return rows
@@ -497,12 +620,13 @@ export async function updateSubmission(
 /**
  * Permanently delete a template and all associated data.
  * Deletion order respects FK constraints:
- * 1. Unlink child template versions (parentId → null)
+ * 1. Unlink child template versions (parentId -> null)
  * 2. Delete survey responses for submissions using this template
  * 3. Delete survey submissions for this template
- * 4. Delete survey questions for each category
- * 5. Delete survey categories
- * 6. Delete the template itself
+ * 4. Delete survey questions for each subcategory
+ * 5. Delete survey subcategories for each category
+ * 6. Delete survey categories
+ * 7. Delete the template itself
  */
 export async function deleteTemplate(id: string): Promise<void> {
   await db.transaction(async (tx) => {
@@ -517,7 +641,7 @@ export async function deleteTemplate(id: string): Promise<void> {
       .delete(surveySubmissions)
       .where(eq(surveySubmissions.templateId, id))
 
-    // 3. Get category IDs, then delete their questions
+    // 3. Get category IDs
     const cats = await tx
       .select({ id: surveyCategories.id })
       .from(surveyCategories)
@@ -525,17 +649,32 @@ export async function deleteTemplate(id: string): Promise<void> {
 
     const catIds = cats.map((c) => c.id)
     if (catIds.length > 0) {
+      // 4. Get subcategory IDs for these categories
+      const subs = await tx
+        .select({ id: surveySubcategories.id })
+        .from(surveySubcategories)
+        .where(sql`${surveySubcategories.categoryId} IN ${catIds}`)
+
+      const subIds = subs.map((s) => s.id)
+      if (subIds.length > 0) {
+        // 5. Delete questions for these subcategories
+        await tx
+          .delete(surveyQuestions)
+          .where(sql`${surveyQuestions.subcategoryId} IN ${subIds}`)
+      }
+
+      // 6. Delete subcategories
       await tx
-        .delete(surveyQuestions)
-        .where(sql`${surveyQuestions.categoryId} IN ${catIds}`)
+        .delete(surveySubcategories)
+        .where(sql`${surveySubcategories.categoryId} IN ${catIds}`)
     }
 
-    // 4. Delete categories
+    // 7. Delete categories
     await tx
       .delete(surveyCategories)
       .where(eq(surveyCategories.templateId, id))
 
-    // 5. Delete the template
+    // 8. Delete the template
     await tx.delete(surveyTemplates).where(eq(surveyTemplates.id, id))
   })
 }

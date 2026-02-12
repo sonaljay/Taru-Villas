@@ -174,9 +174,19 @@ async function seed() {
       })
       .returning()
 
+    // Create a default subcategory for each category
+    const [subcategory] = await db
+      .insert(schema.surveySubcategories)
+      .values({
+        categoryId: category.id,
+        name: cat.name,
+        sortOrder: 0,
+      })
+      .returning()
+
     await db.insert(schema.surveyQuestions).values(
       cat.questions.map((q) => ({
-        categoryId: category.id,
+        subcategoryId: subcategory.id,
         text: q.text,
         scaleMin: 1,
         scaleMax: 10,

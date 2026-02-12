@@ -22,12 +22,19 @@ interface Question {
   sortOrder: number
 }
 
+interface Subcategory {
+  id: string
+  name: string
+  sortOrder: number
+  questions: Question[]
+}
+
 interface Category {
   id: string
   name: string
   weight: string
   sortOrder: number
-  questions: Question[]
+  subcategories: Subcategory[]
 }
 
 interface Response {
@@ -63,6 +70,18 @@ function getBarWidth(score: number, min: number, max: number): number {
   return ((score - min) / (max - min)) * 100
 }
 
+function getNormalizedScoreColor(score: number): string {
+  if (score > 7) return 'text-emerald-600'
+  if (score >= 5) return 'text-amber-600'
+  return 'text-red-600'
+}
+
+function getNormalizedBarColor(score: number): string {
+  if (score > 7) return 'bg-emerald-500'
+  if (score >= 5) return 'bg-amber-500'
+  return 'bg-red-500'
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -73,42 +92,59 @@ export function SurveyScoreDisplay({
 }: SurveyScoreDisplayProps) {
   const responseMap = new Map(responses.map((r) => [r.questionId, r]))
 
-  // Calculate category averages and overall weighted average
+  // Calculate scores through 3 levels: questions -> subcategory avg -> category weighted avg -> overall
   const categoryScores = categories
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .map((category) => {
-      const questions = category.questions.sort(
-        (a, b) => a.sortOrder - b.sortOrder
-      )
       const weight = parseFloat(category.weight) || 1
 
-      let totalNormalized = 0
-      let answeredCount = 0
+      const subcategoryScores = (category.subcategories ?? [])
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((subcategory) => {
+          const questions = subcategory.questions.sort(
+            (a, b) => a.sortOrder - b.sortOrder
+          )
 
-      const questionScores = questions.map((question) => {
-        const response = responseMap.get(question.id)
-        if (response) {
-          const normalized =
-            ((response.score - question.scaleMin) /
-              (question.scaleMax - question.scaleMin)) *
-            10
-          totalNormalized += normalized
-          answeredCount++
-        }
-        return {
-          question,
-          response,
-        }
-      })
+          let totalNormalized = 0
+          let answeredCount = 0
 
-      const average = answeredCount > 0 ? totalNormalized / answeredCount : 0
+          const questionScores = questions.map((question) => {
+            const response = responseMap.get(question.id)
+            if (response) {
+              const range = question.scaleMax - question.scaleMin
+              const normalized = range > 0
+                ? ((response.score - question.scaleMin) / range) * 10
+                : 5
+              totalNormalized += normalized
+              answeredCount++
+            }
+            return { question, response }
+          })
+
+          const average = answeredCount > 0 ? totalNormalized / answeredCount : 0
+
+          return {
+            subcategory,
+            average,
+            answeredCount,
+            questionScores,
+          }
+        })
+
+      // Category average = mean of subcategory averages (equally weighted subcategories)
+      const subcatsWithData = subcategoryScores.filter((s) => s.answeredCount > 0)
+      const categoryAverage =
+        subcatsWithData.length > 0
+          ? subcatsWithData.reduce((sum, s) => sum + s.average, 0) / subcatsWithData.length
+          : 0
+      const totalAnswered = subcategoryScores.reduce((sum, s) => sum + s.answeredCount, 0)
 
       return {
         category,
         weight,
-        average,
-        answeredCount,
-        questionScores,
+        average: categoryAverage,
+        answeredCount: totalAnswered,
+        subcategoryScores,
       }
     })
 
@@ -178,11 +214,7 @@ export function SurveyScoreDisplay({
                   <span
                     className={`font-bold tabular-nums ${
                       answeredCount > 0
-                        ? average > 7
-                          ? 'text-emerald-600'
-                          : average >= 5
-                            ? 'text-amber-600'
-                            : 'text-red-600'
+                        ? getNormalizedScoreColor(average)
                         : 'text-muted-foreground'
                     }`}
                   >
@@ -192,13 +224,7 @@ export function SurveyScoreDisplay({
               </div>
               <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all ${
-                    average > 7
-                      ? 'bg-emerald-500'
-                      : average >= 5
-                        ? 'bg-amber-500'
-                        : 'bg-red-500'
-                  }`}
+                  className={`h-full rounded-full transition-all ${getNormalizedBarColor(average)}`}
                   style={{
                     width: answeredCount > 0 ? `${(average / 10) * 100}%` : '0%',
                   }}
@@ -209,65 +235,94 @@ export function SurveyScoreDisplay({
         </CardContent>
       </Card>
 
-      {/* Detailed question scores */}
-      {categoryScores.map(({ category, questionScores }) => (
+      {/* Detailed scores: Category -> Subcategory -> Questions */}
+      {categoryScores.map(({ category, subcategoryScores }) => (
         <Card key={category.id} className="print:break-inside-avoid">
           <CardHeader>
             <CardTitle>{category.name}</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-5">
-            {questionScores.map(({ question, response }, index) => (
-              <div key={question.id}>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <p className="text-sm">{question.text}</p>
-                    {question.description && (
-                      <p className="text-xs text-muted-foreground mt-0.5">{question.description}</p>
-                    )}
-                  </div>
-                  {response ? (
+          <CardContent className="space-y-6">
+            {subcategoryScores.map(({ subcategory, average, answeredCount, questionScores }, subIdx) => (
+              <div key={subcategory.id}>
+                {/* Subcategory header — only shown for named subcategories */}
+                {subcategory.name && (
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-muted-foreground">
+                      {subcategory.name}
+                    </h4>
                     <span
-                      className={`text-lg font-bold tabular-nums min-w-[3ch] text-right ${getScoreTextColor(response.score, question.scaleMin, question.scaleMax)}`}
+                      className={`text-sm font-bold tabular-nums ${
+                        answeredCount > 0
+                          ? getNormalizedScoreColor(average)
+                          : 'text-muted-foreground'
+                      }`}
                     >
-                      {response.score}
+                      {answeredCount > 0 ? average.toFixed(1) : 'N/A'}
                     </span>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">
-                      Not answered
-                    </span>
-                  )}
+                  </div>
+                )}
+
+                {/* Questions within subcategory */}
+                <div className={subcategory.name ? "ml-3 border-l-2 border-muted pl-4 space-y-5" : "space-y-5"}>
+                  {questionScores.map(({ question, response }, qIdx) => (
+                    <div key={question.id}>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <p className="text-sm">{question.text}</p>
+                          {question.description && (
+                            <p className="text-xs text-muted-foreground mt-0.5">{question.description}</p>
+                          )}
+                        </div>
+                        {response ? (
+                          <span
+                            className={`text-lg font-bold tabular-nums min-w-[3ch] text-right ${getScoreTextColor(response.score, question.scaleMin, question.scaleMax)}`}
+                          >
+                            {response.score}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">
+                            Not answered
+                          </span>
+                        )}
+                      </div>
+
+                      {response && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground tabular-nums w-4">
+                            {question.scaleMin}
+                          </span>
+                          <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${getScoreColor(response.score, question.scaleMin, question.scaleMax)}`}
+                              style={{
+                                width: `${getBarWidth(response.score, question.scaleMin, question.scaleMax)}%`,
+                              }}
+                            />
+                          </div>
+                          <span className="text-xs text-muted-foreground tabular-nums w-4 text-right">
+                            {question.scaleMax}
+                          </span>
+                        </div>
+                      )}
+
+                      {response?.note && (
+                        <div className="mt-2 rounded-md bg-muted/50 px-3 py-2">
+                          <p className="text-xs text-muted-foreground font-medium mb-0.5">
+                            Note
+                          </p>
+                          <p className="text-sm">{response.note}</p>
+                        </div>
+                      )}
+
+                      {qIdx < questionScores.length - 1 && (
+                        <Separator className="mt-4" />
+                      )}
+                    </div>
+                  ))}
                 </div>
 
-                {response && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground tabular-nums w-4">
-                      {question.scaleMin}
-                    </span>
-                    <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${getScoreColor(response.score, question.scaleMin, question.scaleMax)}`}
-                        style={{
-                          width: `${getBarWidth(response.score, question.scaleMin, question.scaleMax)}%`,
-                        }}
-                      />
-                    </div>
-                    <span className="text-xs text-muted-foreground tabular-nums w-4 text-right">
-                      {question.scaleMax}
-                    </span>
-                  </div>
-                )}
-
-                {response?.note && (
-                  <div className="mt-2 rounded-md bg-muted/50 px-3 py-2">
-                    <p className="text-xs text-muted-foreground font-medium mb-0.5">
-                      Note
-                    </p>
-                    <p className="text-sm">{response.note}</p>
-                  </div>
-                )}
-
-                {index < questionScores.length - 1 && (
-                  <Separator className="mt-4" />
+                {subIdx < subcategoryScores.length - 1 && (
+                  <Separator className="mt-5" />
                 )}
               </div>
             ))}

@@ -36,12 +36,19 @@ const CHART_COLORS = [
 // Page Component (Server)
 // ---------------------------------------------------------------------------
 
-export default async function DashboardPage() {
+interface DashboardPageProps {
+  searchParams: Promise<{ surveyType?: string }>
+}
+
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const profile = await requireAuth()
 
   if (!profile) {
     return null
   }
+
+  const params = await searchParams
+  const surveyType = (params.surveyType as 'internal' | 'guest') || undefined
 
   const orgId = profile.orgId
   const isAdmin = profile.role === 'admin'
@@ -49,11 +56,11 @@ export default async function DashboardPage() {
   // Fetch real data in parallel
   const [scores, surveysCount, lastDates, sparklines, trendData, allProperties] =
     await Promise.all([
-      getAllPropertyScores(orgId),
-      getSurveysThisMonth(orgId),
-      getLastSurveyDates(orgId),
-      getSparklines(orgId),
-      getOrgTrends(orgId, 6),
+      getAllPropertyScores(orgId, undefined, surveyType),
+      getSurveysThisMonth(orgId, surveyType),
+      getLastSurveyDates(orgId, surveyType),
+      getSparklines(orgId, undefined, surveyType),
+      getOrgTrends(orgId, 6, surveyType),
       isAdmin ? getProperties(orgId) : getPropertiesForUser(profile.id),
     ])
 
@@ -138,6 +145,7 @@ export default async function DashboardPage() {
       stats={stats}
       trendData={trendData}
       trendLines={trendLines}
+      surveyType={surveyType ?? 'internal'}
     />
   )
 }

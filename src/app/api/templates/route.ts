@@ -16,17 +16,25 @@ const questionSchema = z.object({
   sortOrder: z.number().int().min(0),
 })
 
+const subcategorySchema = z.object({
+  name: z.string().default(''),
+  description: z.string().optional(),
+  sortOrder: z.number().int().min(0),
+  questions: z.array(questionSchema).min(1, 'Each sub-category must have at least one question'),
+})
+
 const categorySchema = z.object({
   name: z.string().min(1, 'Category name is required'),
   description: z.string().optional(),
   weight: z.string().default('1.0'),
   sortOrder: z.number().int().min(0),
-  questions: z.array(questionSchema).min(1, 'Each category must have at least one question'),
+  subcategories: z.array(subcategorySchema).min(1, 'Each category must have at least one sub-category'),
 })
 
 const createTemplateSchema = z.object({
   name: z.string().min(1, 'Template name is required').max(255),
   description: z.string().max(1000).optional(),
+  surveyType: z.enum(['internal', 'guest']).default('internal'),
   categories: z.array(categorySchema).min(1, 'At least one category is required'),
 })
 
@@ -34,7 +42,7 @@ const createTemplateSchema = z.object({
 // GET /api/templates
 // ---------------------------------------------------------------------------
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const profile = await getProfile()
     if (!profile) {
@@ -44,7 +52,13 @@ export async function GET() {
       return NextResponse.json({ error: 'Account is inactive' }, { status: 403 })
     }
 
-    const templates = await getTemplates(profile.orgId)
+    const { searchParams } = new URL(request.url)
+    const surveyType = searchParams.get('surveyType') as 'internal' | 'guest' | null
+
+    const templates = await getTemplates(
+      profile.orgId,
+      surveyType || undefined
+    )
 
     return NextResponse.json(templates)
   } catch (error) {
@@ -82,13 +96,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { name, description, categories } = parsed.data
+    const { name, description, surveyType, categories } = parsed.data
 
     const template = await createTemplate({
       template: {
         orgId: profile.orgId,
         name,
         description: description ?? null,
+        surveyType,
         createdBy: profile.id,
       },
       categories: categories.map((cat) => ({
@@ -96,13 +111,18 @@ export async function POST(request: NextRequest) {
         description: cat.description ?? null,
         weight: cat.weight,
         sortOrder: cat.sortOrder,
-        questions: cat.questions.map((q) => ({
-          text: q.text,
-          description: q.description ?? null,
-          scaleMin: q.scaleMin,
-          scaleMax: q.scaleMax,
-          isRequired: q.isRequired,
-          sortOrder: q.sortOrder,
+        subcategories: cat.subcategories.map((sub) => ({
+          name: sub.name,
+          description: sub.description ?? null,
+          sortOrder: sub.sortOrder,
+          questions: sub.questions.map((q) => ({
+            text: q.text,
+            description: q.description ?? null,
+            scaleMin: q.scaleMin,
+            scaleMax: q.scaleMax,
+            isRequired: q.isRequired,
+            sortOrder: q.sortOrder,
+          })),
         })),
       })),
     })

@@ -24,12 +24,19 @@ const questionSchema = z.object({
   sortOrder: z.number().int().min(0),
 })
 
+const subcategorySchema = z.object({
+  name: z.string().default(''),
+  description: z.string().optional(),
+  sortOrder: z.number().int().min(0),
+  questions: z.array(questionSchema).min(1),
+})
+
 const categorySchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   weight: z.string().default('1.0'),
   sortOrder: z.number().int().min(0),
-  questions: z.array(questionSchema).min(1),
+  subcategories: z.array(subcategorySchema).min(1),
 })
 
 const updateTemplateSchema = z.object({
@@ -135,6 +142,7 @@ export async function PATCH(
           description: description !== undefined ? description : existing.description,
           version: existing.version + 1,
           parentId: id,
+          surveyType: existing.surveyType,
           createdBy: profile.id,
         },
         categories: categories.map((cat) => ({
@@ -142,13 +150,18 @@ export async function PATCH(
           description: cat.description ?? null,
           weight: cat.weight,
           sortOrder: cat.sortOrder,
-          questions: cat.questions.map((q) => ({
-            text: q.text,
-            description: q.description ?? null,
-            scaleMin: q.scaleMin,
-            scaleMax: q.scaleMax,
-            isRequired: q.isRequired,
-            sortOrder: q.sortOrder,
+          subcategories: cat.subcategories.map((sub) => ({
+            name: sub.name,
+            description: sub.description ?? null,
+            sortOrder: sub.sortOrder,
+            questions: sub.questions.map((q) => ({
+              text: q.text,
+              description: q.description ?? null,
+              scaleMin: q.scaleMin,
+              scaleMax: q.scaleMax,
+              isRequired: q.isRequired,
+              sortOrder: q.sortOrder,
+            })),
           })),
         })),
       })
@@ -168,10 +181,6 @@ export async function PATCH(
         .where(eq(surveyTemplates.id, id))
     }
 
-    // If categories were provided and there are no submissions, we could
-    // rebuild the categories, but for safety we only update template metadata
-    // in place. Full category restructuring requires a new version.
-
     const updated = await getTemplateById(id)
 
     return NextResponse.json(updated)
@@ -186,8 +195,8 @@ export async function PATCH(
 
 // ---------------------------------------------------------------------------
 // DELETE /api/templates/[id]
-// ?hard=true → permanent delete (removes template + categories + questions + submissions)
-// default   → soft delete (set is_active = false)
+// ?hard=true -> permanent delete (removes template + categories + questions + submissions)
+// default   -> soft delete (set is_active = false)
 // ---------------------------------------------------------------------------
 
 export async function DELETE(

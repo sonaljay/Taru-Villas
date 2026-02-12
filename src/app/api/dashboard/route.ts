@@ -4,6 +4,7 @@ import {
   getPropertyScores,
   getAllPropertyScores,
   getCategoryBreakdown,
+  getSubcategoryBreakdown,
   getTrends,
   type DateRange,
 } from '@/lib/db/queries/dashboard'
@@ -32,6 +33,7 @@ function parseDateRange(
 //   dateFrom    = ISO date string (optional)
 //   dateTo      = ISO date string (optional)
 //   months      = number (optional, for type=trends, default 12)
+//   surveyType  = internal | guest (optional)
 // ---------------------------------------------------------------------------
 
 export async function GET(request: NextRequest) {
@@ -50,20 +52,22 @@ export async function GET(request: NextRequest) {
     const dateFrom = searchParams.get('dateFrom')
     const dateTo = searchParams.get('dateTo')
     const monthsParam = searchParams.get('months')
+    const surveyType = searchParams.get('surveyType') as 'internal' | 'guest' | null
 
     const dateRange = parseDateRange(dateFrom, dateTo)
+    const st = surveyType || undefined
 
     switch (type) {
       // -----------------------------------------------------------------------
       // Overview: score cards for all properties
       // -----------------------------------------------------------------------
       case 'overview': {
-        const scores = await getAllPropertyScores(profile.orgId, dateRange)
+        const scores = await getAllPropertyScores(profile.orgId, dateRange, st)
         return NextResponse.json({ type: 'overview', data: scores })
       }
 
       // -----------------------------------------------------------------------
-      // Property: detailed scores + category breakdown for a single property
+      // Property: detailed scores + category + subcategory breakdown
       // -----------------------------------------------------------------------
       case 'property': {
         if (!propertyId) {
@@ -82,14 +86,15 @@ export async function GET(request: NextRequest) {
           )
         }
 
-        const [scores, categories] = await Promise.all([
-          getPropertyScores(propertyId, dateRange),
-          getCategoryBreakdown(propertyId, dateRange),
+        const [scores, categories, subcategories] = await Promise.all([
+          getPropertyScores(propertyId, dateRange, st),
+          getCategoryBreakdown(propertyId, dateRange, st),
+          getSubcategoryBreakdown(propertyId, dateRange, st),
         ])
 
         return NextResponse.json({
           type: 'property',
-          data: { scores, categories },
+          data: { scores, categories, subcategories },
         })
       }
 
@@ -121,7 +126,7 @@ export async function GET(request: NextRequest) {
           )
         }
 
-        const trends = await getTrends(propertyId, months)
+        const trends = await getTrends(propertyId, months, st)
 
         return NextResponse.json({ type: 'trends', data: trends })
       }
@@ -130,12 +135,12 @@ export async function GET(request: NextRequest) {
       // Comparison: all property scores with category breakdown
       // -----------------------------------------------------------------------
       case 'comparison': {
-        const allScores = await getAllPropertyScores(profile.orgId, dateRange)
+        const allScores = await getAllPropertyScores(profile.orgId, dateRange, st)
 
         // For each property, get category breakdown
         const comparison = await Promise.all(
           allScores.map(async (prop) => {
-            const categories = await getCategoryBreakdown(prop.propertyId, dateRange)
+            const categories = await getCategoryBreakdown(prop.propertyId, dateRange, st)
             return {
               ...prop,
               categories,

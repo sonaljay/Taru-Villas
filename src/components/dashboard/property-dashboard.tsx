@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -16,6 +17,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { DateFilter } from './date-filter'
 import { ScoreCard, getScoreColor } from './score-card'
@@ -39,12 +41,20 @@ export interface PropertyInfo {
   submissionCount: number
 }
 
+export interface SubcategoryScoreData {
+  subcategoryId: string
+  subcategoryName: string
+  score: number
+  trend: number
+}
+
 export interface CategoryScoreData {
   categoryId: string
   categoryName: string
   score: number
   weight: number
   trend: number // positive = improving
+  subcategories: SubcategoryScoreData[]
 }
 
 export interface PropertyTrendPoint {
@@ -58,6 +68,7 @@ interface PropertyDashboardProps {
   categories: CategoryScoreData[]
   trendData: PropertyTrendPoint[]
   notes: NoteItem[]
+  surveyType: 'internal' | 'guest'
 }
 
 // ---------------------------------------------------------------------------
@@ -98,21 +109,63 @@ function CategoryCard({ category }: { category: CategoryScoreData }) {
         <div className="mt-3">
           <div className="flex items-baseline gap-1.5">
             <span className={cn('text-3xl font-bold tabular-nums', scoreColor)}>
-              {category.score.toFixed(0)}
+              {category.score.toFixed(1)}
             </span>
-            <span className="text-sm text-muted-foreground">/100</span>
+            <span className="text-sm text-muted-foreground">/10</span>
           </div>
           <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
             <div
               className={cn(
                 'h-full rounded-full transition-all duration-500',
-                category.score >= 80 && 'bg-emerald-500',
-                category.score >= 60 && category.score < 80 && 'bg-amber-500',
-                category.score < 60 && 'bg-red-500'
+                category.score >= 8 && 'bg-emerald-500',
+                category.score >= 6 && category.score < 8 && 'bg-amber-500',
+                category.score < 6 && 'bg-red-500'
               )}
-              style={{ width: `${Math.min(100, Math.max(0, category.score))}%` }}
+              style={{ width: `${Math.min(100, Math.max(0, (category.score / 10) * 100))}%` }}
             />
           </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Subcategory Score Card (mini)
+// ---------------------------------------------------------------------------
+
+function SubcategoryCard({
+  subcategory,
+  categoryName,
+}: {
+  subcategory: SubcategoryScoreData
+  categoryName: string
+}) {
+  const scoreColor = getScoreColor(subcategory.score)
+
+  return (
+    <Card>
+      <CardContent className="pt-0">
+        <p className="text-xs text-muted-foreground truncate">{categoryName}</p>
+        <p className="text-sm font-semibold truncate mt-0.5">
+          {subcategory.subcategoryName}
+        </p>
+        <div className="mt-2 flex items-baseline gap-1">
+          <span className={cn('text-2xl font-bold tabular-nums', scoreColor)}>
+            {subcategory.score.toFixed(1)}
+          </span>
+          <span className="text-xs text-muted-foreground">/10</span>
+        </div>
+        <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className={cn(
+              'h-full rounded-full transition-all duration-500',
+              subcategory.score >= 8 && 'bg-emerald-500',
+              subcategory.score >= 6 && subcategory.score < 8 && 'bg-amber-500',
+              subcategory.score < 6 && 'bg-red-500'
+            )}
+            style={{ width: `${Math.min(100, Math.max(0, (subcategory.score / 10) * 100))}%` }}
+          />
         </div>
       </CardContent>
     </Card>
@@ -128,7 +181,9 @@ export function PropertyDashboard({
   categories,
   trendData,
   notes,
+  surveyType,
 }: PropertyDashboardProps) {
+  const router = useRouter()
   const [, setDateRange] = useState<{ from: Date; to: Date }>({
     from: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000),
     to: new Date(),
@@ -141,11 +196,26 @@ export function PropertyDashboard({
     []
   )
 
+  function handleSurveyTypeChange(type: string) {
+    if (type === 'internal') {
+      router.push(`/dashboard/${property.id}`)
+    } else {
+      router.push(`/dashboard/${property.id}?surveyType=${type}`)
+    }
+  }
+
+  // Flatten all subcategories for the subcategory grid (skip transparent ones with empty names)
+  const allSubcategories = categories.flatMap((cat) =>
+    cat.subcategories
+      .filter((sub) => sub.subcategoryName)
+      .map((sub) => ({ ...sub, categoryName: cat.categoryName }))
+  )
+
   // Prepare radar data
   const radarData = categories.map((c) => ({
     category: c.categoryName,
     score: c.score,
-    fullMark: 100,
+    fullMark: 10,
   }))
 
   // Prepare trend lines config
@@ -219,7 +289,7 @@ export function PropertyDashboard({
                   getScoreColor(property.overallScore)
                 )}
               >
-                {property.overallScore.toFixed(0)}
+                {property.overallScore.toFixed(1)}
               </p>
               <div
                 className={cn(
@@ -240,7 +310,13 @@ export function PropertyDashboard({
           </Card>
         </div>
 
-        <div className="mt-4">
+        <div className="mt-4 flex items-center gap-3">
+          <Tabs value={surveyType} onValueChange={handleSurveyTypeChange}>
+            <TabsList>
+              <TabsTrigger value="internal">Internal</TabsTrigger>
+              <TabsTrigger value="guest">Guest</TabsTrigger>
+            </TabsList>
+          </Tabs>
           <DateFilter onChange={handleDateChange} />
         </div>
       </div>
@@ -257,14 +333,30 @@ export function PropertyDashboard({
         </div>
       </div>
 
-      {/* Row 2: Radar chart */}
+      {/* Row 2: Subcategory score cards */}
+      {allSubcategories.length > 0 && (
+        <div>
+          <h2 className="mb-4 text-lg font-semibold">Sub-category Scores</h2>
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+            {allSubcategories.map((sub) => (
+              <SubcategoryCard
+                key={sub.subcategoryId}
+                subcategory={sub}
+                categoryName={sub.categoryName}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Row 3: Radar chart */}
       <CategoryRadar
         title="Category Overview"
         data={radarData}
         height={380}
       />
 
-      {/* Row 3: Trend over time */}
+      {/* Row 4: Trend over time */}
       <TrendChart
         title="Score Trend Over Time"
         data={trendData}
@@ -272,7 +364,7 @@ export function PropertyDashboard({
         height={380}
       />
 
-      {/* Row 4: Recent notes */}
+      {/* Row 5: Recent notes */}
       <NotesFeed
         title="Recent Survey Notes"
         notes={notes}

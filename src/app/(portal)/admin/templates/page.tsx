@@ -98,9 +98,14 @@ export default async function TemplatesPage() {
                 </div>
               </CardContent>
               <CardFooter className="justify-between border-t pt-4">
-                <Badge variant={template.isActive ? 'default' : 'secondary'}>
-                  {template.isActive ? 'Active' : 'Inactive'}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant={template.isActive ? 'default' : 'secondary'}>
+                    {template.isActive ? 'Active' : 'Inactive'}
+                  </Badge>
+                  <Badge variant="outline" className="capitalize">
+                    {template.surveyType}
+                  </Badge>
+                </div>
                 <Button variant="outline" size="sm" asChild>
                   <Link href={`/admin/templates/${template.id}`}>Edit</Link>
                 </Button>

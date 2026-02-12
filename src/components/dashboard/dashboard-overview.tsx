@@ -20,6 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { DateFilter } from './date-filter'
 import { TrendChart } from './trend-chart'
@@ -58,6 +59,7 @@ interface DashboardOverviewProps {
   stats: OverviewStats
   trendData: TrendDataPoint[]
   trendLines: Array<{ key: string; label: string; color: string }>
+  surveyType: 'internal' | 'guest'
 }
 
 // ---------------------------------------------------------------------------
@@ -217,6 +219,7 @@ export function DashboardOverview({
   stats,
   trendData,
   trendLines,
+  surveyType,
 }: DashboardOverviewProps) {
   const router = useRouter()
   const [, setDateRange] = useState<{ from: Date; to: Date }>({
@@ -227,11 +230,17 @@ export function DashboardOverview({
   const handleDateChange = useCallback(
     (range: { from: Date; to: Date }) => {
       setDateRange(range)
-      // In production, this would re-fetch data from the server.
-      // For now with mock data, we simply store the range.
     },
     []
   )
+
+  function handleSurveyTypeChange(type: string) {
+    if (type === 'internal') {
+      router.push('/dashboard')
+    } else {
+      router.push(`/dashboard?surveyType=${type}`)
+    }
+  }
 
   const comparisonData = properties.map((p) => ({
     name: p.propertyName.replace('Taru Villas - ', ''),
@@ -248,7 +257,15 @@ export function DashboardOverview({
             Quality scores overview across all properties
           </p>
         </div>
-        <DateFilter onChange={handleDateChange} />
+        <div className="flex items-center gap-3">
+          <Tabs value={surveyType} onValueChange={handleSurveyTypeChange}>
+            <TabsList>
+              <TabsTrigger value="internal">Internal</TabsTrigger>
+              <TabsTrigger value="guest">Guest</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <DateFilter onChange={handleDateChange} />
+        </div>
       </div>
 
       {/* Row 1: Summary stats */}
@@ -289,7 +306,9 @@ export function DashboardOverview({
               key={property.propertyId}
               property={property}
               onClick={() =>
-                router.push(`/dashboard/${property.propertyId}`)
+                router.push(
+                  `/dashboard/${property.propertyId}${surveyType !== 'internal' ? `?surveyType=${surveyType}` : ''}`
+                )
               }
             />
           ))}

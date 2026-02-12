@@ -14,14 +14,14 @@ interface ScoreCardProps {
 }
 
 function getScoreColor(score: number): string {
-  if (score >= 80) return 'text-emerald-600 dark:text-emerald-400'
-  if (score >= 60) return 'text-amber-600 dark:text-amber-400'
+  if (score >= 8) return 'text-emerald-600 dark:text-emerald-400'
+  if (score >= 6) return 'text-amber-600 dark:text-amber-400'
   return 'text-red-600 dark:text-red-400'
 }
 
 function getScoreBgColor(score: number): string {
-  if (score >= 80) return 'bg-emerald-50 dark:bg-emerald-950/30'
-  if (score >= 60) return 'bg-amber-50 dark:bg-amber-950/30'
+  if (score >= 8) return 'bg-emerald-50 dark:bg-emerald-950/30'
+  if (score >= 6) return 'bg-amber-50 dark:bg-amber-950/30'
   return 'bg-red-50 dark:bg-red-950/30'
 }
 
@@ -84,19 +84,19 @@ export function ScoreCard({
               getScoreColor(score)
             )}
           >
-            {score.toFixed(0)}
+            {score.toFixed(1)}
           </span>
-          <span className="text-sm text-muted-foreground">/100</span>
+          <span className="text-sm text-muted-foreground">/10</span>
         </div>
         <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
           <div
             className={cn(
               'h-full rounded-full transition-all duration-500',
-              score >= 80 && 'bg-emerald-500',
-              score >= 60 && score < 80 && 'bg-amber-500',
-              score < 60 && 'bg-red-500'
+              score >= 8 && 'bg-emerald-500',
+              score >= 6 && score < 8 && 'bg-amber-500',
+              score < 6 && 'bg-red-500'
             )}
-            style={{ width: `${Math.min(100, Math.max(0, score))}%` }}
+            style={{ width: `${Math.min(100, Math.max(0, (score / 10) * 100))}%` }}
           />
         </div>
       </CardContent>

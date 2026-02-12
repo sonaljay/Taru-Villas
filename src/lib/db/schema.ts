@@ -37,6 +37,8 @@ export const submissionStatusEnum = pgEnum('submission_status', [
   'reviewed',
 ])
 
+export const surveyTypeEnum = pgEnum('survey_type', ['internal', 'guest'])
+
 // ---------------------------------------------------------------------------
 // Organizations
 // ---------------------------------------------------------------------------
@@ -161,6 +163,7 @@ export const surveyTemplates = pgTable('survey_templates', {
   version: integer('version').default(1).notNull(),
   isActive: boolean('is_active').default(true).notNull(),
   parentId: uuid('parent_id'),
+  surveyType: surveyTypeEnum('survey_type').default('internal').notNull(),
   createdBy: uuid('created_by')
     .references(() => profiles.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -209,6 +212,31 @@ export const surveyCategoriesRelations = relations(
       fields: [surveyCategories.templateId],
       references: [surveyTemplates.id],
     }),
+    subcategories: many(surveySubcategories),
+  })
+)
+
+// ---------------------------------------------------------------------------
+// Survey Subcategories
+// ---------------------------------------------------------------------------
+export const surveySubcategories = pgTable('survey_subcategories', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  categoryId: uuid('category_id')
+    .notNull()
+    .references(() => surveyCategories.id),
+  name: text('name').notNull(),
+  description: text('description'),
+  sortOrder: integer('sort_order').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export const surveySubcategoriesRelations = relations(
+  surveySubcategories,
+  ({ one, many }) => ({
+    category: one(surveyCategories, {
+      fields: [surveySubcategories.categoryId],
+      references: [surveyCategories.id],
+    }),
     questions: many(surveyQuestions),
   })
 )
@@ -218,9 +246,9 @@ export const surveyCategoriesRelations = relations(
 // ---------------------------------------------------------------------------
 export const surveyQuestions = pgTable('survey_questions', {
   id: uuid('id').defaultRandom().primaryKey(),
-  categoryId: uuid('category_id')
+  subcategoryId: uuid('subcategory_id')
     .notNull()
-    .references(() => surveyCategories.id),
+    .references(() => surveySubcategories.id),
   text: text('text').notNull(),
   description: text('description'),
   scaleMin: integer('scale_min').default(1).notNull(),
@@ -233,9 +261,9 @@ export const surveyQuestions = pgTable('survey_questions', {
 export const surveyQuestionsRelations = relations(
   surveyQuestions,
   ({ one, many }) => ({
-    category: one(surveyCategories, {
-      fields: [surveyQuestions.categoryId],
-      references: [surveyCategories.id],
+    subcategory: one(surveySubcategories, {
+      fields: [surveyQuestions.subcategoryId],
+      references: [surveySubcategories.id],
     }),
     responses: many(surveyResponses),
   })
@@ -333,6 +361,9 @@ export type NewSurveyTemplate = typeof surveyTemplates.$inferInsert
 
 export type SurveyCategory = typeof surveyCategories.$inferSelect
 export type NewSurveyCategory = typeof surveyCategories.$inferInsert
+
+export type SurveySubcategory = typeof surveySubcategories.$inferSelect
+export type NewSurveySubcategory = typeof surveySubcategories.$inferInsert
 
 export type SurveyQuestion = typeof surveyQuestions.$inferSelect
 export type NewSurveyQuestion = typeof surveyQuestions.$inferInsert

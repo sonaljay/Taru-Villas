@@ -41,12 +41,19 @@ interface Question {
   sortOrder: number
 }
 
+interface Subcategory {
+  id: string
+  name: string
+  sortOrder: number
+  questions: Question[]
+}
+
 interface Category {
   id: string
   name: string
   weight: string
   sortOrder: number
-  questions: Question[]
+  subcategories: Subcategory[]
 }
 
 interface SurveyFormProps {
@@ -73,6 +80,7 @@ type FormValues = Record<string, ResponseValue>
 
 interface FlatQuestion extends Question {
   categoryName: string
+  subcategoryName: string
 }
 
 // ---------------------------------------------------------------------------
@@ -97,13 +105,21 @@ export function SurveyForm({
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const currentSubmissionId = useRef<string | undefined>(submissionId)
 
-  // Flatten all questions sorted by category sortOrder then question sortOrder
+  // Flatten all questions sorted by category sortOrder -> subcategory sortOrder -> question sortOrder
   const flatQuestions: FlatQuestion[] = categories
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .flatMap((c) =>
-      c.questions
+      (c.subcategories ?? [])
         .sort((a, b) => a.sortOrder - b.sortOrder)
-        .map((q) => ({ ...q, categoryName: c.name }))
+        .flatMap((sub) =>
+          sub.questions
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .map((q) => ({
+              ...q,
+              categoryName: c.name,
+              subcategoryName: sub.name,
+            }))
+        )
     )
 
   // Build default values
@@ -389,11 +405,21 @@ export function SurveyForm({
             transformStyle: 'preserve-3d',
           }}
         >
-          {/* Header: category badge + question counter */}
+          {/* Header: category/subcategory badges + question counter */}
           <div className="flex items-center justify-between mb-6">
-            <span className="inline-flex items-center rounded-md bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-              {currentQuestion.categoryName}
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-flex items-center rounded-md bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                {currentQuestion.categoryName}
+              </span>
+              {currentQuestion.subcategoryName && (
+                <>
+                  <span className="text-xs text-muted-foreground">/</span>
+                  <span className="inline-flex items-center rounded-md bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                    {currentQuestion.subcategoryName}
+                  </span>
+                </>
+              )}
+            </div>
             <span className="text-sm text-muted-foreground tabular-nums">
               {currentIndex + 1} of {totalQuestions}
             </span>

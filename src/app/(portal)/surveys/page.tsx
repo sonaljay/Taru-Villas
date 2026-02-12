@@ -34,6 +34,7 @@ interface SurveysPageProps {
     status?: string
     dateFrom?: string
     dateTo?: string
+    surveyType?: string
   }>
 }
 
@@ -54,6 +55,14 @@ function getStatusBadge(status: string) {
   }
 }
 
+function getSurveyTypeBadge(surveyType: string) {
+  return (
+    <Badge variant="outline" className="capitalize">
+      {surveyType}
+    </Badge>
+  )
+}
+
 export default async function SurveysPage({ searchParams }: SurveysPageProps) {
   const profile = await requireAuth()
 
@@ -63,6 +72,7 @@ export default async function SurveysPage({ searchParams }: SurveysPageProps) {
 
   const params = await searchParams
   const isAdmin = profile.role === 'admin'
+  const surveyTypeFilter = (params.surveyType as 'internal' | 'guest') || undefined
 
   // Fetch submissions based on role
   let submissions: Awaited<ReturnType<typeof getSubmissionsWithDetails>>
@@ -71,9 +81,10 @@ export default async function SurveysPage({ searchParams }: SurveysPageProps) {
       submissions = await getSubmissionsWithDetails({
         propertyId: params.propertyId || undefined,
         status: (params.status as 'draft' | 'submitted' | 'reviewed') || undefined,
+        surveyType: surveyTypeFilter,
       })
     } else {
-      submissions = await getSubmissionsForUser(profile.id)
+      submissions = await getSubmissionsForUser(profile.id, surveyTypeFilter)
       // Apply client-side filters for non-admin
       if (params.propertyId) {
         submissions = submissions.filter(
@@ -145,6 +156,7 @@ export default async function SurveysPage({ searchParams }: SurveysPageProps) {
         currentStatus={params.status}
         currentDateFrom={params.dateFrom}
         currentDateTo={params.dateTo}
+        currentSurveyType={params.surveyType}
       />
 
       {/* Table */}
@@ -154,7 +166,7 @@ export default async function SurveysPage({ searchParams }: SurveysPageProps) {
             <ClipboardList className="size-12 text-muted-foreground/50 mb-4" />
             <h3 className="text-lg font-semibold">No surveys found</h3>
             <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-              {params.propertyId || params.status || params.dateFrom || params.dateTo
+              {params.propertyId || params.status || params.dateFrom || params.dateTo || params.surveyType
                 ? 'No surveys match your current filters. Try adjusting them.'
                 : 'Start a new quality assessment survey for one of your properties.'}
             </p>
@@ -173,6 +185,7 @@ export default async function SurveysPage({ searchParams }: SurveysPageProps) {
               <TableRow>
                 <TableHead>Property</TableHead>
                 <TableHead>Template</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Visit Date</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Submitted By</TableHead>
@@ -186,6 +199,9 @@ export default async function SurveysPage({ searchParams }: SurveysPageProps) {
                     {submission.propertyName}
                   </TableCell>
                   <TableCell>{submission.templateName}</TableCell>
+                  <TableCell>
+                    {getSurveyTypeBadge(submission.surveyType ?? 'internal')}
+                  </TableCell>
                   <TableCell>
                     {format(new Date(submission.visitDate), 'MMM d, yyyy')}
                   </TableCell>

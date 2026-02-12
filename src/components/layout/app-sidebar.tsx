@@ -54,7 +54,7 @@ interface NavItem {
 
 const mainNavItems: NavItem[] = [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { title: 'Surveys', href: '/surveys', icon: ClipboardCheck },
+  { title: 'Take A Survey', href: '/surveys', icon: ClipboardCheck },
   { title: 'Settings', href: '/settings', icon: Settings },
 ]
 
@@ -64,7 +64,7 @@ const propertyNavItems: NavItem[] = [
 
 const adminNavItems: NavItem[] = [
   { title: 'Manage Properties', href: '/admin/properties', icon: Building2 },
-  { title: 'Manage Surveys', href: '/admin/surveys', icon: ClipboardCheck },
+  { title: 'Submitted Surveys', href: '/admin/surveys', icon: ClipboardCheck },
   { title: 'Manage Templates', href: '/admin/templates', icon: FileText },
   { title: 'Manage Users', href: '/admin/users', icon: Users },
 ]

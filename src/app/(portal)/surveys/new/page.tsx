@@ -29,6 +29,7 @@ export default async function NewSurveyPage() {
           id: t.id,
           name: t.name,
           description: t.description,
+          surveyType: t.surveyType,
         }))}
         properties={properties.map((p) => ({
           id: p.id,
