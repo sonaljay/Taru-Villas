@@ -31,7 +31,9 @@ export default async function SurveyDetailPage({
   const [template, property, submitter] = await Promise.all([
     getTemplateById(submission.templateId),
     getPropertyById(submission.propertyId),
-    getProfileById(submission.submittedBy),
+    submission.submittedBy
+      ? getProfileById(submission.submittedBy)
+      : Promise.resolve(undefined),
   ])
 
   if (!template || !property) {
@@ -66,7 +68,12 @@ export default async function SurveyDetailPage({
               Visit: {format(new Date(submission.visitDate), 'MMM d, yyyy')}
             </span>
             <span>|</span>
-            <span>By: {submitter?.fullName ?? 'Unknown'}</span>
+            <span>
+              By:{' '}
+              {submitter?.fullName ??
+                submission.guestName ??
+                (submission.guestLinkId ? 'Guest' : 'Unknown')}
+            </span>
           </div>
         </div>
         <Badge
@@ -96,10 +103,12 @@ export default async function SurveyDetailPage({
           visitDate={submission.visitDate}
           categories={template.categories}
           submissionId={submission.id}
+          surveyType={template.surveyType}
           existingResponses={submission.responses.map((r) => ({
             questionId: r.questionId,
             score: r.score,
             note: r.note,
+            issueDescription: r.issueDescription,
           }))}
         />
       ) : (

@@ -10,6 +10,7 @@ import {
   Save,
   Send,
   MessageSquare,
+  AlertTriangle,
 } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -68,12 +69,20 @@ interface SurveyFormProps {
     questionId: string
     score: number
     note: string | null
+    issueDescription?: string | null
   }[]
+  /** Survey type — 'internal' enables mandatory issue description for low scores */
+  surveyType?: 'internal' | 'guest'
+  /** Guest mode: disables auto-save, draft, and uses callback for submission */
+  isGuest?: boolean
+  /** Called on submit in guest mode */
+  onGuestSubmit?: (responses: { questionId: string; score: number; note?: string }[]) => Promise<void>
 }
 
 interface ResponseValue {
   score: number | null
   note: string
+  issueDescription: string
 }
 
 type FormValues = Record<string, ResponseValue>
@@ -94,7 +103,11 @@ export function SurveyForm({
   categories,
   submissionId,
   existingResponses,
+  surveyType,
+  isGuest,
+  onGuestSubmit,
 }: SurveyFormProps) {
+  const isInternal = surveyType === 'internal'
   const router = useRouter()
   const [isSaving, setIsSaving] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -129,6 +142,7 @@ export function SurveyForm({
     defaultValues[q.id] = {
       score: existing?.score ?? null,
       note: existing?.note ?? '',
+      issueDescription: existing?.issueDescription ?? '',
     }
     if (existing?.note) {
       setShowNotes((prev) => new Set(prev).add(q.id))
@@ -206,6 +220,7 @@ export function SurveyForm({
         questionId,
         score: v.score!,
         note: v.note || undefined,
+        issueDescription: v.issueDescription || undefined,
       }))
 
     if (responses.length === 0) return
@@ -243,6 +258,7 @@ export function SurveyForm({
   }, [getValues, templateId, propertyId, visitDate])
 
   useEffect(() => {
+    if (isGuest) return // No auto-save for guest mode
     autoSaveTimerRef.current = setInterval(() => {
       saveDraft()
     }, 30000)
@@ -252,7 +268,7 @@ export function SurveyForm({
         clearInterval(autoSaveTimerRef.current)
       }
     }
-  }, [saveDraft])
+  }, [saveDraft, isGuest])
 
   async function handleSaveDraft() {
     setIsSaving(true)
@@ -264,6 +280,7 @@ export function SurveyForm({
           questionId,
           score: v.score!,
           note: v.note || undefined,
+          issueDescription: v.issueDescription || undefined,
         }))
 
       if (responses.length === 0) {
@@ -324,7 +341,6 @@ export function SurveyForm({
         toast.error(
           `Please answer all required questions. ${unansweredRequired.length} remaining.`
         )
-        // Navigate to the first unanswered required question
         const firstIdx = flatQuestions.findIndex(
           (q) =>
             q.isRequired &&
@@ -336,13 +352,52 @@ export function SurveyForm({
         return
       }
 
+      // Validate issue descriptions for low scores on internal surveys
+      if (isInternal) {
+        const missingDescriptions = flatQuestions.filter((q) => {
+          const v = values[q.id]
+          return (
+            v?.score !== null &&
+            v?.score !== undefined &&
+            v.score <= 6 &&
+            (!v.issueDescription || v.issueDescription.trim().length === 0)
+          )
+        })
+
+        if (missingDescriptions.length > 0) {
+          toast.error(
+            `Please describe the issue for all low-score questions (score 6 or below). ${missingDescriptions.length} remaining.`
+          )
+          const firstIdx = flatQuestions.findIndex((q) => {
+            const v = values[q.id]
+            return (
+              v?.score !== null &&
+              v?.score !== undefined &&
+              v.score <= 6 &&
+              (!v.issueDescription || v.issueDescription.trim().length === 0)
+            )
+          })
+          if (firstIdx >= 0) {
+            goTo(firstIdx, firstIdx < currentIndex ? 'prev' : 'next')
+          }
+          return
+        }
+      }
+
       const responses = Object.entries(values)
         .filter(([, v]) => v.score !== null && v.score !== undefined)
         .map(([questionId, v]) => ({
           questionId,
           score: v.score!,
           note: v.note || undefined,
+          issueDescription: v.issueDescription || undefined,
         }))
+
+      // Guest mode: delegate to parent callback
+      if (isGuest && onGuestSubmit) {
+        await onGuestSubmit(responses)
+        return
+      }
 
       if (currentSubmissionId.current) {
         const patchRes = await fetch(
@@ -448,6 +503,34 @@ export function SurveyForm({
             value={watchedValues[currentQuestion.id]}
           />
 
+          {/* Issue description for low scores on internal surveys */}
+          {isInternal &&
+            watchedValues[currentQuestion.id]?.score !== null &&
+            watchedValues[currentQuestion.id]?.score !== undefined &&
+            watchedValues[currentQuestion.id]!.score! <= 6 && (
+              <div className="mt-6 rounded-lg border-2 border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" />
+                  <span className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                    Issue Description Required
+                  </span>
+                </div>
+                <Controller
+                  control={control}
+                  name={`${currentQuestion.id}.issueDescription`}
+                  render={({ field }) => (
+                    <Textarea
+                      placeholder="Describe the issue observed..."
+                      rows={3}
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      className="text-sm bg-white dark:bg-zinc-900 border-amber-200 dark:border-amber-800"
+                    />
+                  )}
+                />
+              </div>
+            )}
+
           {/* Note toggle and field */}
           <div className="mt-6">
             {showNotes.has(currentQuestion.id) ? (
@@ -532,18 +615,20 @@ export function SurveyForm({
           />
         </div>
 
-        {/* Save draft */}
+        {/* Save draft (hidden in guest mode) */}
         <div className="flex items-center justify-between">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSaveDraft}
-            disabled={isSaving || isSubmitting}
-          >
-            <Save className="size-4" />
-            {isSaving ? 'Saving...' : 'Save Draft'}
-          </Button>
-          <p className="text-sm text-muted-foreground">
+          {!isGuest && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSaveDraft}
+              disabled={isSaving || isSubmitting}
+            >
+              <Save className="size-4" />
+              {isSaving ? 'Saving...' : 'Save Draft'}
+            </Button>
+          )}
+          <p className={`text-sm text-muted-foreground ${isGuest ? 'ml-auto' : ''}`}>
             {answeredQuestions} of {totalQuestions} answered
           </p>
         </div>

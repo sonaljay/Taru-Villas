@@ -136,6 +136,7 @@ export function NewSurveyWizard({
           propertyId={propertyId}
           visitDate={visitDate}
           categories={templateData.categories}
+          surveyType={surveyType}
         />
       </div>
     )

@@ -3,10 +3,12 @@ import { z } from 'zod'
 import { getProfile, getUserProperties } from '@/lib/auth/guards'
 import {
   getSubmissionById,
+  getTemplateById,
   updateSubmission,
   submitSubmission,
   deleteSubmission,
 } from '@/lib/db/queries/surveys'
+import { createTasksFromSubmission } from '@/lib/db/queries/tasks'
 
 // ---------------------------------------------------------------------------
 // Validation
@@ -16,6 +18,7 @@ const responseSchema = z.object({
   questionId: z.string().uuid('Invalid question ID'),
   score: z.number().int().min(0).max(10),
   note: z.string().max(1000).optional(),
+  issueDescription: z.string().max(2000).optional(),
 })
 
 const updateSubmissionSchema = z.object({
@@ -132,6 +135,7 @@ export async function PATCH(
             questionId: r.questionId,
             score: r.score,
             note: r.note ?? null,
+            issueDescription: r.issueDescription ?? null,
           }))
         : undefined,
     })
@@ -263,6 +267,32 @@ export async function POST(
         { error: 'Failed to submit survey' },
         { status: 500 }
       )
+    }
+
+    // Create tasks for internal surveys with low scores
+    try {
+      const template = await getTemplateById(existing.templateId)
+      if (template && template.surveyType === 'internal') {
+        const lowScoreResponses = existing.responses
+          .filter((r) => r.score <= 6 && r.issueDescription)
+          .map((r) => ({
+            responseId: r.id,
+            questionId: r.questionId,
+            score: r.score,
+            issueDescription: r.issueDescription,
+          }))
+
+        if (lowScoreResponses.length > 0) {
+          await createTasksFromSubmission(
+            id,
+            profile.orgId,
+            existing.propertyId,
+            lowScoreResponses
+          )
+        }
+      }
+    } catch (taskError) {
+      console.error('Failed to create tasks from submission:', taskError)
     }
 
     return NextResponse.json(submitted)

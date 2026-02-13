@@ -45,16 +45,19 @@ interface Submission {
   id: string
   templateId: string
   propertyId: string
-  submittedBy: string
+  submittedBy: string | null
   status: string
   visitDate: string
   notes: string | null
+  guestName: string | null
+  guestEmail: string | null
+  guestLinkId: string | null
   submittedAt: Date | null
   createdAt: Date
   updatedAt: Date
   propertyName: string
   templateName: string
-  submitterName: string
+  submitterName: string | null
 }
 
 interface ResponseDetail {
@@ -339,9 +342,10 @@ export function AdminSurveysClient({
       if (dateTo && s.visitDate > dateTo) return false
       if (search) {
         const q = search.toLowerCase()
+        const submitter = s.submitterName ?? s.guestName ?? ''
         if (
           !s.propertyName.toLowerCase().includes(q) &&
-          !s.submitterName.toLowerCase().includes(q) &&
+          !submitter.toLowerCase().includes(q) &&
           !s.templateName.toLowerCase().includes(q)
         )
           return false
@@ -500,7 +504,9 @@ export function AdminSurveysClient({
                       <TableCell>
                         {format(new Date(s.visitDate), 'MMM d, yyyy')}
                       </TableCell>
-                      <TableCell>{s.submitterName}</TableCell>
+                      <TableCell>
+                        {s.submitterName ?? s.guestName ?? (s.guestLinkId ? 'Guest' : 'Unknown')}
+                      </TableCell>
                       <TableCell>{getStatusBadge(s.status)}</TableCell>
                       <TableCell className="text-right text-muted-foreground">
                         {s.submittedAt

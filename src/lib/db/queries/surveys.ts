@@ -10,6 +10,7 @@ import {
   properties,
   profiles,
   propertyAssignments,
+  guestSurveyLinks,
   type SurveyTemplate,
   type NewSurveyTemplate,
   type SurveySubmission,
@@ -313,6 +314,9 @@ export async function getSubmissions(
         visitDate: surveySubmissions.visitDate,
         notes: surveySubmissions.notes,
         slug: surveySubmissions.slug,
+        guestName: surveySubmissions.guestName,
+        guestEmail: surveySubmissions.guestEmail,
+        guestLinkId: surveySubmissions.guestLinkId,
         submittedAt: surveySubmissions.submittedAt,
         createdAt: surveySubmissions.createdAt,
         updatedAt: surveySubmissions.updatedAt,
@@ -365,6 +369,9 @@ export async function getSubmissionsWithDetails(
       visitDate: surveySubmissions.visitDate,
       notes: surveySubmissions.notes,
       slug: surveySubmissions.slug,
+      guestName: surveySubmissions.guestName,
+      guestEmail: surveySubmissions.guestEmail,
+      guestLinkId: surveySubmissions.guestLinkId,
       submittedAt: surveySubmissions.submittedAt,
       createdAt: surveySubmissions.createdAt,
       updatedAt: surveySubmissions.updatedAt,
@@ -376,7 +383,7 @@ export async function getSubmissionsWithDetails(
     .from(surveySubmissions)
     .innerJoin(properties, eq(surveySubmissions.propertyId, properties.id))
     .innerJoin(surveyTemplates, eq(surveySubmissions.templateId, surveyTemplates.id))
-    .innerJoin(profiles, eq(surveySubmissions.submittedBy, profiles.id))
+    .leftJoin(profiles, eq(surveySubmissions.submittedBy, profiles.id))
     .where(whereClause)
     .orderBy(desc(surveySubmissions.createdAt))
 
@@ -421,6 +428,9 @@ export async function getSubmissionsForUser(
       visitDate: surveySubmissions.visitDate,
       notes: surveySubmissions.notes,
       slug: surveySubmissions.slug,
+      guestName: surveySubmissions.guestName,
+      guestEmail: surveySubmissions.guestEmail,
+      guestLinkId: surveySubmissions.guestLinkId,
       submittedAt: surveySubmissions.submittedAt,
       createdAt: surveySubmissions.createdAt,
       updatedAt: surveySubmissions.updatedAt,
@@ -432,7 +442,7 @@ export async function getSubmissionsForUser(
     .from(surveySubmissions)
     .innerJoin(properties, eq(surveySubmissions.propertyId, properties.id))
     .innerJoin(surveyTemplates, eq(surveySubmissions.templateId, surveyTemplates.id))
-    .innerJoin(profiles, eq(surveySubmissions.submittedBy, profiles.id))
+    .leftJoin(profiles, eq(surveySubmissions.submittedBy, profiles.id))
     .where(and(...conditions))
     .orderBy(desc(surveySubmissions.createdAt))
 

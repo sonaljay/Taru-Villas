@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { requireRole } from '@/lib/auth/guards'
 import { getTemplatesWithCounts } from '@/lib/db/queries/surveys'
+import { getProperties } from '@/lib/db/queries/properties'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -13,12 +14,16 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { TemplateActions } from '@/components/admin/template-actions'
+import { GuestLinkDialog } from '@/components/admin/guest-link-dialog'
 import { Plus, FileText } from 'lucide-react'
 
 export default async function TemplatesPage() {
   const profile = await requireRole(['admin'])
 
-  const templates = await getTemplatesWithCounts(profile.orgId)
+  const [templates, orgProperties] = await Promise.all([
+    getTemplatesWithCounts(profile.orgId),
+    getProperties(profile.orgId),
+  ])
 
   return (
     <div className="space-y-6">
@@ -106,9 +111,18 @@ export default async function TemplatesPage() {
                     {template.surveyType}
                   </Badge>
                 </div>
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={`/admin/templates/${template.id}`}>Edit</Link>
-                </Button>
+                <div className="flex items-center gap-2">
+                  {template.surveyType === 'guest' && template.isActive && (
+                    <GuestLinkDialog
+                      templateId={template.id}
+                      templateName={template.name}
+                      properties={orgProperties.map((p) => ({ id: p.id, name: p.name }))}
+                    />
+                  )}
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/admin/templates/${template.id}`}>Edit</Link>
+                  </Button>
+                </div>
               </CardFooter>
             </Card>
           ))}

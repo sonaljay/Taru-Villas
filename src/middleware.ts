@@ -38,7 +38,9 @@ export async function middleware(request: NextRequest) {
   const isPublicRoute =
     request.nextUrl.pathname === '/login' ||
     request.nextUrl.pathname.startsWith('/callback') ||
-    request.nextUrl.pathname.startsWith('/api/auth')
+    request.nextUrl.pathname.startsWith('/api/auth') ||
+    request.nextUrl.pathname.startsWith('/g/') ||
+    request.nextUrl.pathname.startsWith('/api/surveys/guest')
 
   if (isPublicRoute) return supabaseResponse
 
