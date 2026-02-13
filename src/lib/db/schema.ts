@@ -39,6 +39,12 @@ export const submissionStatusEnum = pgEnum('submission_status', [
 
 export const surveyTypeEnum = pgEnum('survey_type', ['internal', 'guest'])
 
+export const taskStatusEnum = pgEnum('task_status', [
+  'open',
+  'investigating',
+  'closed',
+])
+
 // ---------------------------------------------------------------------------
 // Organizations
 // ---------------------------------------------------------------------------
@@ -70,6 +76,8 @@ export const properties = pgTable('properties', {
   code: varchar('code', { length: 50 }).notNull().unique(),
   imageUrl: text('image_url'),
   location: text('location'),
+  primaryPmId: uuid('primary_pm_id')
+    .references(() => profiles.id, { onDelete: 'set null' }),
   isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -80,8 +88,13 @@ export const propertiesRelations = relations(properties, ({ one, many }) => ({
     fields: [properties.orgId],
     references: [organizations.id],
   }),
+  primaryPm: one(profiles, {
+    fields: [properties.primaryPmId],
+    references: [profiles.id],
+  }),
   propertyAssignments: many(propertyAssignments),
   surveySubmissions: many(surveySubmissions),
+  tasks: many(tasks),
 }))
 
 // ---------------------------------------------------------------------------
@@ -270,6 +283,53 @@ export const surveyQuestionsRelations = relations(
 )
 
 // ---------------------------------------------------------------------------
+// Guest Survey Links
+// ---------------------------------------------------------------------------
+export const guestSurveyLinks = pgTable(
+  'guest_survey_links',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    token: varchar('token', { length: 255 }).notNull().unique(),
+    templateId: uuid('template_id')
+      .notNull()
+      .references(() => surveyTemplates.id),
+    propertyId: uuid('property_id')
+      .notNull()
+      .references(() => properties.id),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => profiles.id),
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('guest_survey_links_template_property_unique').on(
+      table.templateId,
+      table.propertyId
+    ),
+  ]
+)
+
+export const guestSurveyLinksRelations = relations(
+  guestSurveyLinks,
+  ({ one }) => ({
+    template: one(surveyTemplates, {
+      fields: [guestSurveyLinks.templateId],
+      references: [surveyTemplates.id],
+    }),
+    property: one(properties, {
+      fields: [guestSurveyLinks.propertyId],
+      references: [properties.id],
+    }),
+    creator: one(profiles, {
+      fields: [guestSurveyLinks.createdBy],
+      references: [profiles.id],
+    }),
+  })
+)
+
+// ---------------------------------------------------------------------------
 // Survey Submissions
 // ---------------------------------------------------------------------------
 export const surveySubmissions = pgTable('survey_submissions', {
@@ -281,12 +341,15 @@ export const surveySubmissions = pgTable('survey_submissions', {
     .notNull()
     .references(() => properties.id),
   submittedBy: uuid('submitted_by')
-    .notNull()
     .references(() => profiles.id),
   status: submissionStatusEnum('status').default('draft').notNull(),
   visitDate: date('visit_date').notNull(),
   notes: text('notes'),
   slug: varchar('slug', { length: 255 }).unique(),
+  guestName: text('guest_name'),
+  guestEmail: text('guest_email'),
+  guestLinkId: uuid('guest_link_id')
+    .references(() => guestSurveyLinks.id, { onDelete: 'set null' }),
   submittedAt: timestamp('submitted_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -324,6 +387,7 @@ export const surveyResponses = pgTable('survey_responses', {
     .references(() => surveyQuestions.id),
   score: integer('score').notNull(),
   note: text('note'),
+  issueDescription: text('issue_description'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
@@ -340,6 +404,73 @@ export const surveyResponsesRelations = relations(
     }),
   })
 )
+
+// ---------------------------------------------------------------------------
+// Tasks (auto-created from low-score survey responses)
+// ---------------------------------------------------------------------------
+export const tasks = pgTable('tasks', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => organizations.id),
+  propertyId: uuid('property_id')
+    .notNull()
+    .references(() => properties.id),
+  submissionId: uuid('submission_id')
+    .notNull()
+    .references(() => surveySubmissions.id),
+  responseId: uuid('response_id')
+    .notNull()
+    .references(() => surveyResponses.id),
+  questionId: uuid('question_id')
+    .notNull()
+    .references(() => surveyQuestions.id),
+  title: text('title').notNull(),
+  description: text('description'),
+  status: taskStatusEnum('status').default('open').notNull(),
+  assignedTo: uuid('assigned_to')
+    .references(() => profiles.id, { onDelete: 'set null' }),
+  isRepeatIssue: boolean('is_repeat_issue').default(false).notNull(),
+  closingNotes: text('closing_notes'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  closedAt: timestamp('closed_at', { withTimezone: true }),
+  closedBy: uuid('closed_by')
+    .references(() => profiles.id, { onDelete: 'set null' }),
+})
+
+export const tasksRelations = relations(tasks, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [tasks.orgId],
+    references: [organizations.id],
+  }),
+  property: one(properties, {
+    fields: [tasks.propertyId],
+    references: [properties.id],
+  }),
+  submission: one(surveySubmissions, {
+    fields: [tasks.submissionId],
+    references: [surveySubmissions.id],
+  }),
+  response: one(surveyResponses, {
+    fields: [tasks.responseId],
+    references: [surveyResponses.id],
+  }),
+  question: one(surveyQuestions, {
+    fields: [tasks.questionId],
+    references: [surveyQuestions.id],
+  }),
+  assignee: one(profiles, {
+    fields: [tasks.assignedTo],
+    references: [profiles.id],
+    relationName: 'taskAssignee',
+  }),
+  closer: one(profiles, {
+    fields: [tasks.closedBy],
+    references: [profiles.id],
+    relationName: 'taskCloser',
+  }),
+}))
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -373,3 +504,9 @@ export type NewSurveySubmission = typeof surveySubmissions.$inferInsert
 
 export type SurveyResponse = typeof surveyResponses.$inferSelect
 export type NewSurveyResponse = typeof surveyResponses.$inferInsert
+
+export type GuestSurveyLink = typeof guestSurveyLinks.$inferSelect
+export type NewGuestSurveyLink = typeof guestSurveyLinks.$inferInsert
+
+export type Task = typeof tasks.$inferSelect
+export type NewTask = typeof tasks.$inferInsert
