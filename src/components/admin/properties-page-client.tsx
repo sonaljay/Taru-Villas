@@ -23,11 +23,19 @@ import { PropertyCard } from '@/components/admin/property-card'
 import { PropertyForm } from '@/components/admin/property-form'
 import type { Property } from '@/lib/db/schema'
 
-interface PropertiesPageClientProps {
-  properties: Property[]
+export interface OrgUser {
+  id: string
+  fullName: string
+  role: string
+  assignedPropertyIds: string[]
 }
 
-export function PropertiesPageClient({ properties }: PropertiesPageClientProps) {
+interface PropertiesPageClientProps {
+  properties: Property[]
+  allUsers?: OrgUser[]
+}
+
+export function PropertiesPageClient({ properties, allUsers = [] }: PropertiesPageClientProps) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [createOpen, setCreateOpen] = useState(false)
@@ -92,7 +100,11 @@ export function PropertiesPageClient({ properties }: PropertiesPageClientProps) 
       {filteredProperties.length > 0 ? (
         <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
           {filteredProperties.map((property) => (
-            <PropertyCard key={property.id} property={property} />
+            <PropertyCard
+              key={property.id}
+              property={property}
+              allUsers={allUsers}
+            />
           ))}
         </div>
       ) : (

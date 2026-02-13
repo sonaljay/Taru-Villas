@@ -5,11 +5,22 @@ import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { toast } from 'sonner'
+import { Check, User } from 'lucide-react'
 
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import type { Property } from '@/lib/db/schema'
 
 const propertySchema = z.object({
@@ -36,14 +47,42 @@ function generateSlug(name: string): string {
     .replace(/^-|-$/g, '')
 }
 
+function formatRole(role: string): string {
+  return role
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
+}
+
+export interface AssignableUser {
+  id: string
+  fullName: string
+  role: string
+}
+
 interface PropertyFormProps {
   property?: Property | null
   onSuccess?: () => void
+  /** All org users available for assignment (edit mode only) */
+  allUsers?: AssignableUser[]
+  /** Currently assigned user IDs for this property */
+  assignedUserIds?: string[]
 }
 
-export function PropertyForm({ property, onSuccess }: PropertyFormProps) {
+export function PropertyForm({
+  property,
+  onSuccess,
+  allUsers = [],
+  assignedUserIds: initialAssignedIds = [],
+}: PropertyFormProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(
+    new Set(initialAssignedIds)
+  )
+  const [primaryPmId, setPrimaryPmId] = useState<string | null>(
+    property?.primaryPmId ?? null
+  )
   const isEditing = !!property
 
   const {
@@ -73,6 +112,32 @@ export function PropertyForm({ property, onSuccess }: PropertyFormProps) {
     }
   }, [nameValue, isEditing, setValue])
 
+  // Auto-include PM in assigned users when PM changes
+  useEffect(() => {
+    if (primaryPmId) {
+      setSelectedUserIds((prev) => {
+        if (prev.has(primaryPmId)) return prev
+        const next = new Set(prev)
+        next.add(primaryPmId)
+        return next
+      })
+    }
+  }, [primaryPmId])
+
+  function toggleUser(userId: string) {
+    // Prevent unchecking the current PM
+    if (userId === primaryPmId) return
+    setSelectedUserIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(userId)) {
+        next.delete(userId)
+      } else {
+        next.add(userId)
+      }
+      return next
+    })
+  }
+
   async function onSubmit(data: PropertyFormValues) {
     setIsSubmitting(true)
     try {
@@ -88,6 +153,10 @@ export function PropertyForm({ property, onSuccess }: PropertyFormProps) {
           ...data,
           imageUrl: data.imageUrl || null,
           location: data.location || null,
+          ...(isEditing && {
+            assignedUserIds: Array.from(selectedUserIds),
+            primaryPmId,
+          }),
         }),
       })
 
@@ -199,6 +268,107 @@ export function PropertyForm({ property, onSuccess }: PropertyFormProps) {
           onCheckedChange={(checked) => setValue('isActive', checked)}
         />
       </div>
+
+      {/* Property Manager (edit mode only) */}
+      {isEditing && allUsers.length > 0 && (
+        <>
+          <Separator />
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Property Manager</Label>
+            <p className="text-xs text-muted-foreground">
+              Select the primary manager for this property
+            </p>
+            <Select
+              value={primaryPmId ?? 'none'}
+              onValueChange={(val) => setPrimaryPmId(val === 'none' ? null : val)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Unassigned" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Unassigned</SelectItem>
+                {allUsers.map((user) => (
+                  <SelectItem key={user.id} value={user.id}>
+                    {user.fullName}
+                    <span className="ml-1 text-muted-foreground text-xs">
+                      ({formatRole(user.role)})
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </>
+      )}
+
+      {/* Assigned Users (edit mode only) */}
+      {isEditing && (
+        <>
+          <Separator />
+          <div className="space-y-3">
+            <div>
+              <Label className="text-sm font-medium">Assigned Users</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Select users who can access and survey this property
+              </p>
+            </div>
+            {allUsers.length > 0 ? (
+              <>
+                <div className="max-h-48 overflow-y-auto rounded-lg border divide-y">
+                  {allUsers.map((user) => {
+                    const isSelected = selectedUserIds.has(user.id)
+                    const isPM = user.id === primaryPmId
+                    return (
+                      <button
+                        key={user.id}
+                        type="button"
+                        onClick={() => toggleUser(user.id)}
+                        className={cn(
+                          'flex items-center gap-3 w-full px-3 py-2.5 text-left transition-colors hover:bg-muted/50',
+                          isSelected && 'bg-primary/5',
+                          isPM && 'cursor-default'
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            'flex size-5 shrink-0 items-center justify-center rounded border transition-colors',
+                            isSelected
+                              ? 'bg-primary border-primary text-primary-foreground'
+                              : 'border-muted-foreground/30'
+                          )}
+                        >
+                          {isSelected && <Check className="size-3" />}
+                        </div>
+                        <User className="size-4 text-muted-foreground shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">
+                            {user.fullName}
+                            {isPM && (
+                              <span className="ml-1.5 text-xs text-muted-foreground font-normal">
+                                (PM)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <Badge variant="secondary" className="text-[10px] shrink-0">
+                          {formatRole(user.role)}
+                        </Badge>
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {selectedUserIds.size} user{selectedUserIds.size !== 1 ? 's' : ''} assigned
+                </p>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground italic">
+                No users available. Add users in the Users page first.
+              </p>
+            )}
+          </div>
+        </>
+      )}
 
       {/* Submit */}
       <div className="flex justify-end gap-3 pt-2">

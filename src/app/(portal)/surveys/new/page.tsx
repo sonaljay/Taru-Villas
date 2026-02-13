@@ -1,6 +1,6 @@
 import { requireAuth } from '@/lib/auth/guards'
 import { getTemplates } from '@/lib/db/queries/surveys'
-import { getPropertiesForUser } from '@/lib/db/queries/properties'
+import { getProperties } from '@/lib/db/queries/properties'
 import { NewSurveyWizard } from '@/components/surveys/new-survey-wizard'
 
 export default async function NewSurveyPage() {
@@ -12,7 +12,7 @@ export default async function NewSurveyPage() {
 
   const [templates, properties] = await Promise.all([
     getTemplates(profile.orgId),
-    getPropertiesForUser(profile.id),
+    getProperties(profile.orgId),
   ])
 
   return (

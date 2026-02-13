@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
-import { requireAuth } from '@/lib/auth/guards'
-import { getProperties, getPropertiesForUser } from '@/lib/db/queries/properties'
+import { requireRole } from '@/lib/auth/guards'
+import { getProperties } from '@/lib/db/queries/properties'
 import {
   getAllPropertyScores,
   getSurveysThisMonth,
@@ -41,17 +41,12 @@ interface DashboardPageProps {
 }
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
-  const profile = await requireAuth()
-
-  if (!profile) {
-    return null
-  }
+  const profile = await requireRole(['admin'])
 
   const params = await searchParams
   const surveyType = (params.surveyType as 'internal' | 'guest') || undefined
 
   const orgId = profile.orgId
-  const isAdmin = profile.role === 'admin'
 
   // Fetch real data in parallel
   const [scores, surveysCount, lastDates, sparklines, trendData, allProperties] =
@@ -61,27 +56,18 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       getLastSurveyDates(orgId, surveyType),
       getSparklines(orgId, undefined, surveyType),
       getOrgTrends(orgId, 6, surveyType),
-      isAdmin ? getProperties(orgId) : getPropertiesForUser(profile.id),
+      getProperties(orgId),
     ])
 
-  // Set of accessible property IDs for non-admins
-  const accessibleIds = isAdmin
-    ? null
-    : new Set(allProperties.map((p) => p.id))
-
   // Build PropertyOverview list from real scores
-  const visibleScores = accessibleIds
-    ? scores.filter((s) => accessibleIds.has(s.propertyId))
-    : scores
-
   // For properties that have no submitted surveys yet, we still want them visible
-  const scoredIds = new Set(visibleScores.map((s) => s.propertyId))
+  const scoredIds = new Set(scores.map((s) => s.propertyId))
   const propertiesWithoutScores = allProperties.filter(
     (p) => !scoredIds.has(p.id)
   )
 
   const propertyOverviews: PropertyOverview[] = [
-    ...visibleScores.map((s) => {
+    ...scores.map((s) => {
       const spark = sparklines.get(s.propertyId) ?? []
       const trend =
         spark.length >= 2 ? spark[spark.length - 1] - spark[spark.length - 2] : 0

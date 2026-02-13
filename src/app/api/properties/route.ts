@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getProfile } from '@/lib/auth/guards'
-import { getProperties, getPropertiesForUser, createProperty } from '@/lib/db/queries/properties'
+import { getProperties, createProperty } from '@/lib/db/queries/properties'
 
 // ---------------------------------------------------------------------------
 // Validation
@@ -30,10 +30,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Account is inactive' }, { status: 403 })
     }
 
-    const props =
-      profile.role === 'admin'
-        ? await getProperties(profile.orgId)
-        : await getPropertiesForUser(profile.id)
+    const props = await getProperties(profile.orgId)
 
     return NextResponse.json(props)
   } catch (error) {

@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getProfile, getUserProperties } from '@/lib/auth/guards'
+import { getProfile } from '@/lib/auth/guards'
 import {
   getSubmissions,
   createSubmission,
+  getTemplateById,
   type SubmissionFilters,
 } from '@/lib/db/queries/surveys'
+import { createTasksFromSubmission } from '@/lib/db/queries/tasks'
 
 // ---------------------------------------------------------------------------
 // Validation
@@ -15,6 +17,7 @@ const responseSchema = z.object({
   questionId: z.string().uuid('Invalid question ID'),
   score: z.number().int().min(0).max(10),
   note: z.string().max(1000).optional(),
+  issueDescription: z.string().max(2000).optional(),
 })
 
 const createSubmissionSchema = z.object({
@@ -46,27 +49,10 @@ export async function GET(request: NextRequest) {
     const dateFrom = searchParams.get('dateFrom')
     const dateTo = searchParams.get('dateTo')
 
-    // If a specific property is requested, check access
-    if (propertyId) {
-      const userProps = await getUserProperties(profile.id, profile.role)
-      if (userProps && !userProps.includes(propertyId)) {
-        return NextResponse.json(
-          { error: 'Forbidden: no access to this property' },
-          { status: 403 }
-        )
-      }
-    }
-
-    // Build filters
+    // Build filters — all authenticated users can see all surveys
     const filters: SubmissionFilters = {}
     if (propertyId) filters.propertyId = propertyId
     if (status) filters.status = status
-
-    // For non-admin users without a specific property filter,
-    // restrict to their own submissions
-    if (profile.role !== 'admin' && !propertyId) {
-      filters.userId = profile.id
-    }
 
     let submissions = await getSubmissions(filters)
 
@@ -113,15 +99,6 @@ export async function POST(request: NextRequest) {
 
     const { templateId, propertyId, visitDate, notes, status, responses } = parsed.data
 
-    // Check property access
-    const userProps = await getUserProperties(profile.id, profile.role)
-    if (userProps && !userProps.includes(propertyId)) {
-      return NextResponse.json(
-        { error: 'Forbidden: no access to this property' },
-        { status: 403 }
-      )
-    }
-
     const submission = await createSubmission({
       submission: {
         templateId,
@@ -136,8 +113,43 @@ export async function POST(request: NextRequest) {
         questionId: r.questionId,
         score: r.score,
         note: r.note ?? null,
+        issueDescription: r.issueDescription ?? null,
       })),
     })
+
+    // If submitted as final, check if it's an internal survey and create tasks for low scores
+    if (status === 'submitted') {
+      try {
+        const template = await getTemplateById(templateId)
+        if (template && template.surveyType === 'internal') {
+          // Get the created responses from DB to get their IDs
+          const { getSubmissionById } = await import('@/lib/db/queries/surveys')
+          const fullSubmission = await getSubmissionById(submission.id)
+          if (fullSubmission?.responses) {
+            const taskResponses = fullSubmission.responses
+              .filter((r) => r.score <= 6 && r.issueDescription)
+              .map((r) => ({
+                responseId: r.id,
+                questionId: r.questionId,
+                score: r.score,
+                issueDescription: r.issueDescription,
+              }))
+
+            if (taskResponses.length > 0) {
+              await createTasksFromSubmission(
+                submission.id,
+                profile.orgId,
+                propertyId,
+                taskResponses
+              )
+            }
+          }
+        }
+      } catch (taskError) {
+        console.error('Failed to create tasks from submission:', taskError)
+        // Don't fail the submission — tasks are a side effect
+      }
+    }
 
     return NextResponse.json(submission, { status: 201 })
   } catch (error) {

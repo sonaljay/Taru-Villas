@@ -11,6 +11,7 @@ import {
   Users,
   LogOut,
   ChevronsUpDown,
+  ListTodo,
 } from 'lucide-react'
 
 import { useAuth } from '@/components/providers/auth-provider'
@@ -55,6 +56,7 @@ interface NavItem {
 const mainNavItems: NavItem[] = [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { title: 'Take A Survey', href: '/surveys', icon: ClipboardCheck },
+  { title: 'Tasks', href: '/tasks', icon: ListTodo },
   { title: 'Settings', href: '/settings', icon: Settings },
 ]
 
@@ -65,6 +67,7 @@ const propertyNavItems: NavItem[] = [
 const adminNavItems: NavItem[] = [
   { title: 'Manage Properties', href: '/admin/properties', icon: Building2 },
   { title: 'Submitted Surveys', href: '/admin/surveys', icon: ClipboardCheck },
+  { title: 'Manage Tasks', href: '/admin/tasks', icon: ListTodo },
   { title: 'Manage Templates', href: '/admin/templates', icon: FileText },
   { title: 'Manage Users', href: '/admin/users', icon: Users },
 ]
@@ -113,9 +116,17 @@ export function AppSidebar() {
     router.push('/login')
   }
 
+  const showTasksNav =
+    profile.role === 'admin' || profile.role === 'property_manager'
   const showPropertySection =
     profile.role === 'property_manager' || profile.role === 'admin'
   const showAdminSection = profile.role === 'admin'
+
+  const visibleMainNavItems = mainNavItems.filter((item) => {
+    if (item.href === '/dashboard') return showAdminSection
+    if (item.href === '/tasks') return showTasksNav
+    return true
+  })
 
   return (
     <Sidebar collapsible="icon">
@@ -144,7 +155,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainNavItems.map((item) => (
+              {visibleMainNavItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     asChild

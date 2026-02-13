@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { requireAuth } from '@/lib/auth/guards'
 import { getPropertyById } from '@/lib/db/queries/properties'
 import {
@@ -42,6 +42,16 @@ export default async function PropertyDashboardPage({
   const property = await getPropertyById(propertyId)
   if (!property) {
     notFound()
+  }
+
+  // Access check: admin, the property's PM, or an assigned user
+  const isAdmin = profile.role === 'admin'
+  const isPM = property.primaryPmId === profile.id
+  const isAssigned = (profile.assignments ?? []).some(
+    (a) => a.propertyId === propertyId
+  )
+  if (!isAdmin && !isPM && !isAssigned) {
+    redirect('/surveys')
   }
 
   // Fetch all dashboard data in parallel — only submitted surveys

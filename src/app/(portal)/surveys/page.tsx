@@ -2,11 +2,8 @@ export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
 import { requireAuth } from '@/lib/auth/guards'
-import {
-  getSubmissionsWithDetails,
-  getSubmissionsForUser,
-} from '@/lib/db/queries/surveys'
-import { getPropertiesForUser } from '@/lib/db/queries/properties'
+import { getSubmissionsWithDetails } from '@/lib/db/queries/surveys'
+import { getProperties } from '@/lib/db/queries/properties'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -74,27 +71,14 @@ export default async function SurveysPage({ searchParams }: SurveysPageProps) {
   const isAdmin = profile.role === 'admin'
   const surveyTypeFilter = (params.surveyType as 'internal' | 'guest') || undefined
 
-  // Fetch submissions based on role
+  // All users see all surveys — use the same query with filters
   let submissions: Awaited<ReturnType<typeof getSubmissionsWithDetails>>
   try {
-    if (isAdmin) {
-      submissions = await getSubmissionsWithDetails({
-        propertyId: params.propertyId || undefined,
-        status: (params.status as 'draft' | 'submitted' | 'reviewed') || undefined,
-        surveyType: surveyTypeFilter,
-      })
-    } else {
-      submissions = await getSubmissionsForUser(profile.id, surveyTypeFilter)
-      // Apply client-side filters for non-admin
-      if (params.propertyId) {
-        submissions = submissions.filter(
-          (s) => s.propertyId === params.propertyId
-        )
-      }
-      if (params.status) {
-        submissions = submissions.filter((s) => s.status === params.status)
-      }
-    }
+    submissions = await getSubmissionsWithDetails({
+      propertyId: params.propertyId || undefined,
+      status: (params.status as 'draft' | 'submitted' | 'reviewed') || undefined,
+      surveyType: surveyTypeFilter,
+    })
   } catch {
     submissions = []
   }
@@ -107,24 +91,12 @@ export default async function SurveysPage({ searchParams }: SurveysPageProps) {
     submissions = submissions.filter((s) => s.visitDate <= params.dateTo!)
   }
 
-  // Get properties for filter dropdown
-  let properties: Awaited<ReturnType<typeof getPropertiesForUser>>
+  // Get all properties for filter dropdown
+  let properties: Awaited<ReturnType<typeof getProperties>>
   try {
-    properties = await getPropertiesForUser(profile.id)
+    properties = await getProperties(profile.orgId)
   } catch {
-    // Fallback: use assignments from profile (covers dev bypass)
-    properties = (profile.assignments ?? []).map((a) => ({
-      id: a.propertyId,
-      name: a.propertyName,
-      code: a.propertyCode,
-      slug: a.propertyCode.toLowerCase(),
-      orgId: profile.orgId,
-      imageUrl: null,
-      location: null,
-      isActive: a.propertyIsActive,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }))
+    properties = []
   }
 
   return (
@@ -134,9 +106,7 @@ export default async function SurveysPage({ searchParams }: SurveysPageProps) {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Surveys</h1>
           <p className="text-muted-foreground">
-            {isAdmin
-              ? 'View and manage all quality assessment surveys.'
-              : 'View your surveys and property assessments.'}
+            View and manage all quality assessment surveys.
           </p>
         </div>
         <Button asChild>
@@ -206,7 +176,16 @@ export default async function SurveysPage({ searchParams }: SurveysPageProps) {
                     {format(new Date(submission.visitDate), 'MMM d, yyyy')}
                   </TableCell>
                   <TableCell>{getStatusBadge(submission.status)}</TableCell>
-                  <TableCell>{submission.submitterName}</TableCell>
+                  <TableCell>
+                    {submission.submitterName ? (
+                      submission.submitterName
+                    ) : (
+                      <span className="flex items-center gap-1.5">
+                        <Badge variant="outline" className="text-xs">Guest</Badge>
+                        {submission.guestName || 'Anonymous'}
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
                       {submission.slug && isAdmin && submission.status === 'draft' && (

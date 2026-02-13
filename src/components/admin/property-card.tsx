@@ -38,12 +38,14 @@ import {
 } from '@/components/ui/alert-dialog'
 import { PropertyForm } from '@/components/admin/property-form'
 import type { Property } from '@/lib/db/schema'
+import type { OrgUser } from '@/components/admin/properties-page-client'
 
 interface PropertyCardProps {
   property: Property
+  allUsers?: OrgUser[]
 }
 
-export function PropertyCard({ property }: PropertyCardProps) {
+export function PropertyCard({ property, allUsers = [] }: PropertyCardProps) {
   const router = useRouter()
   const [editOpen, setEditOpen] = useState(false)
   const [deactivateOpen, setDeactivateOpen] = useState(false)
@@ -102,6 +104,11 @@ export function PropertyCard({ property }: PropertyCardProps) {
       setDeleteOpen(false)
     }
   }
+
+  // Look up PM name from allUsers
+  const pmName = property.primaryPmId
+    ? allUsers.find((u) => u.id === property.primaryPmId)?.fullName ?? 'Unknown'
+    : null
 
   const imageSrc =
     property.imageUrl || `/properties/${property.code}.png`
@@ -190,6 +197,14 @@ export function PropertyCard({ property }: PropertyCardProps) {
               {property.location}
             </div>
           )}
+          <div className="pt-1">
+            <span className="text-[11px] font-medium text-muted-foreground">
+              PM:{' '}
+            </span>
+            <span className="text-xs">
+              {pmName ?? 'Unassigned'}
+            </span>
+          </div>
         </CardContent>
       </Card>
 
@@ -205,6 +220,11 @@ export function PropertyCard({ property }: PropertyCardProps) {
           <PropertyForm
             property={property}
             onSuccess={() => setEditOpen(false)}
+            allUsers={allUsers}
+            assignedUserIds={allUsers
+              .filter((u) => u.assignedPropertyIds.includes(property.id))
+              .map((u) => u.id)
+            }
           />
         </DialogContent>
       </Dialog>

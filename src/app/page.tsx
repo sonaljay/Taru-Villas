@@ -1,5 +1,16 @@
 import { redirect } from 'next/navigation'
+import { requireAuth } from '@/lib/auth/guards'
 
-export default function Home() {
-  redirect('/dashboard')
+export default async function Home() {
+  const profile = await requireAuth()
+
+  if (!profile) {
+    redirect('/login')
+  }
+
+  if (profile.role === 'admin') {
+    redirect('/dashboard')
+  }
+
+  redirect('/surveys')
 }

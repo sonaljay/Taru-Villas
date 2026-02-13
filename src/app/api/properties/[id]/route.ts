@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { eq } from 'drizzle-orm'
 import { getProfile, getUserProperties } from '@/lib/auth/guards'
 import {
   getPropertyById,
   updateProperty,
   deleteProperty,
 } from '@/lib/db/queries/properties'
+import { db } from '@/lib/db'
+import { propertyAssignments } from '@/lib/db/schema'
 
 // ---------------------------------------------------------------------------
 // Validation
@@ -18,6 +21,8 @@ const updatePropertySchema = z.object({
   location: z.string().max(500).nullable().optional(),
   imageUrl: z.string().nullable().optional(),
   isActive: z.boolean().optional(),
+  primaryPmId: z.string().uuid().nullable().optional(),
+  assignedUserIds: z.array(z.string().uuid()).optional(),
 })
 
 // ---------------------------------------------------------------------------
@@ -106,7 +111,28 @@ export async function PATCH(
       )
     }
 
-    const updated = await updateProperty(id, parsed.data)
+    const { assignedUserIds, ...propertyData } = parsed.data
+
+    // Update property fields
+    const updated = await updateProperty(id, propertyData)
+
+    // Update property assignments if provided
+    if (assignedUserIds !== undefined) {
+      // Remove all existing assignments for this property
+      await db
+        .delete(propertyAssignments)
+        .where(eq(propertyAssignments.propertyId, id))
+
+      // Insert new assignments
+      if (assignedUserIds.length > 0) {
+        await db.insert(propertyAssignments).values(
+          assignedUserIds.map((userId) => ({
+            userId,
+            propertyId: id,
+          }))
+        )
+      }
+    }
 
     return NextResponse.json(updated)
   } catch (error) {
