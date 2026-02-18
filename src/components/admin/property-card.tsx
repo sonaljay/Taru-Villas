@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { MoreHorizontal, Pencil, Power, MapPin, Trash2 } from 'lucide-react'
+import Link from 'next/link'
+import { MoreHorizontal, Pencil, Power, MapPin, Trash2, Compass } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
@@ -155,6 +156,12 @@ export function PropertyCard({ property, allUsers = [] }: PropertyCardProps) {
                 <DropdownMenuItem onClick={() => setEditOpen(true)}>
                   <Pencil className="size-4" />
                   Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href={`/properties/${property.id}/excursions`}>
+                    <Compass className="size-4" />
+                    Manage Excursions
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem

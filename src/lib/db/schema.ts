@@ -95,6 +95,7 @@ export const propertiesRelations = relations(properties, ({ one, many }) => ({
   propertyAssignments: many(propertyAssignments),
   surveySubmissions: many(surveySubmissions),
   tasks: many(tasks),
+  excursions: many(excursions),
 }))
 
 // ---------------------------------------------------------------------------
@@ -473,6 +474,33 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
 }))
 
 // ---------------------------------------------------------------------------
+// Excursions
+// ---------------------------------------------------------------------------
+export const excursions = pgTable('excursions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  propertyId: uuid('property_id')
+    .notNull()
+    .references(() => properties.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  description: text('description'),
+  imageUrl: text('image_url'),
+  price: text('price'),
+  duration: text('duration'),
+  bookingUrl: text('booking_url'),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export const excursionsRelations = relations(excursions, ({ one }) => ({
+  property: one(properties, {
+    fields: [excursions.propertyId],
+    references: [properties.id],
+  }),
+}))
+
+// ---------------------------------------------------------------------------
 // Type aliases
 // ---------------------------------------------------------------------------
 export type Organization = typeof organizations.$inferSelect
@@ -510,3 +538,6 @@ export type NewGuestSurveyLink = typeof guestSurveyLinks.$inferInsert
 
 export type Task = typeof tasks.$inferSelect
 export type NewTask = typeof tasks.$inferInsert
+
+export type Excursion = typeof excursions.$inferSelect
+export type NewExcursion = typeof excursions.$inferInsert
