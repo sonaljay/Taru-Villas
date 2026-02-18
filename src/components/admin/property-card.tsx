@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import { MoreHorizontal, Pencil, Power, MapPin, Trash2, Compass } from 'lucide-react'
+import { MoreHorizontal, Pencil, Power, MapPin, Trash2, Compass, UtensilsCrossed } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
@@ -161,6 +161,12 @@ export function PropertyCard({ property, allUsers = [] }: PropertyCardProps) {
                   <Link href={`/properties/${property.id}/excursions`}>
                     <Compass className="size-4" />
                     Manage Excursions
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href={`/properties/${property.id}/menus`}>
+                    <UtensilsCrossed className="size-4" />
+                    Manage Menu
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />

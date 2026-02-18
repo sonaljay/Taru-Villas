@@ -12,6 +12,7 @@ import {
   date,
   unique,
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import { relations } from 'drizzle-orm'
 
 // ---------------------------------------------------------------------------
@@ -96,6 +97,7 @@ export const propertiesRelations = relations(properties, ({ one, many }) => ({
   surveySubmissions: many(surveySubmissions),
   tasks: many(tasks),
   excursions: many(excursions),
+  menuCategories: many(menuCategories),
 }))
 
 // ---------------------------------------------------------------------------
@@ -501,6 +503,56 @@ export const excursionsRelations = relations(excursions, ({ one }) => ({
 }))
 
 // ---------------------------------------------------------------------------
+// Menu Categories
+// ---------------------------------------------------------------------------
+export const menuCategories = pgTable('menu_categories', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  propertyId: uuid('property_id')
+    .notNull()
+    .references(() => properties.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export const menuCategoriesRelations = relations(menuCategories, ({ one, many }) => ({
+  property: one(properties, {
+    fields: [menuCategories.propertyId],
+    references: [properties.id],
+  }),
+  menuItems: many(menuItems),
+}))
+
+// ---------------------------------------------------------------------------
+// Menu Items
+// ---------------------------------------------------------------------------
+export const menuItems = pgTable('menu_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  categoryId: uuid('category_id')
+    .notNull()
+    .references(() => menuCategories.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  description: text('description'),
+  imageUrl: text('image_url'),
+  price: text('price'),
+  tags: text('tags').array().default(sql`'{}'::text[]`).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export const menuItemsRelations = relations(menuItems, ({ one }) => ({
+  category: one(menuCategories, {
+    fields: [menuItems.categoryId],
+    references: [menuCategories.id],
+  }),
+}))
+
+// ---------------------------------------------------------------------------
 // Type aliases
 // ---------------------------------------------------------------------------
 export type Organization = typeof organizations.$inferSelect
@@ -541,3 +593,9 @@ export type NewTask = typeof tasks.$inferInsert
 
 export type Excursion = typeof excursions.$inferSelect
 export type NewExcursion = typeof excursions.$inferInsert
+
+export type MenuCategory = typeof menuCategories.$inferSelect
+export type NewMenuCategory = typeof menuCategories.$inferInsert
+
+export type MenuItem = typeof menuItems.$inferSelect
+export type NewMenuItem = typeof menuItems.$inferInsert

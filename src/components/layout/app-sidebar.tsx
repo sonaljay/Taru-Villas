@@ -12,6 +12,8 @@ import {
   LogOut,
   ChevronsUpDown,
   ListTodo,
+  Compass,
+  UtensilsCrossed,
 } from 'lucide-react'
 
 import { useAuth } from '@/components/providers/auth-provider'
@@ -62,6 +64,8 @@ const mainNavItems: NavItem[] = [
 
 const propertyNavItems: NavItem[] = [
   { title: 'My Properties', href: '/properties', icon: Building2 },
+  { title: 'Excursions', href: '/excursions', icon: Compass },
+  { title: 'Menus', href: '/menus', icon: UtensilsCrossed },
 ]
 
 const adminNavItems: NavItem[] = [
