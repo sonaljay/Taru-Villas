@@ -2,6 +2,7 @@
 
 import { MapPin } from 'lucide-react'
 import { MenuItemPublicCard } from '@/components/menus/menu-item-public-card'
+import { TraditionalMenuLayout } from '@/components/menus/traditional-menu-layout'
 import type { Property } from '@/lib/db/schema'
 import type { MenuCategoryWithItems } from '@/lib/db/queries/menus'
 
@@ -14,6 +15,10 @@ export function MenusPublicPage({
   property,
   categories,
 }: MenusPublicPageProps) {
+  const heroImage = property.menuCoverImageUrl || property.imageUrl
+  const hasAnyImages = categories.some((cat) =>
+    cat.menuItems.some((item) => !!item.imageUrl)
+  )
   let globalCardIndex = 0
 
   return (
@@ -23,10 +28,10 @@ export function MenusPublicPage({
       {/* ------------------------------------------------------------------ */}
       <section className="relative isolate overflow-hidden">
         {/* Background — image or gradient */}
-        {property.imageUrl ? (
+        {heroImage ? (
           <>
             <img
-              src={property.imageUrl}
+              src={heroImage}
               alt=""
               aria-hidden
               className="absolute inset-0 -z-20 h-full w-full object-cover"
@@ -91,56 +96,64 @@ export function MenusPublicPage({
       {/* ------------------------------------------------------------------ */}
       {/* Menu sections by category                                           */}
       {/* ------------------------------------------------------------------ */}
-      <section className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
-        {categories.length > 0 ? (
-          <div className="space-y-16">
-            {categories.map((category, catIndex) => {
-              const itemStartIndex = globalCardIndex
-              globalCardIndex += category.menuItems.length
+      {categories.length > 0 ? (
+        hasAnyImages ? (
+          /* Card grid layout — when items have images */
+          <section className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
+            <div className="space-y-16">
+              {categories.map((category, catIndex) => {
+                const itemStartIndex = globalCardIndex
+                globalCardIndex += category.menuItems.length
 
-              return (
-                <div key={category.id}>
-                  {/* Category header */}
-                  <div
-                    className="mb-8"
-                    style={{
-                      animation: 'menuHeroFade 0.6s ease-out both',
-                      animationDelay: `${catIndex * 120 + 100}ms`,
-                    }}
-                  >
-                    <div className="flex items-center gap-4 mb-3">
-                      <div className="h-px flex-1 bg-border" />
-                      <h2 className="text-lg font-medium uppercase tracking-[0.15em] text-foreground/80 sm:text-xl">
-                        {category.name}
-                      </h2>
-                      <div className="h-px flex-1 bg-border" />
-                    </div>
-                    {category.description && (
-                      <p className="text-center text-sm text-muted-foreground max-w-lg mx-auto">
-                        {category.description}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Items grid */}
-                  <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                    {category.menuItems.map((item, i) => (
-                      <div
-                        key={item.id}
-                        style={{
-                          animation: 'menuCardIn 0.6s ease-out both',
-                          animationDelay: `${(itemStartIndex + i) * 80}ms`,
-                        }}
-                      >
-                        <MenuItemPublicCard item={item} />
+                return (
+                  <div key={category.id}>
+                    {/* Category header */}
+                    <div
+                      className="mb-8"
+                      style={{
+                        animation: 'menuHeroFade 0.6s ease-out both',
+                        animationDelay: `${catIndex * 120 + 100}ms`,
+                      }}
+                    >
+                      <div className="flex items-center gap-4 mb-3">
+                        <div className="h-px flex-1 bg-border" />
+                        <h2 className="text-lg font-medium uppercase tracking-[0.15em] text-foreground/80 sm:text-xl">
+                          {category.name}
+                        </h2>
+                        <div className="h-px flex-1 bg-border" />
                       </div>
-                    ))}
+                      {category.description && (
+                        <p className="text-center text-sm text-muted-foreground max-w-lg mx-auto">
+                          {category.description}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Items grid */}
+                    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                      {category.menuItems.map((item, i) => (
+                        <div
+                          key={item.id}
+                          style={{
+                            animation: 'menuCardIn 0.6s ease-out both',
+                            animationDelay: `${(itemStartIndex + i) * 80}ms`,
+                          }}
+                        >
+                          <MenuItemPublicCard item={item} />
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          </section>
         ) : (
+          /* Traditional text layout — when no items have images */
+          <TraditionalMenuLayout categories={categories} />
+        )
+      ) : (
+        <section className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <div className="mb-6 h-px w-12 bg-border" />
             <p className="text-lg font-light tracking-wide text-muted-foreground">
@@ -151,8 +164,8 @@ export function MenusPublicPage({
               Check back shortly.
             </p>
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
       {/* Keyframes */}
       <style>{`

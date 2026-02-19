@@ -35,6 +35,7 @@ import { Badge } from '@/components/ui/badge'
 import { MenuCategoryForm } from '@/components/admin/menu-category-form'
 import { MenuItemForm } from '@/components/admin/menu-item-form'
 import { MenuItemCard } from '@/components/admin/menu-item-card'
+import { CoverImageInput } from '@/components/admin/cover-image-input'
 import type { Property } from '@/lib/db/schema'
 import type { MenuCategoryWithItems } from '@/lib/db/queries/menus'
 
@@ -134,6 +135,14 @@ export function MenusPageClient({ property, categories }: MenusPageClientProps) 
           </Button>
         </div>
       </div>
+
+      {/* Cover Image */}
+      <CoverImageInput
+        propertyId={property.id}
+        fieldName="menuCoverImageUrl"
+        currentUrl={property.menuCoverImageUrl}
+        label="Menu Cover Image"
+      />
 
       {/* Categories */}
       {categories.length > 0 ? (

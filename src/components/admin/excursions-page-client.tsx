@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import { ExcursionForm } from '@/components/admin/excursion-form'
 import { ExcursionCard } from '@/components/admin/excursion-card'
+import { CoverImageInput } from '@/components/admin/cover-image-input'
 import type { Property, Excursion } from '@/lib/db/schema'
 
 interface ExcursionsPageClientProps {
@@ -67,6 +68,14 @@ export function ExcursionsPageClient({
           </Button>
         </div>
       </div>
+
+      {/* Cover Image */}
+      <CoverImageInput
+        propertyId={property.id}
+        fieldName="excursionCoverImageUrl"
+        currentUrl={property.excursionCoverImageUrl}
+        label="Excursions Cover Image"
+      />
 
       {/* Grid */}
       {excursions.length > 0 ? (

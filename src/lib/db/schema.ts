@@ -76,6 +76,8 @@ export const properties = pgTable('properties', {
   slug: varchar('slug', { length: 255 }).notNull(),
   code: varchar('code', { length: 50 }).notNull().unique(),
   imageUrl: text('image_url'),
+  menuCoverImageUrl: text('menu_cover_image_url'),
+  excursionCoverImageUrl: text('excursion_cover_image_url'),
   location: text('location'),
   primaryPmId: uuid('primary_pm_id')
     .references(() => profiles.id, { onDelete: 'set null' }),

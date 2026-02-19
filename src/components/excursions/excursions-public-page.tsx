@@ -13,6 +13,8 @@ export function ExcursionsPublicPage({
   property,
   excursions,
 }: ExcursionsPublicPageProps) {
+  const heroImage = property.excursionCoverImageUrl || property.imageUrl
+
   return (
     <>
       {/* ------------------------------------------------------------------ */}
@@ -20,10 +22,10 @@ export function ExcursionsPublicPage({
       {/* ------------------------------------------------------------------ */}
       <section className="relative isolate overflow-hidden">
         {/* Background — image or gradient */}
-        {property.imageUrl ? (
+        {heroImage ? (
           <>
             <img
-              src={property.imageUrl}
+              src={heroImage}
               alt=""
               aria-hidden
               className="absolute inset-0 -z-20 h-full w-full object-cover"
