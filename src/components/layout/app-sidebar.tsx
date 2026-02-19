@@ -14,6 +14,8 @@ import {
   ListTodo,
   Compass,
   UtensilsCrossed,
+  ListChecks,
+  ClipboardList,
 } from 'lucide-react'
 
 import { useAuth } from '@/components/providers/auth-provider'
@@ -58,6 +60,7 @@ interface NavItem {
 const mainNavItems: NavItem[] = [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { title: 'Take A Survey', href: '/surveys', icon: ClipboardCheck },
+  { title: 'My SOPs', href: '/sops', icon: ListChecks },
   { title: 'Tasks', href: '/tasks', icon: ListTodo },
   { title: 'Settings', href: '/settings', icon: Settings },
 ]
@@ -66,6 +69,7 @@ const propertyNavItems: NavItem[] = [
   { title: 'My Properties', href: '/properties', icon: Building2 },
   { title: 'Excursions', href: '/excursions', icon: Compass },
   { title: 'Menus', href: '/menus', icon: UtensilsCrossed },
+  { title: 'SOP Dashboard', href: '/sops/dashboard', icon: ClipboardList },
 ]
 
 const adminNavItems: NavItem[] = [
@@ -73,6 +77,7 @@ const adminNavItems: NavItem[] = [
   { title: 'Submitted Surveys', href: '/admin/surveys', icon: ClipboardCheck },
   { title: 'Manage Tasks', href: '/admin/tasks', icon: ListTodo },
   { title: 'Manage Templates', href: '/admin/templates', icon: FileText },
+  { title: 'Manage SOPs', href: '/admin/sops', icon: ClipboardList },
   { title: 'Manage Users', href: '/admin/users', icon: Users },
 ]
 
@@ -110,6 +115,9 @@ export function AppSidebar() {
   const isActive = (href: string) => {
     if (href === '/dashboard') {
       return pathname === '/dashboard'
+    }
+    if (href === '/sops') {
+      return pathname === '/sops'
     }
     return pathname.startsWith(href)
   }

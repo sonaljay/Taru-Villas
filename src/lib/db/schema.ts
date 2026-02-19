@@ -46,6 +46,17 @@ export const taskStatusEnum = pgEnum('task_status', [
   'closed',
 ])
 
+export const sopFrequencyEnum = pgEnum('sop_frequency', [
+  'daily',
+  'weekly',
+  'monthly',
+])
+
+export const sopCompletionStatusEnum = pgEnum('sop_completion_status', [
+  'pending',
+  'completed',
+])
+
 // ---------------------------------------------------------------------------
 // Organizations
 // ---------------------------------------------------------------------------
@@ -100,6 +111,7 @@ export const propertiesRelations = relations(properties, ({ one, many }) => ({
   tasks: many(tasks),
   excursions: many(excursions),
   menuCategories: many(menuCategories),
+  sopAssignments: many(sopAssignments),
 }))
 
 // ---------------------------------------------------------------------------
@@ -129,6 +141,7 @@ export const profilesRelations = relations(profiles, ({ one, many }) => ({
   propertyAssignments: many(propertyAssignments),
   surveySubmissions: many(surveySubmissions),
   createdTemplates: many(surveyTemplates),
+  sopAssignments: many(sopAssignments),
 }))
 
 // ---------------------------------------------------------------------------
@@ -555,6 +568,195 @@ export const menuItemsRelations = relations(menuItems, ({ one }) => ({
 }))
 
 // ---------------------------------------------------------------------------
+// SOP Templates
+// ---------------------------------------------------------------------------
+export const sopTemplates = pgTable('sop_templates', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => organizations.id),
+  name: text('name').notNull(),
+  description: text('description'),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export const sopTemplatesRelations = relations(sopTemplates, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [sopTemplates.orgId],
+    references: [organizations.id],
+  }),
+  sections: many(sopSections),
+  items: many(sopItems),
+  assignments: many(sopAssignments),
+}))
+
+// ---------------------------------------------------------------------------
+// SOP Sections (optional grouping within a template)
+// ---------------------------------------------------------------------------
+export const sopSections = pgTable('sop_sections', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  templateId: uuid('template_id')
+    .notNull()
+    .references(() => sopTemplates.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export const sopSectionsRelations = relations(sopSections, ({ one, many }) => ({
+  template: one(sopTemplates, {
+    fields: [sopSections.templateId],
+    references: [sopTemplates.id],
+  }),
+  items: many(sopItems),
+}))
+
+// ---------------------------------------------------------------------------
+// SOP Items (checklist items)
+// ---------------------------------------------------------------------------
+export const sopItems = pgTable('sop_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  templateId: uuid('template_id')
+    .notNull()
+    .references(() => sopTemplates.id, { onDelete: 'cascade' }),
+  sectionId: uuid('section_id')
+    .references(() => sopSections.id, { onDelete: 'cascade' }),
+  content: text('content').notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export const sopItemsRelations = relations(sopItems, ({ one }) => ({
+  template: one(sopTemplates, {
+    fields: [sopItems.templateId],
+    references: [sopTemplates.id],
+  }),
+  section: one(sopSections, {
+    fields: [sopItems.sectionId],
+    references: [sopSections.id],
+  }),
+}))
+
+// ---------------------------------------------------------------------------
+// SOP Assignments (who does what, where, when)
+// ---------------------------------------------------------------------------
+export const sopAssignments = pgTable(
+  'sop_assignments',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    templateId: uuid('template_id')
+      .notNull()
+      .references(() => sopTemplates.id, { onDelete: 'cascade' }),
+    propertyId: uuid('property_id')
+      .notNull()
+      .references(() => properties.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    frequency: sopFrequencyEnum('frequency').notNull(),
+    deadlineTime: text('deadline_time').notNull(),
+    deadlineDay: integer('deadline_day'),
+    isActive: boolean('is_active').default(true).notNull(),
+    notifyOnOverdue: boolean('notify_on_overdue').default(false).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('sop_assignments_template_property_user_unique').on(
+      table.templateId,
+      table.propertyId,
+      table.userId
+    ),
+  ]
+)
+
+export const sopAssignmentsRelations = relations(sopAssignments, ({ one, many }) => ({
+  template: one(sopTemplates, {
+    fields: [sopAssignments.templateId],
+    references: [sopTemplates.id],
+  }),
+  property: one(properties, {
+    fields: [sopAssignments.propertyId],
+    references: [properties.id],
+  }),
+  user: one(profiles, {
+    fields: [sopAssignments.userId],
+    references: [profiles.id],
+  }),
+  completions: many(sopCompletions),
+}))
+
+// ---------------------------------------------------------------------------
+// SOP Completions (instance for a specific due date)
+// ---------------------------------------------------------------------------
+export const sopCompletions = pgTable(
+  'sop_completions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    assignmentId: uuid('assignment_id')
+      .notNull()
+      .references(() => sopAssignments.id, { onDelete: 'cascade' }),
+    dueDate: date('due_date').notNull(),
+    status: sopCompletionStatusEnum('status').default('pending').notNull(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('sop_completions_assignment_due_date_unique').on(
+      table.assignmentId,
+      table.dueDate
+    ),
+  ]
+)
+
+export const sopCompletionsRelations = relations(sopCompletions, ({ one, many }) => ({
+  assignment: one(sopAssignments, {
+    fields: [sopCompletions.assignmentId],
+    references: [sopAssignments.id],
+  }),
+  itemCompletions: many(sopItemCompletions),
+}))
+
+// ---------------------------------------------------------------------------
+// SOP Item Completions (individual check-offs)
+// ---------------------------------------------------------------------------
+export const sopItemCompletions = pgTable(
+  'sop_item_completions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    completionId: uuid('completion_id')
+      .notNull()
+      .references(() => sopCompletions.id, { onDelete: 'cascade' }),
+    itemId: uuid('item_id')
+      .notNull()
+      .references(() => sopItems.id, { onDelete: 'cascade' }),
+    isChecked: boolean('is_checked').default(false).notNull(),
+    note: text('note'),
+    checkedAt: timestamp('checked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('sop_item_completions_completion_item_unique').on(
+      table.completionId,
+      table.itemId
+    ),
+  ]
+)
+
+export const sopItemCompletionsRelations = relations(sopItemCompletions, ({ one }) => ({
+  completion: one(sopCompletions, {
+    fields: [sopItemCompletions.completionId],
+    references: [sopCompletions.id],
+  }),
+  item: one(sopItems, {
+    fields: [sopItemCompletions.itemId],
+    references: [sopItems.id],
+  }),
+}))
+
+// ---------------------------------------------------------------------------
 // Type aliases
 // ---------------------------------------------------------------------------
 export type Organization = typeof organizations.$inferSelect
@@ -601,3 +803,21 @@ export type NewMenuCategory = typeof menuCategories.$inferInsert
 
 export type MenuItem = typeof menuItems.$inferSelect
 export type NewMenuItem = typeof menuItems.$inferInsert
+
+export type SopTemplate = typeof sopTemplates.$inferSelect
+export type NewSopTemplate = typeof sopTemplates.$inferInsert
+
+export type SopSection = typeof sopSections.$inferSelect
+export type NewSopSection = typeof sopSections.$inferInsert
+
+export type SopItem = typeof sopItems.$inferSelect
+export type NewSopItem = typeof sopItems.$inferInsert
+
+export type SopAssignment = typeof sopAssignments.$inferSelect
+export type NewSopAssignment = typeof sopAssignments.$inferInsert
+
+export type SopCompletion = typeof sopCompletions.$inferSelect
+export type NewSopCompletion = typeof sopCompletions.$inferInsert
+
+export type SopItemCompletion = typeof sopItemCompletions.$inferSelect
+export type NewSopItemCompletion = typeof sopItemCompletions.$inferInsert
