@@ -23,6 +23,10 @@ const segmentLabels: Record<string, string> = {
   users: 'Users',
   new: 'New',
   edit: 'Edit',
+  sops: 'SOPs',
+  tasks: 'Tasks',
+  excursions: 'Excursions',
+  menus: 'Menus',
 }
 
 function getPageTitle(pathname: string): string {
