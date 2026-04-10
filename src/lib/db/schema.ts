@@ -757,6 +757,22 @@ export const sopItemCompletionsRelations = relations(sopItemCompletions, ({ one 
 }))
 
 // ---------------------------------------------------------------------------
+// Allowed Emails (whitelist for email/password auth)
+// ---------------------------------------------------------------------------
+export const allowedEmails = pgTable('allowed_emails', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  addedBy: uuid('added_by').references(() => profiles.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export const allowedEmailsRelations = relations(allowedEmails, ({ one }) => ({
+  organization: one(organizations, { fields: [allowedEmails.orgId], references: [organizations.id] }),
+  addedByProfile: one(profiles, { fields: [allowedEmails.addedBy], references: [profiles.id] }),
+}))
+
+// ---------------------------------------------------------------------------
 // Type aliases
 // ---------------------------------------------------------------------------
 export type Organization = typeof organizations.$inferSelect
@@ -821,3 +837,6 @@ export type NewSopCompletion = typeof sopCompletions.$inferInsert
 
 export type SopItemCompletion = typeof sopItemCompletions.$inferSelect
 export type NewSopItemCompletion = typeof sopItemCompletions.$inferInsert
+
+export type AllowedEmail = typeof allowedEmails.$inferSelect
+export type NewAllowedEmail = typeof allowedEmails.$inferInsert
