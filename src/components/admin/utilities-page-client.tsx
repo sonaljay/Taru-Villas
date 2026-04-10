@@ -12,6 +12,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { UtilitySummaryCards } from '@/components/admin/utility-summary-cards'
+import { UtilityCharts } from '@/components/admin/utility-charts'
+import { UtilityReadingsTable } from '@/components/admin/utility-readings-table'
+import { UtilityReadingForm } from '@/components/admin/utility-reading-form'
+import { UtilityTierForm } from '@/components/admin/utility-tier-form'
 
 interface UtilitiesPageClientProps {
   property: { id: string; name: string; code: string }
@@ -54,7 +59,7 @@ export function UtilitiesPageClient({ property, isAdmin }: UtilitiesPageClientPr
   const now = new Date()
   const [utilityType, setUtilityType] = useState<'water' | 'electricity'>('water')
   const [year, setYear] = useState(now.getFullYear())
-  const [month, setMonth] = useState(now.getMonth() + 1) // 1-indexed
+  const [month, setMonth] = useState(now.getMonth() + 1)
   const [summary, setSummary] = useState<SummaryData | null>(null)
   const [readings, setReadings] = useState<ReadingEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -93,8 +98,61 @@ export function UtilitiesPageClient({ property, isAdmin }: UtilitiesPageClientPr
     'July', 'August', 'September', 'October', 'November', 'December',
   ]
 
-  // Generate year options (current year and 2 years back)
   const yearOptions = Array.from({ length: 3 }, (_, i) => now.getFullYear() - i)
+
+  const pred = summary?.prediction
+
+  const tabContent = (
+    <div className="space-y-6">
+      {/* Summary Cards */}
+      <UtilitySummaryCards
+        utilityType={utilityType}
+        actualConsumption={pred?.actualConsumption ?? 0}
+        actualCost={pred?.actualCost ?? 0}
+        predictedConsumption={pred?.predictedConsumption ?? 0}
+        predictedCost={pred?.predictedCost ?? 0}
+        avgDailyConsumption={pred?.avgDailyConsumption ?? 0}
+        daysElapsed={pred?.daysElapsed ?? 0}
+        daysInMonth={pred?.daysInMonth ?? 30}
+        tiersConfigured={summary?.tiersConfigured ?? false}
+        loading={loading}
+      />
+
+      {/* Charts */}
+      <UtilityCharts
+        dailyConsumption={summary?.dailyConsumption ?? []}
+        history={summary?.history ?? []}
+        utilityType={utilityType}
+        loading={loading}
+      />
+
+      {/* Readings Table + Entry Form */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <UtilityReadingsTable
+            readings={readings}
+            onRefresh={fetchData}
+          />
+        </div>
+        <div>
+          <UtilityReadingForm
+            propertyId={property.id}
+            utilityType={utilityType}
+            onSuccess={fetchData}
+          />
+        </div>
+      </div>
+
+      {/* Tier Configuration (admin only) */}
+      {isAdmin && (
+        <UtilityTierForm
+          propertyId={property.id}
+          utilityType={utilityType}
+          onRefresh={fetchData}
+        />
+      )}
+    </div>
+  )
 
   return (
     <div className="space-y-6 p-6">
@@ -170,44 +228,12 @@ export function UtilitiesPageClient({ property, isAdmin }: UtilitiesPageClientPr
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="water" className="space-y-6 mt-6">
-          {/* Summary Cards — placeholder for Task 8 */}
-          <div id="summary-cards" data-utility="water">
-            {/* UtilitySummaryCards will go here */}
-          </div>
-
-          {/* Charts — placeholder for Task 10 */}
-          <div id="charts" data-utility="water">
-            {/* UtilityCharts will go here */}
-          </div>
-
-          {/* Readings Table + Entry Form — placeholders for Tasks 8, 9 */}
-          <div id="readings-section" data-utility="water" className="grid gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-2">
-              {/* UtilityReadingsTable will go here */}
-            </div>
-            <div>
-              {/* UtilityReadingForm will go here */}
-            </div>
-          </div>
-
-          {/* Tier Config — placeholder for Task 11 */}
-          {isAdmin && (
-            <div id="tier-config" data-utility="water">
-              {/* UtilityTierForm will go here */}
-            </div>
-          )}
+        <TabsContent value="water" className="mt-6">
+          {tabContent}
         </TabsContent>
 
-        <TabsContent value="electricity" className="space-y-6 mt-6">
-          {/* Same structure as water tab — components will be shared */}
-          <div id="summary-cards" data-utility="electricity" />
-          <div id="charts" data-utility="electricity" />
-          <div id="readings-section" data-utility="electricity" className="grid gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-2" />
-            <div />
-          </div>
-          {isAdmin && <div id="tier-config" data-utility="electricity" />}
+        <TabsContent value="electricity" className="mt-6">
+          {tabContent}
         </TabsContent>
       </Tabs>
     </div>
