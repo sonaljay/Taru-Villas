@@ -21,7 +21,7 @@ function nowIST(): string {
   }) + ' IST'
 }
 
-async function resizeAndEncode(file: File): Promise<{ base64: string; mimeType: string; previewUrl: string }> {
+async function prepareImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     const url = URL.createObjectURL(file)
@@ -32,14 +32,29 @@ async function resizeAndEncode(file: File): Promise<{ base64: string; mimeType: 
       canvas.width = Math.round(img.width * scale)
       canvas.height = Math.round(img.height * scale)
       canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
-      const previewUrl = canvas.toDataURL('image/jpeg', 0.85)
-      const base64 = previewUrl.split(',')[1]
       URL.revokeObjectURL(url)
-      resolve({ base64, mimeType: 'image/jpeg', previewUrl })
+      resolve(canvas.toDataURL('image/jpeg', 0.9))
     }
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Failed to load image')) }
     img.src = url
   })
+}
+
+async function extractReading(imageDataUrl: string): Promise<number> {
+  const { createWorker } = await import('tesseract.js')
+  const worker = await createWorker('eng')
+  await worker.setParameters({
+    tessedit_char_whitelist: '0123456789.',
+    // @ts-expect-error – tesseract string param
+    tessedit_pageseg_mode: '7',
+  })
+  const { data: { text } } = await worker.recognize(imageDataUrl)
+  await worker.terminate()
+
+  const cleaned = text.trim().replace(/[^0-9.]/g, '')
+  const value = parseFloat(cleaned)
+  if (!cleaned || isNaN(value)) throw new Error('Could not read meter value from image')
+  return value
 }
 
 interface PublicReadingFormProps {
@@ -71,19 +86,10 @@ export function PublicReadingForm({ property }: PublicReadingFormProps) {
     setReadingTimestamp(null)
     setError(null)
     try {
-      const { base64, mimeType, previewUrl } = await resizeAndEncode(file)
-      setScannedPreview(previewUrl)
-
-      const res = await fetch('/api/utilities/extract-reading', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64, mimeType }),
-      })
-
-      const body = await res.json()
-      if (!res.ok) throw new Error(body.error ?? 'Scan failed')
-
-      setReadingValue(String(body.value))
+      const imageDataUrl = await prepareImage(file)
+      setScannedPreview(imageDataUrl)
+      const value = await extractReading(imageDataUrl)
+      setReadingValue(String(value))
       setReadingTimestamp(nowIST())
       setIsScannedReading(true)
     } catch (err) {
