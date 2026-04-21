@@ -41,20 +41,31 @@ async function prepareImage(file: File): Promise<string> {
 }
 
 async function extractReading(imageDataUrl: string): Promise<number> {
-  const { createWorker } = await import('tesseract.js')
-  const worker = await createWorker('eng')
-  await worker.setParameters({
-    tessedit_char_whitelist: '0123456789.',
-    // @ts-expect-error – tesseract string param
-    tessedit_pageseg_mode: '7',
-  })
-  const { data: { text } } = await worker.recognize(imageDataUrl)
-  await worker.terminate()
+  try {
+    console.log('Starting OCR processing...')
+    const { createWorker } = await import('tesseract.js')
+    console.log('Tesseract imported successfully')
+    const worker = await createWorker('eng')
+    console.log('Worker created')
+    await worker.setParameters({
+      tessedit_char_whitelist: '0123456789.',
+      // @ts-expect-error – tesseract string param
+      tessedit_pageseg_mode: '7',
+    })
+    console.log('Parameters set')
+    const { data: { text } } = await worker.recognize(imageDataUrl)
+    console.log('OCR result:', text)
+    await worker.terminate()
 
-  const cleaned = text.trim().replace(/[^0-9.]/g, '')
-  const value = parseFloat(cleaned)
-  if (!cleaned || isNaN(value)) throw new Error('Could not read meter value from image')
-  return value
+    const cleaned = text.trim().replace(/[^0-9.]/g, '')
+    console.log('Cleaned text:', cleaned)
+    const value = parseFloat(cleaned)
+    if (!cleaned || isNaN(value)) throw new Error('Could not read meter value from image')
+    return value
+  } catch (error) {
+    console.error('OCR Error:', error)
+    throw error
+  }
 }
 
 interface PublicReadingFormProps {
