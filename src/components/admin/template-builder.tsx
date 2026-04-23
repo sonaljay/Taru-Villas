@@ -292,7 +292,7 @@ export function TemplateBuilder({ initialData }: TemplateBuilderProps) {
       toast.success(
         isEditing ? 'Template updated successfully' : 'Template created successfully'
       )
-      router.push('/admin/templates')
+      router.push('/surveys/templates')
       router.refresh()
     } catch (error) {
       toast.error(
@@ -321,7 +321,7 @@ export function TemplateBuilder({ initialData }: TemplateBuilderProps) {
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.push('/admin/templates')}
+            onClick={() => router.push('/surveys/templates')}
           >
             Cancel
           </Button>

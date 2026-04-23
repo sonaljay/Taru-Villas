@@ -20,6 +20,7 @@ import {
   CardContent,
 } from '@/components/ui/card'
 import { SurveyFilters } from '@/components/surveys/survey-filters'
+import { SurveysAreaTabs } from '@/components/surveys/surveys-area-tabs'
 import { CopyLinkButton } from '@/components/surveys/copy-link-button'
 import { DeleteSurveyButton } from '@/components/surveys/delete-survey-button'
 import { Plus, ClipboardList } from 'lucide-react'
@@ -116,6 +117,8 @@ export default async function SurveysPage({ searchParams }: SurveysPageProps) {
           </Link>
         </Button>
       </div>
+
+      <SurveysAreaTabs />
 
       <Separator />
 

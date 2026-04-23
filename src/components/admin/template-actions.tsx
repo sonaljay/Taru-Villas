@@ -142,7 +142,7 @@ export function TemplateActions({ templateId, isActive }: TemplateActionsProps) 
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem
-            onClick={() => router.push(`/admin/templates/${templateId}`)}
+            onClick={() => router.push(`/surveys/templates/${templateId}`)}
           >
             <Pencil className="size-4" />
             Edit

@@ -19,7 +19,7 @@ const segmentLabels: Record<string, string> = {
   settings: 'Settings',
   properties: 'Properties',
   admin: 'Setup',
-  templates: 'Survey Templates',
+  templates: 'Templates',
   users: 'Users',
   new: 'New',
   edit: 'Edit',

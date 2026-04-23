@@ -7,7 +7,6 @@ import {
   ClipboardCheck,
   Settings,
   Building2,
-  FileText,
   Users,
   LogOut,
   ChevronsUpDown,
@@ -76,7 +75,6 @@ const propertyNavItems: NavItem[] = [
 
 const adminNavItems: NavItem[] = [
   { title: 'Property Settings', href: '/admin/properties', icon: Building2 },
-  { title: 'Survey Templates', href: '/admin/templates', icon: FileText },
   { title: 'SOP Templates', href: '/admin/sops', icon: ClipboardList },
   { title: 'Users', href: '/admin/users', icon: Users },
   { title: 'Allowed Emails', href: '/admin/allowed-emails', icon: ShieldCheck },

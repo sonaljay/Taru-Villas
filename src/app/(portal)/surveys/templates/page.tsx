@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { TemplateActions } from '@/components/admin/template-actions'
 import { GuestLinkDialog } from '@/components/admin/guest-link-dialog'
+import { SurveysAreaTabs } from '@/components/surveys/surveys-area-tabs'
 import { Plus, FileText } from 'lucide-react'
 
 export default async function TemplatesPage() {
@@ -30,20 +31,20 @@ export default async function TemplatesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Survey Templates
-          </h1>
+          <h1 className="text-2xl font-bold tracking-tight">Surveys</h1>
           <p className="text-muted-foreground">
             Create and manage survey templates for quality assessments.
           </p>
         </div>
         <Button asChild>
-          <Link href="/admin/templates/new">
+          <Link href="/surveys/templates/new">
             <Plus className="size-4" />
             Create Template
           </Link>
         </Button>
       </div>
+
+      <SurveysAreaTabs />
 
       <Separator />
 
@@ -58,7 +59,7 @@ export default async function TemplatesPage() {
               assessment data from your properties.
             </p>
             <Button asChild className="mt-6">
-              <Link href="/admin/templates/new">
+              <Link href="/surveys/templates/new">
                 <Plus className="size-4" />
                 Create Template
               </Link>
@@ -120,7 +121,7 @@ export default async function TemplatesPage() {
                     />
                   )}
                   <Button variant="outline" size="sm" asChild>
-                    <Link href={`/admin/templates/${template.id}`}>Edit</Link>
+                    <Link href={`/surveys/templates/${template.id}`}>Edit</Link>
                   </Button>
                 </div>
               </CardFooter>
