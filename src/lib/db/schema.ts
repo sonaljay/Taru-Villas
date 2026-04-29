@@ -11,6 +11,7 @@ import {
   timestamp,
   date,
   unique,
+  jsonb,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import { relations } from 'drizzle-orm'
@@ -885,6 +886,106 @@ export const utilityMeterReadingsRelations = relations(utilityMeterReadings, ({ 
 }))
 
 // ---------------------------------------------------------------------------
+// OTA reviews (external review aggregation — Google, etc.)
+// ---------------------------------------------------------------------------
+export const otaReviewSources = pgTable(
+  'ota_review_sources',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    propertyId: uuid('property_id')
+      .notNull()
+      .references(() => properties.id, { onDelete: 'cascade' }),
+    source: text('source').notNull(),
+    externalId: text('external_id').notNull(),
+    isActive: boolean('is_active').default(true).notNull(),
+    lastFetchedAt: timestamp('last_fetched_at', { withTimezone: true }),
+    lastFetchError: text('last_fetch_error'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    propertySourceUnique: unique('ota_review_sources_property_source_unique').on(
+      t.propertyId,
+      t.source
+    ),
+  })
+)
+
+export const otaReviews = pgTable(
+  'ota_reviews',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    sourceId: uuid('source_id')
+      .notNull()
+      .references(() => otaReviewSources.id, { onDelete: 'cascade' }),
+    propertyId: uuid('property_id')
+      .notNull()
+      .references(() => properties.id, { onDelete: 'cascade' }),
+    externalReviewId: text('external_review_id').notNull(),
+    authorName: text('author_name'),
+    rating: integer('rating').notNull(),
+    text: text('text'),
+    language: text('language'),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }).notNull(),
+    fetchedAt: timestamp('fetched_at', { withTimezone: true }).defaultNow().notNull(),
+    rawPayload: jsonb('raw_payload'),
+  },
+  (t) => ({
+    sourceExternalIdUnique: unique('ota_reviews_source_external_id_unique').on(
+      t.sourceId,
+      t.externalReviewId
+    ),
+  })
+)
+
+export const otaSyntheses = pgTable('ota_syntheses', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  propertyId: uuid('property_id')
+    .notNull()
+    .references(() => properties.id, { onDelete: 'cascade' }),
+  generatedAt: timestamp('generated_at', { withTimezone: true }).defaultNow().notNull(),
+  windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
+  windowEnd: timestamp('window_end', { withTimezone: true }).notNull(),
+  reviewsAnalyzed: integer('reviews_analyzed').notNull(),
+  avgRating: numeric('avg_rating', { precision: 3, scale: 2 }),
+  aspectScores: jsonb('aspect_scores').default(sql`'{}'::jsonb`).notNull(),
+  strengths: jsonb('strengths').default(sql`'[]'::jsonb`).notNull(),
+  weaknesses: jsonb('weaknesses').default(sql`'[]'::jsonb`).notNull(),
+  repetitiveIssues: jsonb('repetitive_issues').default(sql`'[]'::jsonb`).notNull(),
+  status: text('status').default('ok').notNull(),
+  errorMessage: text('error_message'),
+  modelUsed: text('model_used').notNull(),
+  promptVersion: text('prompt_version').notNull(),
+  costUsd: numeric('cost_usd', { precision: 8, scale: 4 }),
+})
+
+export const otaReviewSourcesRelations = relations(otaReviewSources, ({ one, many }) => ({
+  property: one(properties, {
+    fields: [otaReviewSources.propertyId],
+    references: [properties.id],
+  }),
+  reviews: many(otaReviews),
+}))
+
+export const otaReviewsRelations = relations(otaReviews, ({ one }) => ({
+  source: one(otaReviewSources, {
+    fields: [otaReviews.sourceId],
+    references: [otaReviewSources.id],
+  }),
+  property: one(properties, {
+    fields: [otaReviews.propertyId],
+    references: [properties.id],
+  }),
+}))
+
+export const otaSynthesesRelations = relations(otaSyntheses, ({ one }) => ({
+  property: one(properties, {
+    fields: [otaSyntheses.propertyId],
+    references: [properties.id],
+  }),
+}))
+
+// ---------------------------------------------------------------------------
 // Type aliases
 // ---------------------------------------------------------------------------
 export type Organization = typeof organizations.$inferSelect
@@ -961,3 +1062,12 @@ export type NewUtilityRateTier = typeof utilityRateTiers.$inferInsert
 
 export type UtilityMeterReading = typeof utilityMeterReadings.$inferSelect
 export type NewUtilityMeterReading = typeof utilityMeterReadings.$inferInsert
+
+export type OtaReviewSource = typeof otaReviewSources.$inferSelect
+export type NewOtaReviewSource = typeof otaReviewSources.$inferInsert
+
+export type OtaReview = typeof otaReviews.$inferSelect
+export type NewOtaReview = typeof otaReviews.$inferInsert
+
+export type OtaSynthesis = typeof otaSyntheses.$inferSelect
+export type NewOtaSynthesis = typeof otaSyntheses.$inferInsert
