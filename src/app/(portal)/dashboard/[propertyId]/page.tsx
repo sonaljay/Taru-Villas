@@ -17,6 +17,7 @@ import {
   type SubcategoryScoreData,
   type PropertyTrendPoint,
 } from '@/components/dashboard/property-dashboard'
+import { loadOtaPropertyData } from '@/lib/ota/dashboard'
 
 // ---------------------------------------------------------------------------
 // Page Component (Server)
@@ -31,7 +32,7 @@ export default async function PropertyDashboardPage({
 }) {
   const { propertyId } = await params
   const sp = await searchParams
-  const surveyType = (sp.surveyType as 'internal' | 'guest') || undefined
+  const surveyType = (sp.surveyType as 'internal' | 'guest' | 'ota') || undefined
   const profile = await requireAuth()
 
   if (!profile) {
@@ -54,13 +55,16 @@ export default async function PropertyDashboardPage({
     redirect('/surveys')
   }
 
-  // Fetch all dashboard data in parallel — only submitted surveys
-  const [scores, categories, subcategories, trends, notes] = await Promise.all([
-    getPropertyScores(propertyId, undefined, surveyType),
-    getCategoryBreakdown(propertyId, undefined, surveyType),
-    getSubcategoryBreakdown(propertyId, undefined, surveyType),
-    getTrends(propertyId, 12, surveyType),
+  // For OTA tab, load OTA data; otherwise load survey dashboard data
+  const surveyQueryType = surveyType === 'ota' ? undefined : surveyType
+
+  const [scores, categories, subcategories, trends, notes, otaData] = await Promise.all([
+    getPropertyScores(propertyId, undefined, surveyQueryType),
+    getCategoryBreakdown(propertyId, undefined, surveyQueryType),
+    getSubcategoryBreakdown(propertyId, undefined, surveyQueryType),
+    getTrends(propertyId, 12, surveyQueryType),
     getRecentNotes(propertyId, 20),
+    surveyType === 'ota' ? loadOtaPropertyData(propertyId) : Promise.resolve(undefined),
   ])
 
   // Build PropertyInfo
@@ -126,6 +130,8 @@ export default async function PropertyDashboardPage({
       trendData={trendData}
       notes={notes}
       surveyType={surveyType ?? 'internal'}
+      otaData={otaData}
+      isAdmin={isAdmin}
     />
   )
 }

@@ -24,6 +24,8 @@ import { ScoreCard, getScoreColor } from './score-card'
 import { TrendChart } from './trend-chart'
 import { CategoryRadar } from './category-radar'
 import { NotesFeed, type NoteItem } from './notes-feed'
+import { OtaTab } from './ota-tab'
+import type { loadOtaPropertyData } from '@/lib/ota/dashboard'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -68,7 +70,9 @@ interface PropertyDashboardProps {
   categories: CategoryScoreData[]
   trendData: PropertyTrendPoint[]
   notes: NoteItem[]
-  surveyType: 'internal' | 'guest'
+  surveyType: 'internal' | 'guest' | 'ota'
+  otaData?: Awaited<ReturnType<typeof loadOtaPropertyData>>
+  isAdmin?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -182,6 +186,8 @@ export function PropertyDashboard({
   trendData,
   notes,
   surveyType,
+  otaData,
+  isAdmin = false,
 }: PropertyDashboardProps) {
   const router = useRouter()
   const [, setDateRange] = useState<{ from: Date; to: Date }>({
@@ -315,61 +321,76 @@ export function PropertyDashboard({
             <TabsList>
               <TabsTrigger value="internal">Internal</TabsTrigger>
               <TabsTrigger value="guest">Guest</TabsTrigger>
+              <TabsTrigger value="ota">OTA</TabsTrigger>
             </TabsList>
           </Tabs>
-          <DateFilter onChange={handleDateChange} />
+          {surveyType !== 'ota' && <DateFilter onChange={handleDateChange} />}
         </div>
       </div>
 
       <Separator />
 
-      {/* Row 1: Category score cards */}
-      <div>
-        <h2 className="mb-4 text-lg font-semibold">Category Scores</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {categories.map((cat) => (
-            <CategoryCard key={cat.categoryId} category={cat} />
-          ))}
-        </div>
-      </div>
-
-      {/* Row 2: Subcategory score cards */}
-      {allSubcategories.length > 0 && (
-        <div>
-          <h2 className="mb-4 text-lg font-semibold">Sub-category Scores</h2>
-          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-            {allSubcategories.map((sub) => (
-              <SubcategoryCard
-                key={sub.subcategoryId}
-                subcategory={sub}
-                categoryName={sub.categoryName}
-              />
-            ))}
+      {surveyType === 'ota' && otaData ? (
+        <OtaTab
+          propertyId={property.id}
+          source={otaData.source}
+          latest={otaData.latest}
+          recentReviews={otaData.recentReviews}
+          trend={otaData.trend}
+          overallScoreOutOfTen={otaData.overallScoreOutOfTen}
+          isAdmin={isAdmin}
+        />
+      ) : (
+        <>
+          {/* Row 1: Category score cards */}
+          <div>
+            <h2 className="mb-4 text-lg font-semibold">Category Scores</h2>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              {categories.map((cat) => (
+                <CategoryCard key={cat.categoryId} category={cat} />
+              ))}
+            </div>
           </div>
-        </div>
+
+          {/* Row 2: Subcategory score cards */}
+          {allSubcategories.length > 0 && (
+            <div>
+              <h2 className="mb-4 text-lg font-semibold">Sub-category Scores</h2>
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+                {allSubcategories.map((sub) => (
+                  <SubcategoryCard
+                    key={sub.subcategoryId}
+                    subcategory={sub}
+                    categoryName={sub.categoryName}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Row 3: Radar chart */}
+          <CategoryRadar
+            title="Category Overview"
+            data={radarData}
+            height={380}
+          />
+
+          {/* Row 4: Trend over time */}
+          <TrendChart
+            title="Score Trend Over Time"
+            data={trendData}
+            lines={trendLines}
+            height={380}
+          />
+
+          {/* Row 5: Recent notes */}
+          <NotesFeed
+            title="Recent Survey Notes"
+            notes={notes}
+            maxHeight={600}
+          />
+        </>
       )}
-
-      {/* Row 3: Radar chart */}
-      <CategoryRadar
-        title="Category Overview"
-        data={radarData}
-        height={380}
-      />
-
-      {/* Row 4: Trend over time */}
-      <TrendChart
-        title="Score Trend Over Time"
-        data={trendData}
-        lines={trendLines}
-        height={380}
-      />
-
-      {/* Row 5: Recent notes */}
-      <NotesFeed
-        title="Recent Survey Notes"
-        notes={notes}
-        maxHeight={600}
-      />
     </div>
   )
 }
