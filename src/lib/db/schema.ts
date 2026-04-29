@@ -895,7 +895,7 @@ export const otaReviewSources = pgTable(
     propertyId: uuid('property_id')
       .notNull()
       .references(() => properties.id, { onDelete: 'cascade' }),
-    source: text('source').notNull(),
+    source: text('source', { enum: ['google'] as const }).notNull(),
     externalId: text('external_id').notNull(),
     isActive: boolean('is_active').default(true).notNull(),
     lastFetchedAt: timestamp('last_fetched_at', { withTimezone: true }),
@@ -952,7 +952,7 @@ export const otaSyntheses = pgTable('ota_syntheses', {
   strengths: jsonb('strengths').default(sql`'[]'::jsonb`).notNull(),
   weaknesses: jsonb('weaknesses').default(sql`'[]'::jsonb`).notNull(),
   repetitiveIssues: jsonb('repetitive_issues').default(sql`'[]'::jsonb`).notNull(),
-  status: text('status').default('ok').notNull(),
+  status: text('status', { enum: ['ok', 'insufficient_data', 'error'] as const }).default('ok').notNull(),
   errorMessage: text('error_message'),
   modelUsed: text('model_used').notNull(),
   promptVersion: text('prompt_version').notNull(),
