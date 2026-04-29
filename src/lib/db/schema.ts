@@ -75,6 +75,7 @@ export const organizationsRelations = relations(organizations, ({ many }) => ({
   properties: many(properties),
   profiles: many(profiles),
   surveyTemplates: many(surveyTemplates),
+  sopCategories: many(sopCategories),
 }))
 
 // ---------------------------------------------------------------------------
