@@ -570,6 +570,34 @@ export const menuItemsRelations = relations(menuItems, ({ one }) => ({
 }))
 
 // ---------------------------------------------------------------------------
+// SOP Categories (org-level grouping for templates)
+// ---------------------------------------------------------------------------
+export const sopCategories = pgTable(
+  'sop_categories',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('sop_categories_org_name_unique').on(table.orgId, table.name),
+  ]
+)
+
+export const sopCategoriesRelations = relations(sopCategories, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [sopCategories.orgId],
+    references: [organizations.id],
+  }),
+  templates: many(sopTemplates),
+}))
+
+// ---------------------------------------------------------------------------
 // SOP Templates
 // ---------------------------------------------------------------------------
 export const sopTemplates = pgTable('sop_templates', {
@@ -579,6 +607,9 @@ export const sopTemplates = pgTable('sop_templates', {
     .references(() => organizations.id),
   name: text('name').notNull(),
   description: text('description'),
+  categoryId: uuid('category_id').references(() => sopCategories.id, {
+    onDelete: 'restrict',
+  }),
   isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -588,6 +619,10 @@ export const sopTemplatesRelations = relations(sopTemplates, ({ one, many }) => 
   organization: one(organizations, {
     fields: [sopTemplates.orgId],
     references: [organizations.id],
+  }),
+  category: one(sopCategories, {
+    fields: [sopTemplates.categoryId],
+    references: [sopCategories.id],
   }),
   sections: many(sopSections),
   items: many(sopItems),
@@ -911,6 +946,9 @@ export type NewSopCompletion = typeof sopCompletions.$inferInsert
 
 export type SopItemCompletion = typeof sopItemCompletions.$inferSelect
 export type NewSopItemCompletion = typeof sopItemCompletions.$inferInsert
+
+export type SopCategory = typeof sopCategories.$inferSelect
+export type NewSopCategory = typeof sopCategories.$inferInsert
 
 export type AllowedEmail = typeof allowedEmails.$inferSelect
 export type NewAllowedEmail = typeof allowedEmails.$inferInsert
