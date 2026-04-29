@@ -26,6 +26,8 @@ import { DateFilter } from './date-filter'
 import { TrendChart } from './trend-chart'
 import { ComparisonChart } from './comparison-chart'
 import { getScoreColor } from './score-card'
+import { OtaOverviewTab } from './ota-overview-tab'
+import type { loadOtaOrgData } from '@/lib/ota/dashboard'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -59,7 +61,8 @@ interface DashboardOverviewProps {
   stats: OverviewStats
   trendData: TrendDataPoint[]
   trendLines: Array<{ key: string; label: string; color: string }>
-  surveyType: 'internal' | 'guest'
+  surveyType: 'internal' | 'guest' | 'ota'
+  otaData?: Awaited<ReturnType<typeof loadOtaOrgData>>
 }
 
 // ---------------------------------------------------------------------------
@@ -220,6 +223,7 @@ export function DashboardOverview({
   trendData,
   trendLines,
   surveyType,
+  otaData,
 }: DashboardOverviewProps) {
   const router = useRouter()
   const [, setDateRange] = useState<{ from: Date; to: Date }>({
@@ -262,73 +266,84 @@ export function DashboardOverview({
             <TabsList>
               <TabsTrigger value="internal">Internal</TabsTrigger>
               <TabsTrigger value="guest">Guest</TabsTrigger>
+              <TabsTrigger value="ota">OTA</TabsTrigger>
             </TabsList>
           </Tabs>
-          <DateFilter onChange={handleDateChange} />
+          {surveyType !== 'ota' && <DateFilter onChange={handleDateChange} />}
         </div>
       </div>
 
-      {/* Row 1: Summary stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Total Properties"
-          value={stats.totalProperties}
-          description="Active properties"
-          icon={Building2}
-        />
-        <StatCard
-          title="Average Score"
-          value={stats.averageScore.toFixed(1)}
-          description="Across all properties"
-          icon={BarChart3}
-          trend={stats.overallTrend}
-        />
-        <StatCard
-          title="Surveys This Month"
-          value={stats.surveysThisMonth}
-          description="Completed surveys"
-          icon={ClipboardCheck}
-        />
-        <StatCard
-          title="Overall Trend"
-          value={`${stats.overallTrend >= 0 ? '+' : ''}${stats.overallTrend.toFixed(1)}%`}
-          description="vs previous period"
-          icon={stats.overallTrend >= 0 ? TrendingUp : TrendingDown}
-        />
-      </div>
+      {/* OTA tab content */}
+      {surveyType === 'ota' && otaData && (
+        <OtaOverviewTab {...otaData} />
+      )}
 
-      {/* Row 2: Property score cards grid */}
-      <div>
-        <h2 className="mb-4 text-lg font-semibold">Property Scores</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-          {properties.map((property) => (
-            <PropertyCard
-              key={property.propertyId}
-              property={property}
-              onClick={() =>
-                router.push(
-                  `/dashboard/${property.propertyId}${surveyType !== 'internal' ? `?surveyType=${surveyType}` : ''}`
-                )
-              }
+      {/* Survey tabs content (internal / guest) */}
+      {surveyType !== 'ota' && (
+        <>
+          {/* Row 1: Summary stats */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              title="Total Properties"
+              value={stats.totalProperties}
+              description="Active properties"
+              icon={Building2}
             />
-          ))}
-        </div>
-      </div>
+            <StatCard
+              title="Average Score"
+              value={stats.averageScore.toFixed(1)}
+              description="Across all properties"
+              icon={BarChart3}
+              trend={stats.overallTrend}
+            />
+            <StatCard
+              title="Surveys This Month"
+              value={stats.surveysThisMonth}
+              description="Completed surveys"
+              icon={ClipboardCheck}
+            />
+            <StatCard
+              title="Overall Trend"
+              value={`${stats.overallTrend >= 0 ? '+' : ''}${stats.overallTrend.toFixed(1)}%`}
+              description="vs previous period"
+              icon={stats.overallTrend >= 0 ? TrendingUp : TrendingDown}
+            />
+          </div>
 
-      {/* Row 3: Charts side by side */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <TrendChart
-          title="Score Trends Over Time"
-          data={trendData}
-          lines={trendLines}
-          height={350}
-        />
-        <ComparisonChart
-          title="Property Comparison"
-          data={comparisonData}
-          height={350}
-        />
-      </div>
+          {/* Row 2: Property score cards grid */}
+          <div>
+            <h2 className="mb-4 text-lg font-semibold">Property Scores</h2>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              {properties.map((property) => (
+                <PropertyCard
+                  key={property.propertyId}
+                  property={property}
+                  onClick={() =>
+                    router.push(
+                      `/dashboard/${property.propertyId}${surveyType !== 'internal' ? `?surveyType=${surveyType}` : ''}`
+                    )
+                  }
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Row 3: Charts side by side */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <TrendChart
+              title="Score Trends Over Time"
+              data={trendData}
+              lines={trendLines}
+              height={350}
+            />
+            <ComparisonChart
+              title="Property Comparison"
+              data={comparisonData}
+              height={350}
+            />
+          </div>
+        </>
+      )}
     </div>
   )
 }

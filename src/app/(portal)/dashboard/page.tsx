@@ -14,6 +14,7 @@ import {
   type PropertyOverview,
   type OverviewStats,
 } from '@/components/dashboard/dashboard-overview'
+import { loadOtaOrgData } from '@/lib/ota/dashboard'
 
 // ---------------------------------------------------------------------------
 // Chart colors
@@ -44,9 +45,24 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const profile = await requireRole(['admin'])
 
   const params = await searchParams
-  const surveyType = (params.surveyType as 'internal' | 'guest') || undefined
+  const surveyType = (params.surveyType as 'internal' | 'guest' | 'ota') || undefined
 
   const orgId = profile.orgId
+
+  // OTA tab: load OTA org data and skip survey queries
+  if (surveyType === 'ota') {
+    const otaData = await loadOtaOrgData(orgId)
+    return (
+      <DashboardOverview
+        properties={[]}
+        stats={{ totalProperties: 0, averageScore: 0, surveysThisMonth: 0, overallTrend: 0 }}
+        trendData={[]}
+        trendLines={[]}
+        surveyType="ota"
+        otaData={otaData}
+      />
+    )
+  }
 
   // Fetch real data in parallel
   const [scores, surveysCount, lastDates, sparklines, trendData, allProperties] =

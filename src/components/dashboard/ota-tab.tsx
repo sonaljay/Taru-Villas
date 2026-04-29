@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ArrowDownRight, ArrowUpRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { OtaRefreshButton } from './ota-refresh-button'
 
 interface OtaReview {
   id: string
@@ -84,7 +85,7 @@ export function OtaTab(props: OtaTabProps) {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-center gap-6">
+      <div className="flex items-center justify-between gap-6">
         <div>
           <p className="text-sm text-muted-foreground">Google rating</p>
           <p className="text-4xl font-bold">
@@ -97,6 +98,7 @@ export function OtaTab(props: OtaTabProps) {
             {latest.reviewsAnalyzed} reviews analyzed (last 90 days)
           </p>
         </div>
+        {isAdmin && <OtaRefreshButton propertyId={props.propertyId} />}
       </div>
 
       {/* Aspect grid */}
