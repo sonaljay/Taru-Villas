@@ -668,3 +668,13 @@ export async function getActiveUsersForOrg(orgId: string): Promise<Profile[]> {
     .where(and(eq(profiles.orgId, orgId), eq(profiles.isActive, true)))
     .orderBy(asc(profiles.fullName))
 }
+
+export async function getExistingAssignmentPairs(
+  templateId: string
+): Promise<Array<{ userId: string; propertyId: string }>> {
+  const rows = await db
+    .select({ userId: sopAssignments.userId, propertyId: sopAssignments.propertyId })
+    .from(sopAssignments)
+    .where(eq(sopAssignments.templateId, templateId))
+  return rows
+}
