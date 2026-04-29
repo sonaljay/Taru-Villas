@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { z } from 'zod/v4'
@@ -13,7 +13,10 @@ import {
   ChevronDown,
   ChevronRight,
   FolderPlus,
+  Check,
+  ChevronsUpDown,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,6 +29,16 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { cn } from '@/lib/utils'
 
 import type { SopTemplateWithContent } from '@/lib/db/queries/sops'
 
@@ -71,6 +84,40 @@ export function SopBuilder({ initialData }: SopBuilderProps) {
     new Set()
   )
   const isEditing = !!initialData
+
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
+  const [categoryId, setCategoryId] = useState<string | null>(initialData?.categoryId ?? null)
+  const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false)
+  const [creatingCategory, setCreatingCategory] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+
+  useEffect(() => {
+    fetch('/api/sops/categories')
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => setCategories(data))
+      .catch(() => setCategories([]))
+  }, [])
+
+  async function handleCreateCategory() {
+    const name = newCategoryName.trim()
+    if (!name) return
+    const res = await fetch('/api/sops/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      toast.error(body.error ?? 'Failed to create category')
+      return
+    }
+    const created = await res.json()
+    setCategories([...categories, created])
+    setCategoryId(created.id)
+    setCreatingCategory(false)
+    setNewCategoryName('')
+    setCategoryPopoverOpen(false)
+  }
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -137,6 +184,11 @@ export function SopBuilder({ initialData }: SopBuilderProps) {
   }
 
   const onSubmit = async (data: FormValues) => {
+    if (!isEditing && !categoryId) {
+      toast.error('Please select a category')
+      return
+    }
+
     setSaving(true)
     try {
       // Re-number sort orders
@@ -154,6 +206,7 @@ export function SopBuilder({ initialData }: SopBuilderProps) {
         name: data.name,
         description: data.description || undefined,
         isActive: data.isActive,
+        categoryId,
         sections,
         ungroupedItems,
       }
@@ -197,6 +250,75 @@ export function SopBuilder({ initialData }: SopBuilderProps) {
           <CardTitle>Template Details</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Category <span className="text-destructive">*</span></label>
+            <Popover open={categoryPopoverOpen} onOpenChange={setCategoryPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" role="combobox" className="w-full justify-between">
+                  {categoryId
+                    ? categories.find((c) => c.id === categoryId)?.name ?? 'Select category…'
+                    : 'Select category…'}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search categories…" />
+                  <CommandList>
+                    <CommandEmpty>No categories found.</CommandEmpty>
+                    <CommandGroup>
+                      {categories.map((c) => (
+                        <CommandItem
+                          key={c.id}
+                          value={c.name}
+                          onSelect={() => {
+                            setCategoryId(c.id)
+                            setCategoryPopoverOpen(false)
+                          }}
+                        >
+                          <Check className={cn('mr-2 h-4 w-4', categoryId === c.id ? 'opacity-100' : 'opacity-0')} />
+                          {c.name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                    <div className="border-t p-2">
+                      {creatingCategory ? (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            placeholder="New category name"
+                            value={newCategoryName}
+                            onChange={(e) => setNewCategoryName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                handleCreateCategory()
+                              }
+                              if (e.key === 'Escape') {
+                                setCreatingCategory(false)
+                                setNewCategoryName('')
+                              }
+                            }}
+                            autoFocus
+                            className="flex-1"
+                          />
+                          <Button size="sm" onClick={handleCreateCategory}>Create</Button>
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="w-full justify-start"
+                          onClick={() => setCreatingCategory(true)}
+                        >
+                          <Plus className="mr-2 h-4 w-4" /> Create new category…
+                        </Button>
+                      )}
+                    </div>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="name">Name</Label>
             <Input
