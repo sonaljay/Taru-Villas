@@ -58,6 +58,12 @@ export function MySopsClient({ assignments }: MySopsClientProps) {
   }
 
   const categoryGroups = useMemo(() => {
+    const statusOrder = (a: SopAssignmentForUser) => {
+      if (a.currentCompletion?.status === 'completed') return 2
+      if (isOverdue(a.currentDueDate, a.deadlineTime)) return 0
+      return 1
+    }
+
     const map = new Map<string, CategoryGroup>()
     for (const a of assignments) {
       const key = a.category?.id ?? '__uncategorized__'
@@ -68,7 +74,11 @@ export function MySopsClient({ assignments }: MySopsClientProps) {
       }
       map.get(key)!.items.push(a)
     }
-    return Array.from(map.values()).sort((a, b) => a.sortOrder - b.sortOrder)
+    const result = Array.from(map.values()).sort((a, b) => a.sortOrder - b.sortOrder)
+    for (const group of result) {
+      group.items.sort((x, y) => statusOrder(x) - statusOrder(y))
+    }
+    return result
   }, [assignments])
 
   const getProgress = (a: SopAssignmentForUser) => {
