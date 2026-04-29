@@ -59,9 +59,10 @@ const createAssignmentSchema = z.object({
   templateId: z.string().uuid(),
   propertyId: z.string().uuid(),
   userId: z.string().uuid(),
-  frequency: z.enum(['daily', 'weekly', 'monthly']),
+  frequency: z.enum(['daily', 'weekly', 'monthly', 'yearly']),
   deadlineTime: z.string().regex(/^\d{2}:\d{2}$/),
   deadlineDay: z.number().int().min(0).max(31).nullable().optional(),
+  deadlineMonth: z.number().int().min(1).max(12).nullable().optional(),
   notifyOnOverdue: z.boolean().optional(),
 })
 
@@ -90,6 +91,7 @@ export async function POST(request: NextRequest) {
     const assignment = await createAssignment({
       ...parsed.data,
       deadlineDay: parsed.data.deadlineDay ?? null,
+      deadlineMonth: parsed.data.deadlineMonth ?? null,
       notifyOnOverdue: parsed.data.notifyOnOverdue ?? false,
     })
 

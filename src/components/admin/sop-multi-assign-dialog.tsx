@@ -22,7 +22,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
-type Frequency = 'daily' | 'weekly' | 'monthly'
+type Frequency = 'daily' | 'weekly' | 'monthly' | 'yearly'
 
 interface UserOption {
   id: string
@@ -41,6 +41,7 @@ interface RowState {
   frequency: Frequency
   deadlineTime: string
   deadlineDay: number | null
+  deadlineMonth: number | null
   exists: boolean
 }
 
@@ -63,6 +64,11 @@ const DAYS_OF_WEEK = [
   { value: 7, label: 'Sun' },
 ]
 
+const MONTHS = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+]
+
 export function SopMultiAssignDialog({
   open,
   onOpenChange,
@@ -76,6 +82,7 @@ export function SopMultiAssignDialog({
   const [defaultFrequency, setDefaultFrequency] = useState<Frequency>('daily')
   const [defaultTime, setDefaultTime] = useState('09:00')
   const [defaultDay, setDefaultDay] = useState<number | null>(null)
+  const [defaultMonth, setDefaultMonth] = useState<number | null>(null)
   const [notifyOnOverdue, setNotifyOnOverdue] = useState(false)
   const [rows, setRows] = useState<RowState[]>([])
   const [existingPairs, setExistingPairs] = useState<Set<string>>(new Set())
@@ -89,6 +96,7 @@ export function SopMultiAssignDialog({
       setDefaultFrequency('daily')
       setDefaultTime('09:00')
       setDefaultDay(null)
+      setDefaultMonth(null)
       setNotifyOnOverdue(false)
       setRows([])
       // Fetch existing pairs
@@ -117,6 +125,7 @@ export function SopMultiAssignDialog({
             frequency: defaultFrequency,
             deadlineTime: defaultTime,
             deadlineDay: defaultFrequency === 'daily' ? null : defaultDay,
+            deadlineMonth: defaultFrequency === 'yearly' ? (defaultMonth ?? 1) : null,
             exists,
           })
         }
@@ -126,17 +135,19 @@ export function SopMultiAssignDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedUserIds, selectedPropertyIds, existingPairs])
 
-  function handleDefaultChange<K extends 'frequency' | 'time' | 'day'>(
+  function handleDefaultChange<K extends 'frequency' | 'time' | 'day' | 'month'>(
     field: K,
     value: K extends 'frequency' ? Frequency : K extends 'time' ? string : number | null
   ) {
     if (field === 'frequency') setDefaultFrequency(value as Frequency)
     if (field === 'time') setDefaultTime(value as string)
     if (field === 'day') setDefaultDay(value as number | null)
+    if (field === 'month') setDefaultMonth(value as number | null)
     if (rows.some((r) => !r.exists) && confirm('Apply this default to all new rows?')) {
       const nextFreq = field === 'frequency' ? (value as Frequency) : defaultFrequency
       const nextTime = field === 'time' ? (value as string) : defaultTime
       const nextDay = field === 'day' ? (value as number | null) : defaultDay
+      const nextMonth = field === 'month' ? (value as number | null) : defaultMonth
       setRows(rows.map((r) =>
         r.exists
           ? r
@@ -145,6 +156,7 @@ export function SopMultiAssignDialog({
               frequency: nextFreq,
               deadlineTime: nextTime,
               deadlineDay: nextFreq === 'daily' ? null : nextDay,
+              deadlineMonth: nextFreq === 'yearly' ? (nextMonth ?? 1) : null,
             }
       ))
     }
@@ -173,6 +185,7 @@ export function SopMultiAssignDialog({
             frequency: r.frequency,
             deadlineTime: r.deadlineTime,
             deadlineDay: r.deadlineDay,
+            deadlineMonth: r.deadlineMonth,
             notifyOnOverdue,
           })),
         }),
@@ -207,7 +220,7 @@ export function SopMultiAssignDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-5xl">
         <DialogHeader>
           <DialogTitle>Add Assignments</DialogTitle>
         </DialogHeader>
@@ -275,6 +288,7 @@ export function SopMultiAssignDialog({
                     <SelectItem value="daily">Daily</SelectItem>
                     <SelectItem value="weekly">Weekly</SelectItem>
                     <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="yearly">Yearly</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -307,6 +321,35 @@ export function SopMultiAssignDialog({
                   />
                 </div>
               )}
+              {defaultFrequency === 'yearly' && (
+                <>
+                  <div>
+                    <Label className="text-xs">Month</Label>
+                    <Select
+                      value={String(defaultMonth ?? 1)}
+                      onValueChange={(v) => handleDefaultChange('month', Number(v))}
+                    >
+                      <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {MONTHS.map((m, i) => (
+                          <SelectItem key={i + 1} value={String(i + 1)}>{m}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Day of month</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={31}
+                      value={defaultDay ?? 1}
+                      onChange={(e) => handleDefaultChange('day', Math.max(1, Math.min(31, Number(e.target.value))))}
+                      className="w-20"
+                    />
+                  </div>
+                </>
+              )}
               <div>
                 <Label className="text-xs">Deadline</Label>
                 <Input
@@ -336,6 +379,7 @@ export function SopMultiAssignDialog({
                     <th className="px-3 py-2 text-left">User</th>
                     <th className="px-3 py-2 text-left">Property</th>
                     <th className="px-3 py-2 text-left">Frequency</th>
+                    <th className="px-3 py-2 text-left">Month</th>
                     <th className="px-3 py-2 text-left">Day</th>
                     <th className="px-3 py-2 text-left">Time</th>
                     <th className="px-3 py-2 text-left">Status</th>
@@ -353,18 +397,41 @@ export function SopMultiAssignDialog({
                           <Select
                             value={row.frequency}
                             disabled={row.exists}
-                            onValueChange={(v) => updateRow(idx, {
-                              frequency: v as Frequency,
-                              deadlineDay: v === 'daily' ? null : (row.deadlineDay ?? 1),
-                            })}
+                            onValueChange={(v) => {
+                              const freq = v as Frequency
+                              updateRow(idx, {
+                                frequency: freq,
+                                deadlineDay: freq === 'daily' ? null : (row.deadlineDay ?? 1),
+                                deadlineMonth: freq === 'yearly' ? (row.deadlineMonth ?? 1) : null,
+                              })
+                            }}
                           >
                             <SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="daily">Daily</SelectItem>
                               <SelectItem value="weekly">Weekly</SelectItem>
                               <SelectItem value="monthly">Monthly</SelectItem>
+                              <SelectItem value="yearly">Yearly</SelectItem>
                             </SelectContent>
                           </Select>
+                        </td>
+                        <td className="px-3 py-2">
+                          {row.frequency === 'yearly' ? (
+                            <Select
+                              value={String(row.deadlineMonth ?? 1)}
+                              disabled={row.exists}
+                              onValueChange={(v) => updateRow(idx, { deadlineMonth: Number(v) })}
+                            >
+                              <SelectTrigger className="h-8 w-24"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {MONTHS.map((m, i) => (
+                                  <SelectItem key={i + 1} value={String(i + 1)}>{m}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
                         </td>
                         <td className="px-3 py-2">
                           {row.frequency === 'daily' ? (

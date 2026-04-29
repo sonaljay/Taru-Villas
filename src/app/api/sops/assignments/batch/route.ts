@@ -6,9 +6,10 @@ import { batchCreateAssignments, type BatchAssignmentRow } from '@/lib/db/querie
 const rowSchema = z.object({
   userId: z.string().uuid(),
   propertyId: z.string().uuid(),
-  frequency: z.enum(['daily', 'weekly', 'monthly']),
+  frequency: z.enum(['daily', 'weekly', 'monthly', 'yearly']),
   deadlineTime: z.string().regex(/^\d{2}:\d{2}$/),
   deadlineDay: z.number().int().min(1).max(31).nullable(),
+  deadlineMonth: z.number().int().min(1).max(12).nullable(),
   notifyOnOverdue: z.boolean(),
 })
 
@@ -37,6 +38,7 @@ export async function POST(request: NextRequest) {
       frequency: r.frequency,
       deadlineTime: r.deadlineTime,
       deadlineDay: r.deadlineDay,
+      deadlineMonth: r.deadlineMonth,
       notifyOnOverdue: r.notifyOnOverdue,
     }))
 

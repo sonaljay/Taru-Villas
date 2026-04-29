@@ -55,8 +55,9 @@ import type {
  * Compute the current due date for an assignment based on its frequency.
  */
 export function computeCurrentDueDate(
-  frequency: 'daily' | 'weekly' | 'monthly',
-  deadlineDay: number | null
+  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly',
+  deadlineDay: number | null,
+  deadlineMonth: number | null = null
 ): string {
   const now = new Date()
 
@@ -69,6 +70,13 @@ export function computeCurrentDueDate(
     const day = deadlineDay ?? 0
     const dueDate = new Date(weekStart)
     dueDate.setDate(dueDate.getDate() + day)
+    return format(dueDate, 'yyyy-MM-dd')
+  }
+
+  if (frequency === 'yearly') {
+    const month = Math.min(Math.max(deadlineMonth ?? 1, 1), 12) - 1  // 0-indexed for Date
+    const day = Math.min(deadlineDay ?? 1, 28)  // clamp to safe day-of-month
+    const dueDate = new Date(now.getFullYear(), month, day)
     return format(dueDate, 'yyyy-MM-dd')
   }
 
@@ -329,7 +337,7 @@ export async function getAssignmentsForUser(
   // Get current completions for each assignment
   const assignmentIds = rows.map((r) => r.assignment.id)
   const dueDates = rows.map((r) =>
-    computeCurrentDueDate(r.assignment.frequency, r.assignment.deadlineDay)
+    computeCurrentDueDate(r.assignment.frequency, r.assignment.deadlineDay, r.assignment.deadlineMonth)
   )
 
   // Fetch all completions for these assignments that might be current
@@ -683,9 +691,10 @@ export interface BatchAssignmentRow {
   templateId: string
   userId: string
   propertyId: string
-  frequency: 'daily' | 'weekly' | 'monthly'
+  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly'
   deadlineTime: string
   deadlineDay: number | null
+  deadlineMonth: number | null
   notifyOnOverdue: boolean
 }
 

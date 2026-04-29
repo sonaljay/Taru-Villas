@@ -10,9 +10,10 @@ type Params = { params: Promise<{ id: string }> }
 // ---------------------------------------------------------------------------
 
 const updateAssignmentSchema = z.object({
-  frequency: z.enum(['daily', 'weekly', 'monthly']).optional(),
+  frequency: z.enum(['daily', 'weekly', 'monthly', 'yearly']).optional(),
   deadlineTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   deadlineDay: z.number().int().min(0).max(31).nullable().optional(),
+  deadlineMonth: z.number().int().min(1).max(12).nullable().optional(),
   isActive: z.boolean().optional(),
   notifyOnOverdue: z.boolean().optional(),
 })

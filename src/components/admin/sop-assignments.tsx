@@ -77,18 +77,25 @@ export function SopAssignments({
         return 'Weekly'
       case 'monthly':
         return 'Monthly'
+      case 'yearly':
+        return 'Yearly'
       default:
         return freq
     }
   }
 
-  const dayLabel = (freq: string, day: number | null) => {
+  const dayLabel = (freq: string, day: number | null, month: number | null = null) => {
     if (freq === 'daily' || day === null) return '-'
     if (freq === 'weekly') {
       const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
       return days[day] ?? day
     }
-    return `Day ${day}`
+    if (freq === 'yearly') {
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+      const m = month != null ? (months[month - 1] ?? `M${month}`) : '?'
+      return `${m} ${day}`
+    }
+    return `Day ${day}`  // monthly
   }
 
   return (
@@ -139,7 +146,7 @@ export function SopAssignments({
                     {a.deadlineTime}
                   </TableCell>
                   <TableCell>
-                    {dayLabel(a.frequency, a.deadlineDay)}
+                    {dayLabel(a.frequency, a.deadlineDay, a.deadlineMonth)}
                   </TableCell>
                   <TableCell>
                     <Badge

@@ -50,6 +50,7 @@ export const sopFrequencyEnum = pgEnum('sop_frequency', [
   'daily',
   'weekly',
   'monthly',
+  'yearly',
 ])
 
 export const sopCompletionStatusEnum = pgEnum('sop_completion_status', [
@@ -696,6 +697,7 @@ export const sopAssignments = pgTable(
     frequency: sopFrequencyEnum('frequency').notNull(),
     deadlineTime: text('deadline_time').notNull(),
     deadlineDay: integer('deadline_day'),
+    deadlineMonth: integer('deadline_month'),  // for yearly: 1-12
     isActive: boolean('is_active').default(true).notNull(),
     notifyOnOverdue: boolean('notify_on_overdue').default(false).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
