@@ -53,7 +53,13 @@ export async function upsertSource(args: {
   }
   const [row] = await db
     .update(otaReviewSources)
-    .set({ externalId: args.externalId, isActive: true, updatedAt: new Date() })
+    .set({
+      externalId: args.externalId,
+      isActive: true,
+      lastFetchError: null,
+      lastFetchedAt: null,
+      updatedAt: new Date(),
+    })
     .where(eq(otaReviewSources.id, existing.id))
     .returning()
   return row
@@ -82,10 +88,15 @@ export async function recordFetchError(sourceId: string, message: string) {
 
 // ---------- ota_reviews ----------
 
-export async function insertReviewIfNew(row: typeof otaReviews.$inferInsert) {
-  await db.insert(otaReviews).values(row).onConflictDoNothing({
-    target: [otaReviews.sourceId, otaReviews.externalReviewId],
-  })
+export async function insertReviewIfNew(row: typeof otaReviews.$inferInsert): Promise<boolean> {
+  const result = await db
+    .insert(otaReviews)
+    .values(row)
+    .onConflictDoNothing({
+      target: [otaReviews.sourceId, otaReviews.externalReviewId],
+    })
+    .returning({ id: otaReviews.id })
+  return result.length > 0
 }
 
 export async function getReviewsInWindow(propertyId: string, windowStart: Date) {

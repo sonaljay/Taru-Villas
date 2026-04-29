@@ -80,7 +80,7 @@ export async function syncProperty(propertyId: string): Promise<SyncResult> {
       text: r.text,
     })
     try {
-      await insertReviewIfNew({
+      const wasInserted = await insertReviewIfNew({
         sourceId: source.id,
         propertyId: source.propertyId,
         externalReviewId,
@@ -91,7 +91,7 @@ export async function syncProperty(propertyId: string): Promise<SyncResult> {
         reviewedAt: r.reviewedAt,
         rawPayload: r.raw as Record<string, unknown>,
       })
-      result.inserted += 1
+      if (wasInserted) result.inserted += 1
     } catch (e) {
       console.error('[ota.sync] insert failed', e)
     }
