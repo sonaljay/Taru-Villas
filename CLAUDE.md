@@ -189,6 +189,8 @@ NEXT_PUBLIC_SUPABASE_URL="https://..."
 NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJhbGc..."
 SUPABASE_SERVICE_ROLE_KEY="eyJhbGc..."
 POSTGRES_URL="postgres://user:pass@host:6543/db"  # Transaction mode (port 6543)
+GOOGLE_PLACES_API_KEY="..."  # Google Cloud project API key with Places API enabled (OTA reviews)
+ANTHROPIC_API_KEY="..."      # For OTA review synthesis (Claude sonnet-4-6)
 
 # Optional
 DATABASE_URL="..."          # Fallback for POSTGRES_URL
