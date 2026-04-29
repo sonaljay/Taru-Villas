@@ -7,6 +7,7 @@ import {
   updateProperty,
   deleteProperty,
 } from '@/lib/db/queries/properties'
+import { upsertSource, deactivateSource } from '@/lib/db/queries/ota'
 import { db } from '@/lib/db'
 import { propertyAssignments } from '@/lib/db/schema'
 
@@ -25,6 +26,7 @@ const updatePropertySchema = z.object({
   isActive: z.boolean().optional(),
   primaryPmId: z.string().uuid().nullable().optional(),
   assignedUserIds: z.array(z.string().uuid()).optional(),
+  googlePlaceId: z.string().trim().nullable().optional(),
 })
 
 // ---------------------------------------------------------------------------
@@ -113,10 +115,20 @@ export async function PATCH(
       )
     }
 
-    const { assignedUserIds, ...propertyData } = parsed.data
+    const { assignedUserIds, googlePlaceId, ...propertyData } = parsed.data
 
     // Update property fields
     const updated = await updateProperty(id, propertyData)
+
+    // Manage Google Place ID / OTA source
+    if (googlePlaceId !== undefined) {
+      const placeId = googlePlaceId?.trim() ?? ''
+      if (placeId) {
+        await upsertSource({ propertyId: id, source: 'google', externalId: placeId })
+      } else {
+        await deactivateSource(id, 'google')
+      }
+    }
 
     // Update property assignments if provided
     if (assignedUserIds !== undefined) {

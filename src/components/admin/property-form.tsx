@@ -34,6 +34,7 @@ const propertySchema = z.object({
   location: z.string().max(500).optional(),
   imageUrl: z.string().optional().or(z.literal('')),
   isActive: z.boolean(),
+  googlePlaceId: z.string().trim().optional(),
 })
 
 type PropertyFormValues = z.infer<typeof propertySchema>
@@ -67,6 +68,8 @@ interface PropertyFormProps {
   allUsers?: AssignableUser[]
   /** Currently assigned user IDs for this property */
   assignedUserIds?: string[]
+  /** Existing Google Place ID from ota_review_sources (edit mode only) */
+  existingGooglePlaceId?: string | null
 }
 
 export function PropertyForm({
@@ -74,6 +77,7 @@ export function PropertyForm({
   onSuccess,
   allUsers = [],
   assignedUserIds: initialAssignedIds = [],
+  existingGooglePlaceId,
 }: PropertyFormProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -99,6 +103,7 @@ export function PropertyForm({
       location: property?.location ?? '',
       imageUrl: property?.imageUrl ?? '',
       isActive: property?.isActive ?? true,
+      googlePlaceId: existingGooglePlaceId ?? '',
     },
   })
 
@@ -153,6 +158,7 @@ export function PropertyForm({
           ...data,
           imageUrl: data.imageUrl || null,
           location: data.location || null,
+          googlePlaceId: data.googlePlaceId?.trim() || null,
           ...(isEditing && {
             assignedUserIds: Array.from(selectedUserIds),
             primaryPmId,
@@ -249,6 +255,31 @@ export function PropertyForm({
         />
         {errors.imageUrl && (
           <p className="text-sm text-destructive">{errors.imageUrl.message}</p>
+        )}
+      </div>
+
+      {/* Google Place ID */}
+      <div className="space-y-2">
+        <Label htmlFor="googlePlaceId">Google Place ID</Label>
+        <Input
+          id="googlePlaceId"
+          placeholder="ChIJ..."
+          {...register('googlePlaceId')}
+        />
+        <p className="text-xs text-muted-foreground">
+          Connects this property to Google reviews. Find the Place ID via{' '}
+          <a
+            href="https://developers.google.com/maps/documentation/places/web-service/place-id"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline"
+          >
+            Google&apos;s Place ID Finder
+          </a>
+          .
+        </p>
+        {errors.googlePlaceId && (
+          <p className="text-sm text-destructive">{errors.googlePlaceId.message}</p>
         )}
       </div>
 

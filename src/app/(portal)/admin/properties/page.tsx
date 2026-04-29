@@ -1,6 +1,7 @@
 import { requireRole } from '@/lib/auth/guards'
 import { getAllProperties } from '@/lib/db/queries/properties'
 import { getProfilesWithAssignments } from '@/lib/db/queries/profiles'
+import { getActiveSources } from '@/lib/db/queries/ota'
 import { PropertiesPageClient } from '@/components/admin/properties-page-client'
 
 export const metadata = {
@@ -9,9 +10,10 @@ export const metadata = {
 
 export default async function AdminPropertiesPage() {
   const profile = await requireRole(['admin'])
-  const [properties, profilesWithAssignments] = await Promise.all([
+  const [properties, profilesWithAssignments, otaSources] = await Promise.all([
     getAllProperties(profile.orgId),
     getProfilesWithAssignments(profile.orgId),
+    getActiveSources(),
   ])
 
   // All active users for property assignment and PM selection in the edit form
@@ -24,10 +26,19 @@ export default async function AdminPropertiesPage() {
       assignedPropertyIds: p.assignments.map((a) => a.propertyId),
     }))
 
+  // Map propertyId → Google Place ID for pre-populating the edit form
+  const googlePlaceIds: Record<string, string> = {}
+  for (const src of otaSources) {
+    if (src.source === 'google') {
+      googlePlaceIds[src.propertyId] = src.externalId
+    }
+  }
+
   return (
     <PropertiesPageClient
       properties={properties}
       allUsers={allUsers}
+      googlePlaceIds={googlePlaceIds}
     />
   )
 }

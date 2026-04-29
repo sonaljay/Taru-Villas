@@ -44,9 +44,11 @@ import type { OrgUser } from '@/components/admin/properties-page-client'
 interface PropertyCardProps {
   property: Property
   allUsers?: OrgUser[]
+  /** Existing Google Place ID from ota_review_sources */
+  googlePlaceId?: string | null
 }
 
-export function PropertyCard({ property, allUsers = [] }: PropertyCardProps) {
+export function PropertyCard({ property, allUsers = [], googlePlaceId }: PropertyCardProps) {
   const router = useRouter()
   const [editOpen, setEditOpen] = useState(false)
   const [deactivateOpen, setDeactivateOpen] = useState(false)
@@ -238,6 +240,7 @@ export function PropertyCard({ property, allUsers = [] }: PropertyCardProps) {
               .filter((u) => u.assignedPropertyIds.includes(property.id))
               .map((u) => u.id)
             }
+            existingGooglePlaceId={googlePlaceId}
           />
         </DialogContent>
       </Dialog>

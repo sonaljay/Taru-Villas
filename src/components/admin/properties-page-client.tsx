@@ -33,9 +33,11 @@ export interface OrgUser {
 interface PropertiesPageClientProps {
   properties: Property[]
   allUsers?: OrgUser[]
+  /** Maps propertyId → Google Place ID for pre-populating the edit form */
+  googlePlaceIds?: Record<string, string>
 }
 
-export function PropertiesPageClient({ properties, allUsers = [] }: PropertiesPageClientProps) {
+export function PropertiesPageClient({ properties, allUsers = [], googlePlaceIds = {} }: PropertiesPageClientProps) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [createOpen, setCreateOpen] = useState(false)
@@ -104,6 +106,7 @@ export function PropertiesPageClient({ properties, allUsers = [] }: PropertiesPa
               key={property.id}
               property={property}
               allUsers={allUsers}
+              googlePlaceId={googlePlaceIds[property.id] ?? null}
             />
           ))}
         </div>
