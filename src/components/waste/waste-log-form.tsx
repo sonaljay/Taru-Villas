@@ -158,13 +158,7 @@ export function WasteLogForm({ propertyId, initialData, onSuccess, onCancel }: W
           </Button>
         )}
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting
-            ? isEditing
-              ? 'Saving...'
-              : 'Saving...'
-            : isEditing
-              ? 'Save Changes'
-              : 'Save Entry'}
+          {isSubmitting ? 'Saving...' : isEditing ? 'Save Changes' : 'Save Entry'}
         </Button>
       </div>
     </form>
