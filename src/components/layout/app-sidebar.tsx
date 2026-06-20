@@ -16,6 +16,7 @@ import {
   ListChecks,
   ShieldCheck,
   Gauge,
+  Trash2,
 } from 'lucide-react'
 
 import { useAuth } from '@/components/providers/auth-provider'
@@ -63,6 +64,7 @@ const mainNavItems: NavItem[] = [
   { title: 'Tasks', href: '/tasks', icon: ListTodo },
   { title: 'SOPs', href: '/sops', icon: ListChecks },
   { title: 'Meter Readings', href: '/utilities', icon: Gauge },
+  { title: 'Daily Wastage', href: '/waste', icon: Trash2 },
   { title: 'Settings', href: '/settings', icon: Settings },
 ]
 
