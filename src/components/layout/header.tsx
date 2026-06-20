@@ -29,6 +29,7 @@ const segmentLabels: Record<string, string> = {
   menus: 'Menus',
   'allowed-emails': 'Allowed Emails',
   utilities: 'Meter Readings',
+  waste: 'Daily Wastage',
 }
 
 function getPageTitle(pathname: string): string {

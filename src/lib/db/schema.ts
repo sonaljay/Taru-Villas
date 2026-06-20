@@ -885,6 +885,44 @@ export const utilityMeterReadingsRelations = relations(utilityMeterReadings, ({ 
 }))
 
 // ---------------------------------------------------------------------------
+// Daily Wastage (one combined row per property per day, kg per category)
+// ---------------------------------------------------------------------------
+export const wasteLogs = pgTable(
+  'waste_logs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    propertyId: uuid('property_id')
+      .notNull()
+      .references(() => properties.id, { onDelete: 'cascade' }),
+    logDate: date('log_date').notNull(),
+    paperKg: numeric('paper_kg', { precision: 10, scale: 2 }).default('0').notNull(),
+    glassKg: numeric('glass_kg', { precision: 10, scale: 2 }).default('0').notNull(),
+    plasticKg: numeric('plastic_kg', { precision: 10, scale: 2 }).default('0').notNull(),
+    foodKg: numeric('food_kg', { precision: 10, scale: 2 }).default('0').notNull(),
+    metalKg: numeric('metal_kg', { precision: 10, scale: 2 }).default('0').notNull(),
+    electronicKg: numeric('electronic_kg', { precision: 10, scale: 2 }).default('0').notNull(),
+    note: text('note'),
+    recordedBy: uuid('recorded_by').references(() => profiles.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('waste_logs_property_date_unique').on(table.propertyId, table.logDate),
+  ]
+)
+
+export const wasteLogsRelations = relations(wasteLogs, ({ one }) => ({
+  property: one(properties, {
+    fields: [wasteLogs.propertyId],
+    references: [properties.id],
+  }),
+  recorder: one(profiles, {
+    fields: [wasteLogs.recordedBy],
+    references: [profiles.id],
+  }),
+}))
+
+// ---------------------------------------------------------------------------
 // Type aliases
 // ---------------------------------------------------------------------------
 export type Organization = typeof organizations.$inferSelect
@@ -961,3 +999,6 @@ export type NewUtilityRateTier = typeof utilityRateTiers.$inferInsert
 
 export type UtilityMeterReading = typeof utilityMeterReadings.$inferSelect
 export type NewUtilityMeterReading = typeof utilityMeterReadings.$inferInsert
+
+export type WasteLog = typeof wasteLogs.$inferSelect
+export type NewWasteLog = typeof wasteLogs.$inferInsert
