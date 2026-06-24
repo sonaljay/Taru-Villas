@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getLatestReading, createReading } from '@/lib/db/queries/utilities'
+import { getLatestReading, upsertReading, upsertOccupancy } from '@/lib/db/queries/utilities'
 
 const publicReadingSchema = z.object({
   propertyId: z.string().uuid(),
   utilityType: z.enum(['water', 'electricity']),
   readingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   readingValue: z.number().min(0),
+  slot: z.enum(['morning', 'evening', 'night']).optional(),
   note: z.string().max(500).nullable().optional(),
+  guestCount: z.number().int().min(0).optional(),
+  staffCount: z.number().int().min(0).optional(),
 })
 
 // POST /api/utilities/public — submit a reading without auth
@@ -22,13 +25,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate cumulative order
+    // Water always uses the morning slot; electricity defaults to morning too.
+    const slot =
+      parsed.data.utilityType === 'electricity'
+        ? parsed.data.slot ?? 'morning'
+        : 'morning'
+
+    // Validate cumulative order against the latest morning reading
     const latest = await getLatestReading(
       parsed.data.propertyId,
       parsed.data.utilityType
     )
-
-    if (latest && parsed.data.readingValue < parseFloat(latest.readingValue)) {
+    if (
+      slot === 'morning' &&
+      latest &&
+      parsed.data.readingValue < parseFloat(latest.readingValue)
+    ) {
       return NextResponse.json(
         {
           error: `Reading must be >= the previous reading (${latest.readingValue} on ${latest.readingDate})`,
@@ -37,14 +49,29 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const reading = await createReading({
+    const reading = await upsertReading({
       propertyId: parsed.data.propertyId,
       utilityType: parsed.data.utilityType,
       readingDate: parsed.data.readingDate,
       readingValue: String(parsed.data.readingValue),
+      slot,
       note: parsed.data.note ?? null,
       recordedBy: null,
     })
+
+    // Optional occupancy upsert (once per property/day)
+    if (
+      parsed.data.guestCount !== undefined ||
+      parsed.data.staffCount !== undefined
+    ) {
+      await upsertOccupancy({
+        propertyId: parsed.data.propertyId,
+        logDate: parsed.data.readingDate,
+        guestCount: parsed.data.guestCount ?? 0,
+        staffCount: parsed.data.staffCount ?? 0,
+        recordedBy: null,
+      })
+    }
 
     return NextResponse.json(reading, { status: 201 })
   } catch (error: unknown) {
