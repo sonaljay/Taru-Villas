@@ -32,6 +32,20 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 
+interface DailyRow {
+  date: string
+  readingValue: number | null
+  day: number | null
+  peak: number | null
+  offPeak: number | null
+  total: number | null
+  pending: boolean
+  guestCount: number | null
+  staffCount: number | null
+  target: number | null
+  achieved: boolean | null
+}
+
 interface ReadingEntry {
   id: string
   readingDate: string
@@ -42,29 +56,20 @@ interface ReadingEntry {
 
 interface ReadingsTableProps {
   readings: ReadingEntry[]
+  dailyRows: DailyRow[]
+  utilityType: 'water' | 'electricity'
   onRefresh: () => void
 }
 
-export function UtilityReadingsTable({ readings, onRefresh }: ReadingsTableProps) {
+export function UtilityReadingsTable({ readings, dailyRows, utilityType, onRefresh }: ReadingsTableProps) {
   const [deleteReading, setDeleteReading] = useState<ReadingEntry | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [editReading, setEditReading] = useState<ReadingEntry | null>(null)
   const [editValue, setEditValue] = useState('')
   const [isEditing, setIsEditing] = useState(false)
 
-  // Calculate daily consumption from consecutive readings
-  // Readings are sorted by date ascending
-  const readingsWithConsumption = readings.map((reading, index) => {
-    const prevReading = index > 0 ? readings[index - 1] : null
-    const consumption = prevReading
-      ? parseFloat(reading.readingValue) - parseFloat(prevReading.readingValue)
-      : null
-
-    return { ...reading, dailyConsumption: consumption }
-  })
-
-  // Display in reverse chronological order (newest first)
-  const displayReadings = [...readingsWithConsumption].reverse()
+  const idByDate = new Map(readings.map((r) => [r.readingDate, r]))
+  const displayRows = [...dailyRows].reverse() // newest first
 
   async function handleDelete() {
     if (!deleteReading) return
@@ -120,60 +125,99 @@ export function UtilityReadingsTable({ readings, onRefresh }: ReadingsTableProps
           <CardTitle className="text-base">Readings</CardTitle>
         </CardHeader>
         <CardContent>
-          {displayReadings.length > 0 ? (
+          {displayRows.length > 0 ? (
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
-                    <TableHead className="text-right">Meter Value</TableHead>
-                    <TableHead className="text-right">Daily Usage</TableHead>
-                    <TableHead>Recorded By</TableHead>
+                    <TableHead className="text-right">Meter</TableHead>
+                    {utilityType === 'electricity' ? (
+                      <>
+                        <TableHead className="text-right">Day</TableHead>
+                        <TableHead className="text-right">Peak</TableHead>
+                        <TableHead className="text-right">Off-Peak</TableHead>
+                      </>
+                    ) : null}
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-right">Target</TableHead>
+                    <TableHead className="text-center">KPI</TableHead>
+                    <TableHead className="text-right">Guests</TableHead>
+                    <TableHead className="text-right">Staff</TableHead>
                     <TableHead className="w-[80px]" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {displayReadings.map((reading) => (
-                    <TableRow key={reading.id}>
-                      <TableCell className="font-medium">
-                        {formatDate(reading.readingDate)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {parseFloat(reading.readingValue).toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {reading.dailyConsumption !== null
-                          ? reading.dailyConsumption.toFixed(1)
-                          : '—'}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {reading.recorderName ?? '—'}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-8"
-                            onClick={() => {
-                              setEditReading(reading)
-                              setEditValue(reading.readingValue)
-                            }}
-                          >
-                            <Pencil className="size-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-8"
-                            onClick={() => setDeleteReading(reading)}
-                          >
-                            <Trash2 className="size-3.5" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {displayRows.map((row) => {
+                    const reading = idByDate.get(row.date)
+                    const num = (v: number | null) => (v !== null ? v.toFixed(1) : '—')
+                    return (
+                      <TableRow key={row.date}>
+                        <TableCell className="font-medium">{formatDate(row.date)}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {row.readingValue !== null ? row.readingValue.toLocaleString() : '—'}
+                        </TableCell>
+                        {utilityType === 'electricity' ? (
+                          <>
+                            <TableCell className="text-right tabular-nums">{num(row.day)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{num(row.peak)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{num(row.offPeak)}</TableCell>
+                          </>
+                        ) : null}
+                        <TableCell className="text-right tabular-nums">
+                          {row.pending ? (
+                            <span className="text-muted-foreground">pending</span>
+                          ) : (
+                            num(row.total)
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums text-muted-foreground">
+                          {num(row.target)}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {row.achieved === null ? (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          ) : row.achieved ? (
+                            <span className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                              Met
+                            </span>
+                          ) : (
+                            <span className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                              Over
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {row.guestCount ?? '—'}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {row.staffCount ?? '—'}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost" size="icon" className="size-8"
+                              disabled={!reading}
+                              onClick={() => {
+                                if (!reading) return
+                                setEditReading(reading)
+                                setEditValue(reading.readingValue)
+                              }}
+                            >
+                              <Pencil className="size-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost" size="icon" className="size-8"
+                              disabled={!reading}
+                              onClick={() => reading && setDeleteReading(reading)}
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>

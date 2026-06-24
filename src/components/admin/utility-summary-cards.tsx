@@ -1,6 +1,6 @@
 'use client'
 
-import { Droplets, Zap, TrendingUp, Calculator } from 'lucide-react'
+import { Droplets, Zap, TrendingUp, Calculator, Target } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface SummaryCardsProps {
@@ -13,6 +13,9 @@ interface SummaryCardsProps {
   daysElapsed: number
   daysInMonth: number
   tiersConfigured: boolean
+  kpiConfigured: boolean
+  kpiPct: number | null
+  kpiEvaluatedDays: number
   loading: boolean
 }
 
@@ -26,6 +29,9 @@ export function UtilitySummaryCards({
   daysElapsed,
   daysInMonth,
   tiersConfigured,
+  kpiConfigured,
+  kpiPct,
+  kpiEvaluatedDays,
   loading,
 }: SummaryCardsProps) {
   const unit = utilityType === 'water' ? 'kL' : 'kWh'
@@ -66,10 +72,24 @@ export function UtilitySummaryCards({
       subtitle: loading ? '' : 'full month estimate',
       icon: TrendingUp,
     },
+    {
+      title: 'KPI Achieved',
+      value: loading
+        ? '—'
+        : !kpiConfigured
+          ? 'No KPI set'
+          : kpiPct === null
+            ? 'No data'
+            : `${kpiPct.toFixed(0)}%`,
+      subtitle: loading || !kpiConfigured || kpiPct === null
+        ? ''
+        : `${kpiEvaluatedDays} day${kpiEvaluatedDays === 1 ? '' : 's'} evaluated`,
+      icon: Target,
+    },
   ]
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
       {cards.map((card) => (
         <Card key={card.title}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

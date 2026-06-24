@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Droplets, Zap, Link2, Check } from 'lucide-react'
+import { ArrowLeft, Droplets, Zap, Link2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -18,6 +18,10 @@ import { UtilityCharts } from '@/components/admin/utility-charts'
 import { UtilityReadingsTable } from '@/components/admin/utility-readings-table'
 import { UtilityReadingForm } from '@/components/admin/utility-reading-form'
 import { UtilityTierForm } from '@/components/admin/utility-tier-form'
+import { UtilityOccupancyForm } from '@/components/admin/utility-occupancy-form'
+import { UtilityKpiBandsForm } from '@/components/admin/utility-kpi-bands-form'
+import { UtilityWaterKpiForm } from '@/components/admin/utility-water-kpi-form'
+import { UtilitySlotConfigForm } from '@/components/admin/utility-slot-config-form'
 
 interface UtilitiesPageClientProps {
   property: { id: string; name: string; code: string; slug: string }
@@ -40,6 +44,20 @@ interface SummaryData {
   history: { month: string; consumption: number; readingCount: number }[]
   tiersConfigured: boolean
   readingCount: number
+  dailyRows: {
+    date: string
+    readingValue: number | null
+    day: number | null
+    peak: number | null
+    offPeak: number | null
+    total: number | null
+    pending: boolean
+    guestCount: number | null
+    staffCount: number | null
+    target: number | null
+    achieved: boolean | null
+  }[]
+  kpi: { configured: boolean; pct: number | null; evaluatedDays: number; achievedDays: number }
 }
 
 interface ReadingEntry {
@@ -64,6 +82,14 @@ export function UtilitiesPageClient({ property, isAdmin }: UtilitiesPageClientPr
   const [summary, setSummary] = useState<SummaryData | null>(null)
   const [readings, setReadings] = useState<ReadingEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [slotTimes, setSlotTimes] = useState<{ morningTime: string; eveningTime: string; nightTime: string } | null>(null)
+
+  useEffect(() => {
+    fetch('/api/utilities/slot-config')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setSlotTimes(d))
+      .catch(() => {})
+  }, [])
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -103,6 +129,9 @@ export function UtilitiesPageClient({ property, isAdmin }: UtilitiesPageClientPr
 
   const pred = summary?.prediction
 
+  const todayStr = new Date().toISOString().split('T')[0]
+  const todayRow = summary?.dailyRows?.find((r) => r.date === todayStr)
+
   const tabContent = (
     <div className="space-y-6">
       {/* Summary Cards */}
@@ -116,6 +145,9 @@ export function UtilitiesPageClient({ property, isAdmin }: UtilitiesPageClientPr
         daysElapsed={pred?.daysElapsed ?? 0}
         daysInMonth={pred?.daysInMonth ?? 30}
         tiersConfigured={summary?.tiersConfigured ?? false}
+        kpiConfigured={summary?.kpi?.configured ?? false}
+        kpiPct={summary?.kpi?.pct ?? null}
+        kpiEvaluatedDays={summary?.kpi?.evaluatedDays ?? 0}
         loading={loading}
       />
 
@@ -127,11 +159,22 @@ export function UtilitiesPageClient({ property, isAdmin }: UtilitiesPageClientPr
         loading={loading}
       />
 
+      {/* Daily occupancy (shared once per day) */}
+      <UtilityOccupancyForm
+        propertyId={property.id}
+        date={todayStr}
+        initialGuests={todayRow?.guestCount ?? null}
+        initialStaff={todayRow?.staffCount ?? null}
+        onSuccess={fetchData}
+      />
+
       {/* Readings Table + Entry Form */}
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <UtilityReadingsTable
             readings={readings}
+            dailyRows={summary?.dailyRows ?? []}
+            utilityType={utilityType}
             onRefresh={fetchData}
           />
         </div>
@@ -139,18 +182,34 @@ export function UtilitiesPageClient({ property, isAdmin }: UtilitiesPageClientPr
           <UtilityReadingForm
             propertyId={property.id}
             utilityType={utilityType}
+            slotTimes={slotTimes ?? undefined}
             onSuccess={fetchData}
           />
         </div>
       </div>
 
-      {/* Tier Configuration (admin only) */}
+      {/* Config (admin only) */}
       {isAdmin && (
-        <UtilityTierForm
-          propertyId={property.id}
-          utilityType={utilityType}
-          onRefresh={fetchData}
-        />
+        <div className="space-y-6">
+          <UtilityTierForm
+            propertyId={property.id}
+            utilityType={utilityType}
+            onRefresh={fetchData}
+          />
+          {utilityType === 'electricity' ? (
+            <>
+              <UtilityKpiBandsForm propertyId={property.id} onRefresh={fetchData} />
+              <UtilitySlotConfigForm onRefresh={() => {
+                fetch('/api/utilities/slot-config')
+                  .then((r) => (r.ok ? r.json() : null))
+                  .then((d) => d && setSlotTimes(d))
+                  .catch(() => {})
+              }} />
+            </>
+          ) : (
+            <UtilityWaterKpiForm propertyId={property.id} onRefresh={fetchData} />
+          )}
+        </div>
       )}
     </div>
   )
