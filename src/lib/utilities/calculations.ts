@@ -180,3 +180,105 @@ export function calculateDailyConsumption(
     consumption: reading.value - readings[i].value,
   }))
 }
+
+/**
+ * One day's electricity meter readings at the three slots.
+ * `morning` is the canonical reading_value; evening/night are the later slots.
+ * Rows must be sorted by date ascending.
+ */
+export interface SlotRow {
+  date: string
+  morning: number | null
+  evening: number | null
+  night: number | null
+}
+
+export interface ElectricityDayBreakdown {
+  date: string
+  day: number | null      // evening - morning
+  peak: number | null     // night - evening
+  offPeak: number | null  // next day's morning - night
+  total: number | null    // next day's morning - morning (= day + peak + offPeak)
+  pending: boolean        // true when total can't be finalised yet (no next morning)
+}
+
+export interface KpiBandInput {
+  minGuests: number
+  targetUnits: number
+}
+
+/**
+ * Compute Day / Peak / Off-Peak / Total per day from consecutive slot rows.
+ * Off-Peak and Total for a day need the NEXT day's morning reading; until that
+ * exists the day is `pending` with null total.
+ *
+ * A bucket is null when either endpoint reading is missing or the delta is
+ * negative (meter reset / bad data) — callers render these as "—".
+ */
+export function computeElectricityBreakdown(rows: SlotRow[]): ElectricityDayBreakdown[] {
+  const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date))
+
+  return sorted.map((row, i) => {
+    const next = i < sorted.length - 1 ? sorted[i + 1] : null
+    const nonNeg = (v: number) => (v >= 0 ? v : null)
+
+    const day =
+      row.evening !== null && row.morning !== null
+        ? nonNeg(row.evening - row.morning)
+        : null
+    const peak =
+      row.night !== null && row.evening !== null
+        ? nonNeg(row.night - row.evening)
+        : null
+    const offPeak =
+      next && next.morning !== null && row.night !== null
+        ? nonNeg(next.morning - row.night)
+        : null
+    const total =
+      next && next.morning !== null && row.morning !== null
+        ? nonNeg(next.morning - row.morning)
+        : null
+
+    return {
+      date: row.date,
+      day,
+      peak,
+      offPeak,
+      total,
+      pending: total === null,
+    }
+  })
+}
+
+/**
+ * Resolve the banded daily target for a guest count: the target of the band
+ * with the largest minGuests <= guestCount. Returns null if guestCount is null
+ * or no band qualifies / none configured.
+ */
+export function resolveBandTarget(
+  guestCount: number | null,
+  bands: KpiBandInput[]
+): number | null {
+  if (guestCount === null || bands.length === 0) return null
+  const eligible = bands
+    .filter((b) => b.minGuests <= guestCount)
+    .sort((a, b) => b.minGuests - a.minGuests)
+  return eligible.length > 0 ? eligible[0].targetUnits : null
+}
+
+/**
+ * Compute KPI achievement over a set of days. A day is only evaluated when both
+ * its total and target are non-null; achieved when total <= target. Returns a
+ * null pct when no days are evaluable.
+ */
+export function computeKpiAchievement(
+  days: { total: number | null; target: number | null }[]
+): { evaluatedDays: number; achievedDays: number; pct: number | null } {
+  const evaluable = days.filter((d) => d.total !== null && d.target !== null)
+  const achieved = evaluable.filter((d) => (d.total as number) <= (d.target as number))
+  return {
+    evaluatedDays: evaluable.length,
+    achievedDays: achieved.length,
+    pct: evaluable.length > 0 ? (achieved.length / evaluable.length) * 100 : null,
+  }
+}
