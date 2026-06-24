@@ -5,11 +5,18 @@ import {
   getPreviousMonthLastReading,
   getTiersForProperty,
   getConsumptionHistory,
+  getOccupancyForMonth,
+  getElectricityBands,
+  getWaterKpiTarget,
 } from '@/lib/db/queries/utilities'
 import {
   predictMonthlyBill,
   calculateDailyConsumption,
+  computeElectricityBreakdown,
+  resolveBandTarget,
+  computeKpiAchievement,
   type TierInput,
+  type SlotRow,
 } from '@/lib/utilities/calculations'
 
 async function checkPropertyAccess(
@@ -59,12 +66,20 @@ export async function GET(request: NextRequest) {
     const monthNum = parseInt(month)
 
     // Fetch data in parallel
-    const [monthReadings, prevReading, tiers, history] = await Promise.all([
-      getReadingsForMonth(propertyId, utilityType, yearNum, monthNum),
-      getPreviousMonthLastReading(propertyId, utilityType, yearNum, monthNum),
-      getTiersForProperty(propertyId, utilityType),
-      getConsumptionHistory(propertyId, utilityType, 6),
-    ])
+    const [monthReadings, prevReading, tiers, history, occupancy, bands, waterTarget] =
+      await Promise.all([
+        getReadingsForMonth(propertyId, utilityType, yearNum, monthNum),
+        getPreviousMonthLastReading(propertyId, utilityType, yearNum, monthNum),
+        getTiersForProperty(propertyId, utilityType),
+        getConsumptionHistory(propertyId, utilityType, 6),
+        getOccupancyForMonth(propertyId, yearNum, monthNum),
+        utilityType === 'electricity'
+          ? getElectricityBands(propertyId)
+          : Promise.resolve([]),
+        utilityType === 'water'
+          ? getWaterKpiTarget(propertyId)
+          : Promise.resolve(null),
+      ])
 
     // Build readings array for calculations, prepending previous month's last reading as baseline
     const readingsForCalc: { date: string; value: number }[] = []
@@ -97,6 +112,91 @@ export async function GET(request: NextRequest) {
     // Calculate daily consumption
     const dailyConsumption = calculateDailyConsumption(readingsForCalc)
 
+    // Occupancy lookup by date
+    const occByDate = new Map(
+      occupancy.map((o) => [o.logDate, o])
+    )
+
+    type EnrichedDayRow = {
+      date: string
+      readingValue: number | null
+      day: number | null
+      peak: number | null
+      offPeak: number | null
+      total: number | null
+      pending: boolean
+      guestCount: number | null
+      staffCount: number | null
+      target: number | null
+      achieved: boolean | null
+    }
+
+    let dailyRows: EnrichedDayRow[] = []
+
+    if (utilityType === 'electricity') {
+      const slotRows: SlotRow[] = monthReadings.map((r) => ({
+        date: r.readingDate,
+        morning: parseFloat(r.readingValue),
+        evening: r.eveningReading !== null ? parseFloat(r.eveningReading) : null,
+        night: r.nightReading !== null ? parseFloat(r.nightReading) : null,
+      }))
+      const bandInputs = bands.map((b) => ({
+        minGuests: b.minGuests,
+        targetUnits: parseFloat(b.targetUnits),
+      }))
+      const breakdown = computeElectricityBreakdown(slotRows)
+
+      dailyRows = breakdown.map((b, i) => {
+        const occ = occByDate.get(b.date)
+        const guestCount = occ ? occ.guestCount : null
+        const target = resolveBandTarget(guestCount, bandInputs)
+        return {
+          date: b.date,
+          readingValue: slotRows[i].morning,
+          day: b.day,
+          peak: b.peak,
+          offPeak: b.offPeak,
+          total: b.total,
+          pending: b.pending,
+          guestCount,
+          staffCount: occ ? occ.staffCount : null,
+          target,
+          achieved:
+            b.total !== null && target !== null ? b.total <= target : null,
+        }
+      })
+    } else {
+      // Water: daily usage = consecutive reading_value deltas; flat target
+      const target = waterTarget ? parseFloat(waterTarget.dailyTargetUnits) : null
+      dailyRows = monthReadings.map((r, i) => {
+        const prev = i > 0 ? monthReadings[i - 1] : null
+        const total =
+          prev !== null
+            ? parseFloat(r.readingValue) - parseFloat(prev.readingValue)
+            : null
+        const occ = occByDate.get(r.readingDate)
+        return {
+          date: r.readingDate,
+          readingValue: parseFloat(r.readingValue),
+          day: null,
+          peak: null,
+          offPeak: null,
+          total,
+          pending: total === null,
+          guestCount: occ ? occ.guestCount : null,
+          staffCount: occ ? occ.staffCount : null,
+          target,
+          achieved: total !== null && target !== null ? total <= target : null,
+        }
+      })
+    }
+
+    const achievement = computeKpiAchievement(
+      dailyRows.map((r) => ({ total: r.total, target: r.target }))
+    )
+    const kpiConfigured =
+      utilityType === 'electricity' ? bands.length > 0 : waterTarget !== null
+
     return NextResponse.json({
       prediction,
       dailyConsumption,
@@ -107,6 +207,13 @@ export async function GET(request: NextRequest) {
       })),
       tiersConfigured: tiers.length > 0,
       readingCount: monthReadings.length,
+      dailyRows,
+      kpi: {
+        configured: kpiConfigured,
+        pct: achievement.pct,
+        evaluatedDays: achievement.evaluatedDays,
+        achievedDays: achievement.achievedDays,
+      },
     })
   } catch (error) {
     console.error('GET /api/utilities/summary error:', error)
