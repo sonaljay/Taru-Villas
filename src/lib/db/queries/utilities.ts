@@ -3,6 +3,10 @@ import { db } from '..'
 import {
   utilityRateTiers,
   utilityMeterReadings,
+  dailyOccupancy,
+  electricityKpiBands,
+  utilityKpiTargets,
+  electricitySlotConfig,
   profiles,
 } from '../schema'
 
@@ -125,22 +129,58 @@ export async function getReadingById(id: string) {
 }
 
 /**
- * Create a new meter reading.
+ * Upsert a meter reading for a (property, utilityType, date). Water always uses
+ * the 'morning' slot (= reading_value). Electricity writes the column for the
+ * given slot, leaving the others intact on conflict.
  */
-export async function createReading(data: {
+export async function upsertReading(data: {
   propertyId: string
   utilityType: 'water' | 'electricity'
   readingDate: string
   readingValue: string
+  slot: 'morning' | 'evening' | 'night'
   note?: string | null
   recordedBy?: string | null
 }) {
-  const [inserted] = await db
+  const column =
+    data.slot === 'morning'
+      ? 'readingValue'
+      : data.slot === 'evening'
+        ? 'eveningReading'
+        : 'nightReading'
+
+  const insertValues = {
+    propertyId: data.propertyId,
+    utilityType: data.utilityType,
+    readingDate: data.readingDate,
+    readingValue: data.slot === 'morning' ? data.readingValue : '0',
+    eveningReading: data.slot === 'evening' ? data.readingValue : null,
+    nightReading: data.slot === 'night' ? data.readingValue : null,
+    note: data.note ?? null,
+    recordedBy: data.recordedBy ?? null,
+  }
+
+  const setOnConflict: Record<string, unknown> = {
+    [column]: data.readingValue,
+    updatedAt: new Date(),
+  }
+  if (data.note !== undefined) setOnConflict.note = data.note
+  if (data.recordedBy !== undefined) setOnConflict.recordedBy = data.recordedBy
+
+  const [row] = await db
     .insert(utilityMeterReadings)
-    .values(data)
+    .values(insertValues)
+    .onConflictDoUpdate({
+      target: [
+        utilityMeterReadings.propertyId,
+        utilityMeterReadings.utilityType,
+        utilityMeterReadings.readingDate,
+      ],
+      set: setOnConflict,
+    })
     .returning()
 
-  return inserted
+  return row
 }
 
 /**
@@ -173,6 +213,63 @@ export async function deleteReading(id: string) {
     .returning()
 
   return deleted
+}
+
+// ---------------------------------------------------------------------------
+// Daily Occupancy
+// ---------------------------------------------------------------------------
+
+export async function upsertOccupancy(data: {
+  propertyId: string
+  logDate: string
+  guestCount: number
+  staffCount: number
+  note?: string | null
+  recordedBy?: string | null
+}) {
+  const [row] = await db
+    .insert(dailyOccupancy)
+    .values({
+      propertyId: data.propertyId,
+      logDate: data.logDate,
+      guestCount: data.guestCount,
+      staffCount: data.staffCount,
+      note: data.note ?? null,
+      recordedBy: data.recordedBy ?? null,
+    })
+    .onConflictDoUpdate({
+      target: [dailyOccupancy.propertyId, dailyOccupancy.logDate],
+      set: {
+        guestCount: data.guestCount,
+        staffCount: data.staffCount,
+        note: data.note ?? null,
+        updatedAt: new Date(),
+      },
+    })
+    .returning()
+
+  return row
+}
+
+export async function getOccupancyForMonth(
+  propertyId: string,
+  year: number,
+  month: number
+) {
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`
+  const endDate = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`
+
+  return db
+    .select()
+    .from(dailyOccupancy)
+    .where(
+      and(
+        eq(dailyOccupancy.propertyId, propertyId),
+        gte(dailyOccupancy.logDate, startDate),
+        lte(dailyOccupancy.logDate, endDate)
+      )
+    )
+    .orderBy(asc(dailyOccupancy.logDate))
 }
 
 // ---------------------------------------------------------------------------
@@ -245,6 +342,118 @@ export async function upsertTiers(
 
     return []
   })
+}
+
+// ---------------------------------------------------------------------------
+// Electricity KPI Bands
+// ---------------------------------------------------------------------------
+
+export async function getElectricityBands(propertyId: string) {
+  return db
+    .select()
+    .from(electricityKpiBands)
+    .where(eq(electricityKpiBands.propertyId, propertyId))
+    .orderBy(asc(electricityKpiBands.minGuests))
+}
+
+/**
+ * Replace all electricity KPI bands for a property (delete + insert in a tx).
+ */
+export async function upsertElectricityBands(
+  propertyId: string,
+  bands: { minGuests: number; targetUnits: string }[]
+) {
+  return db.transaction(async (tx) => {
+    await tx
+      .delete(electricityKpiBands)
+      .where(eq(electricityKpiBands.propertyId, propertyId))
+
+    if (bands.length > 0) {
+      return tx
+        .insert(electricityKpiBands)
+        .values(
+          bands.map((b) => ({
+            propertyId,
+            minGuests: b.minGuests,
+            targetUnits: b.targetUnits,
+          }))
+        )
+        .returning()
+    }
+    return []
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Water KPI Target (flat)
+// ---------------------------------------------------------------------------
+
+export async function getWaterKpiTarget(propertyId: string) {
+  const [row] = await db
+    .select()
+    .from(utilityKpiTargets)
+    .where(
+      and(
+        eq(utilityKpiTargets.propertyId, propertyId),
+        eq(utilityKpiTargets.utilityType, 'water')
+      )
+    )
+    .limit(1)
+  return row ?? null
+}
+
+export async function upsertWaterKpiTarget(
+  propertyId: string,
+  dailyTargetUnits: string
+) {
+  const [row] = await db
+    .insert(utilityKpiTargets)
+    .values({ propertyId, utilityType: 'water', dailyTargetUnits })
+    .onConflictDoUpdate({
+      target: [utilityKpiTargets.propertyId, utilityKpiTargets.utilityType],
+      set: { dailyTargetUnits, updatedAt: new Date() },
+    })
+    .returning()
+  return row
+}
+
+// ---------------------------------------------------------------------------
+// Electricity Slot Config (org-wide)
+// ---------------------------------------------------------------------------
+
+const DEFAULT_SLOT_TIMES = {
+  morningTime: '05:30:00',
+  eveningTime: '17:30:00',
+  nightTime: '22:30:00',
+}
+
+export async function getSlotConfig(orgId: string) {
+  const [row] = await db
+    .select()
+    .from(electricitySlotConfig)
+    .where(eq(electricitySlotConfig.orgId, orgId))
+    .limit(1)
+  if (!row) return DEFAULT_SLOT_TIMES
+  return {
+    morningTime: row.morningTime,
+    eveningTime: row.eveningTime,
+    nightTime: row.nightTime,
+  }
+}
+
+export async function upsertSlotConfig(
+  orgId: string,
+  data: { morningTime: string; eveningTime: string; nightTime: string }
+) {
+  const [row] = await db
+    .insert(electricitySlotConfig)
+    .values({ orgId, ...data })
+    .onConflictDoUpdate({
+      target: [electricitySlotConfig.orgId],
+      set: { ...data, updatedAt: new Date() },
+    })
+    .returning()
+  return row
 }
 
 // ---------------------------------------------------------------------------
