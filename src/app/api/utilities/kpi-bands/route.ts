@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getProfile } from '@/lib/auth/guards'
-import { getElectricityBands, upsertElectricityBands } from '@/lib/db/queries/utilities'
+import { getKpiBands, upsertKpiBands } from '@/lib/db/queries/utilities'
 
 const upsertBandsSchema = z.object({
   propertyId: z.string().uuid(),
+  utilityType: z.enum(['water', 'electricity']),
   bands: z
     .array(
       z.object({
@@ -16,7 +17,7 @@ const upsertBandsSchema = z.object({
     .max(20),
 })
 
-// GET /api/utilities/kpi-bands?propertyId=xxx
+// GET /api/utilities/kpi-bands?propertyId=xxx&utilityType=water|electricity
 export async function GET(request: NextRequest) {
   try {
     const profile = await getProfile()
@@ -25,10 +26,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden: admin only' }, { status: 403 })
     }
 
-    const propertyId = new URL(request.url).searchParams.get('propertyId')
+    const { searchParams } = new URL(request.url)
+    const propertyId = searchParams.get('propertyId')
+    const utilityType = searchParams.get('utilityType')
     if (!propertyId) return NextResponse.json({ error: 'propertyId is required' }, { status: 400 })
-
-    return NextResponse.json(await getElectricityBands(propertyId))
+    if (utilityType !== 'water' && utilityType !== 'electricity') {
+      return NextResponse.json({ error: 'Invalid utilityType' }, { status: 400 })
+    }
+    return NextResponse.json(await getKpiBands(propertyId, utilityType))
   } catch (error) {
     console.error('GET /api/utilities/kpi-bands error:', error)
     return NextResponse.json({ error: 'Failed to fetch bands' }, { status: 500 })
@@ -61,12 +66,10 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const result = await upsertElectricityBands(
+    const result = await upsertKpiBands(
       parsed.data.propertyId,
-      parsed.data.bands.map((b) => ({
-        minGuests: b.minGuests,
-        targetUnits: String(b.targetUnits),
-      }))
+      parsed.data.utilityType,
+      parsed.data.bands.map((b) => ({ minGuests: b.minGuests, targetUnits: String(b.targetUnits) }))
     )
     return NextResponse.json(result)
   } catch (error) {
