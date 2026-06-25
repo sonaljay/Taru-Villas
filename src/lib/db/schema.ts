@@ -923,61 +923,33 @@ export const dailyOccupancyRelations = relations(dailyOccupancy, ({ one }) => ({
 }))
 
 // ---------------------------------------------------------------------------
-// Electricity KPI Bands (guest-count step function, per property)
+// Utility KPI Bands (guest-count step function, per property + utility)
 // ---------------------------------------------------------------------------
-export const electricityKpiBands = pgTable(
-  'electricity_kpi_bands',
-  {
-    id: uuid('id').defaultRandom().primaryKey(),
-    propertyId: uuid('property_id')
-      .notNull()
-      .references(() => properties.id, { onDelete: 'cascade' }),
-    minGuests: integer('min_guests').notNull(),
-    targetUnits: numeric('target_units', { precision: 12, scale: 2 }).notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-  },
-  (table) => [
-    unique('electricity_kpi_bands_property_minguests_unique').on(
-      table.propertyId,
-      table.minGuests
-    ),
-  ]
-)
-
-export const electricityKpiBandsRelations = relations(electricityKpiBands, ({ one }) => ({
-  property: one(properties, {
-    fields: [electricityKpiBands.propertyId],
-    references: [properties.id],
-  }),
-}))
-
-// ---------------------------------------------------------------------------
-// Utility KPI Targets (flat daily target — water in v1)
-// ---------------------------------------------------------------------------
-export const utilityKpiTargets = pgTable(
-  'utility_kpi_targets',
+export const utilityKpiBands = pgTable(
+  'utility_kpi_bands',
   {
     id: uuid('id').defaultRandom().primaryKey(),
     propertyId: uuid('property_id')
       .notNull()
       .references(() => properties.id, { onDelete: 'cascade' }),
     utilityType: utilityTypeEnum('utility_type').notNull(),
-    dailyTargetUnits: numeric('daily_target_units', { precision: 12, scale: 2 }).notNull(),
+    minGuests: integer('min_guests').notNull(),
+    targetUnits: numeric('target_units', { precision: 12, scale: 2 }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    unique('utility_kpi_targets_property_type_unique').on(
+    unique('utility_kpi_bands_property_type_minguests_unique').on(
       table.propertyId,
-      table.utilityType
+      table.utilityType,
+      table.minGuests
     ),
   ]
 )
 
-export const utilityKpiTargetsRelations = relations(utilityKpiTargets, ({ one }) => ({
+export const utilityKpiBandsRelations = relations(utilityKpiBands, ({ one }) => ({
   property: one(properties, {
-    fields: [utilityKpiTargets.propertyId],
+    fields: [utilityKpiBands.propertyId],
     references: [properties.id],
   }),
 }))
@@ -1119,10 +1091,8 @@ export type NewUtilityMeterReading = typeof utilityMeterReadings.$inferInsert
 
 export type DailyOccupancy = typeof dailyOccupancy.$inferSelect
 export type NewDailyOccupancy = typeof dailyOccupancy.$inferInsert
-export type ElectricityKpiBand = typeof electricityKpiBands.$inferSelect
-export type NewElectricityKpiBand = typeof electricityKpiBands.$inferInsert
-export type UtilityKpiTarget = typeof utilityKpiTargets.$inferSelect
-export type NewUtilityKpiTarget = typeof utilityKpiTargets.$inferInsert
+export type UtilityKpiBand = typeof utilityKpiBands.$inferSelect
+export type NewUtilityKpiBand = typeof utilityKpiBands.$inferInsert
 export type ElectricitySlotConfig = typeof electricitySlotConfig.$inferSelect
 export type NewElectricitySlotConfig = typeof electricitySlotConfig.$inferInsert
 
