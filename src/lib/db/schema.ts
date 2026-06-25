@@ -859,7 +859,7 @@ export const utilityMeterReadings = pgTable(
       .references(() => properties.id, { onDelete: 'cascade' }),
     utilityType: utilityTypeEnum('utility_type').notNull(),
     readingDate: date('reading_date').notNull(),
-    readingValue: numeric('reading_value', { precision: 12, scale: 2 }).notNull(),
+    readingValue: numeric('reading_value', { precision: 12, scale: 2 }),
     eveningReading: numeric('evening_reading', { precision: 12, scale: 2 }),
     nightReading: numeric('night_reading', { precision: 12, scale: 2 }),
     note: text('note'),

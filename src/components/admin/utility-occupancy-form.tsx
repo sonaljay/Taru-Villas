@@ -36,9 +36,6 @@ export function UtilityOccupancyForm({
     e.preventDefault()
     setIsSubmitting(true)
     try {
-      // Reuse the readings route's occupancy upsert path by posting a no-op?
-      // Instead post directly to the dedicated occupancy upsert via readings route
-      // is not possible without a reading; use a thin fetch to the public-safe path.
       const res = await fetch('/api/utilities/occupancy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

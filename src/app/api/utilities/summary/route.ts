@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
     // Build readings array for calculations, prepending previous month's last reading as baseline
     const readingsForCalc: { date: string; value: number }[] = []
 
-    if (prevReading) {
+    if (prevReading && prevReading.readingValue !== null) {
       readingsForCalc.push({
         date: prevReading.readingDate,
         value: parseFloat(prevReading.readingValue),
@@ -92,6 +92,7 @@ export async function GET(request: NextRequest) {
     }
 
     for (const r of monthReadings) {
+      if (r.readingValue === null) continue
       readingsForCalc.push({
         date: r.readingDate,
         value: parseFloat(r.readingValue),
@@ -136,7 +137,7 @@ export async function GET(request: NextRequest) {
     if (utilityType === 'electricity') {
       const slotRows: SlotRow[] = monthReadings.map((r) => ({
         date: r.readingDate,
-        morning: parseFloat(r.readingValue),
+        morning: r.readingValue !== null ? parseFloat(r.readingValue) : null,
         evening: r.eveningReading !== null ? parseFloat(r.eveningReading) : null,
         night: r.nightReading !== null ? parseFloat(r.nightReading) : null,
       }))
@@ -169,15 +170,21 @@ export async function GET(request: NextRequest) {
       // Water: daily usage = consecutive reading_value deltas; flat target
       const target = waterTarget ? parseFloat(waterTarget.dailyTargetUnits) : null
       dailyRows = monthReadings.map((r, i) => {
-        const prev = i > 0 ? monthReadings[i - 1] : null
-        const total =
-          prev !== null
+        const prev =
+          i > 0
+            ? monthReadings[i - 1]
+            : prevReading && prevReading.readingValue !== null
+              ? prevReading
+              : null
+        const rawTotal =
+          prev && prev.readingValue !== null && r.readingValue !== null
             ? parseFloat(r.readingValue) - parseFloat(prev.readingValue)
             : null
+        const total = rawTotal !== null && rawTotal >= 0 ? rawTotal : null
         const occ = occByDate.get(r.readingDate)
         return {
           date: r.readingDate,
-          readingValue: parseFloat(r.readingValue),
+          readingValue: r.readingValue !== null ? parseFloat(r.readingValue) : null,
           day: null,
           peak: null,
           offPeak: null,

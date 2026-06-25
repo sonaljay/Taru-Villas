@@ -49,7 +49,7 @@ interface DailyRow {
 interface ReadingEntry {
   id: string
   readingDate: string
-  readingValue: string
+  readingValue: string | null
   note: string | null
   recorderName: string | null
 }
@@ -201,7 +201,7 @@ export function UtilityReadingsTable({ readings, dailyRows, utilityType, onRefre
                               onClick={() => {
                                 if (!reading) return
                                 setEditReading(reading)
-                                setEditValue(reading.readingValue)
+                                setEditValue(reading.readingValue ?? '')
                               }}
                             >
                               <Pencil className="size-3.5" />

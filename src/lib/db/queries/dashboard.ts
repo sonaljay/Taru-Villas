@@ -802,13 +802,18 @@ export async function getOrgUtilityKpiRollup(
       : { pct: null, evaluatedDays: 0, achievedDays: 0 }
 
     // Water
+    // first in-window day has no predecessor → excluded (acceptable for a rolling % over ~30 days)
     const waterReadings = readings.filter((r) => r.utilityType === 'water')
     const wTarget = waterTarget[0] ? parseFloat(waterTarget[0].dailyTargetUnits) : null
     const waterAch = wTarget !== null
       ? computeKpiAchievement(
           waterReadings.map((r, i) => {
             const prev = i > 0 ? waterReadings[i - 1] : null
-            const total = prev ? parseFloat(r.readingValue) - parseFloat(prev.readingValue) : null
+            const rawTotal =
+              prev && prev.readingValue !== null && r.readingValue !== null
+                ? parseFloat(r.readingValue) - parseFloat(prev.readingValue)
+                : null
+            const total = rawTotal !== null && rawTotal >= 0 ? rawTotal : null
             return { total, target: wTarget }
           })
         )

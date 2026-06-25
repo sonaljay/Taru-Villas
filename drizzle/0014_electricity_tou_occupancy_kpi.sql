@@ -1,3 +1,4 @@
+ALTER TABLE "utility_meter_readings" ALTER COLUMN "reading_value" DROP NOT NULL;--> statement-breakpoint
 ALTER TABLE "utility_meter_readings" ADD COLUMN IF NOT EXISTS "evening_reading" numeric(12, 2);--> statement-breakpoint
 ALTER TABLE "utility_meter_readings" ADD COLUMN IF NOT EXISTS "night_reading" numeric(12, 2);--> statement-breakpoint
 

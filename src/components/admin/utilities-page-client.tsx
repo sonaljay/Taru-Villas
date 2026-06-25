@@ -65,7 +65,7 @@ interface ReadingEntry {
   propertyId: string
   utilityType: string
   readingDate: string
-  readingValue: string
+  readingValue: string | null
   note: string | null
   recordedBy: string | null
   recorderName: string | null

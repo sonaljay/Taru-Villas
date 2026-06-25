@@ -153,7 +153,7 @@ export async function upsertReading(data: {
     propertyId: data.propertyId,
     utilityType: data.utilityType,
     readingDate: data.readingDate,
-    readingValue: data.slot === 'morning' ? data.readingValue : '0',
+    readingValue: data.slot === 'morning' ? data.readingValue : null,
     eveningReading: data.slot === 'evening' ? data.readingValue : null,
     nightReading: data.slot === 'night' ? data.readingValue : null,
     note: data.note ?? null,
@@ -227,6 +227,13 @@ export async function upsertOccupancy(data: {
   note?: string | null
   recordedBy?: string | null
 }) {
+  const occSet: Record<string, unknown> = {
+    guestCount: data.guestCount,
+    staffCount: data.staffCount,
+    updatedAt: new Date(),
+  }
+  if (data.note !== undefined) occSet.note = data.note
+
   const [row] = await db
     .insert(dailyOccupancy)
     .values({
@@ -239,12 +246,7 @@ export async function upsertOccupancy(data: {
     })
     .onConflictDoUpdate({
       target: [dailyOccupancy.propertyId, dailyOccupancy.logDate],
-      set: {
-        guestCount: data.guestCount,
-        staffCount: data.staffCount,
-        note: data.note ?? null,
-        updatedAt: new Date(),
-      },
+      set: occSet,
     })
     .returning()
 

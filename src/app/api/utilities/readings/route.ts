@@ -112,6 +112,7 @@ export async function POST(request: NextRequest) {
     if (
       slot === 'morning' &&
       latest &&
+      latest.readingValue !== null &&
       parsed.data.readingValue < parseFloat(latest.readingValue)
     ) {
       return NextResponse.json(
@@ -148,12 +149,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(reading, { status: 201 })
   } catch (error: unknown) {
-    if (error instanceof Error && error.message.includes('unique')) {
-      return NextResponse.json(
-        { error: 'A reading already exists for this date and utility type' },
-        { status: 409 }
-      )
-    }
     console.error('POST /api/utilities/readings error:', error)
     return NextResponse.json({ error: 'Failed to create reading' }, { status: 500 })
   }
