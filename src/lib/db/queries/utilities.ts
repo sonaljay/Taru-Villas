@@ -1,4 +1,4 @@
-import { eq, and, asc, desc, gte, lte, sql } from 'drizzle-orm'
+import { eq, and, asc, desc, gte, lte, lt, sql } from 'drizzle-orm'
 import { db } from '..'
 import {
   utilityRateTiers,
@@ -61,6 +61,74 @@ export async function getReadingsForMonth(
     ...r,
     recorderName: r.recordedBy ? recorderMap[r.recordedBy] ?? null : null,
   }))
+}
+
+/** Readings for a property/utility in [from, to] inclusive, ascending, with recorder names. */
+export async function getReadingsInRange(
+  propertyId: string,
+  utilityType: 'water' | 'electricity',
+  from: string,
+  to: string
+) {
+  const readings = await db
+    .select()
+    .from(utilityMeterReadings)
+    .where(
+      and(
+        eq(utilityMeterReadings.propertyId, propertyId),
+        eq(utilityMeterReadings.utilityType, utilityType),
+        gte(utilityMeterReadings.readingDate, from),
+        lte(utilityMeterReadings.readingDate, to)
+      )
+    )
+    .orderBy(asc(utilityMeterReadings.readingDate))
+
+  const recorderIds = readings.map((r) => r.recordedBy).filter(Boolean) as string[]
+  let recorderMap: Record<string, string> = {}
+  if (recorderIds.length > 0) {
+    const recorders = await db.select({ id: profiles.id, fullName: profiles.fullName }).from(profiles)
+    recorderMap = Object.fromEntries(recorders.map((p) => [p.id, p.fullName]))
+  }
+  return readings.map((r) => ({
+    ...r,
+    recorderName: r.recordedBy ? recorderMap[r.recordedBy] ?? null : null,
+  }))
+}
+
+/** The latest reading strictly before `before` (the cumulative baseline). */
+export async function getBaselineReading(
+  propertyId: string,
+  utilityType: 'water' | 'electricity',
+  before: string
+) {
+  const [row] = await db
+    .select()
+    .from(utilityMeterReadings)
+    .where(
+      and(
+        eq(utilityMeterReadings.propertyId, propertyId),
+        eq(utilityMeterReadings.utilityType, utilityType),
+        lt(utilityMeterReadings.readingDate, before)
+      )
+    )
+    .orderBy(desc(utilityMeterReadings.readingDate))
+    .limit(1)
+  return row ?? null
+}
+
+/** Occupancy rows for a property in [from, to] inclusive. */
+export async function getOccupancyInRange(propertyId: string, from: string, to: string) {
+  return db
+    .select()
+    .from(dailyOccupancy)
+    .where(
+      and(
+        eq(dailyOccupancy.propertyId, propertyId),
+        gte(dailyOccupancy.logDate, from),
+        lte(dailyOccupancy.logDate, to)
+      )
+    )
+    .orderBy(asc(dailyOccupancy.logDate))
 }
 
 /**
