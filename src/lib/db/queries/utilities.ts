@@ -15,54 +15,6 @@ import {
 // Meter Readings
 // ---------------------------------------------------------------------------
 
-/**
- * Get all readings for a property/utility type in a given month.
- * Sorted by date ascending.
- */
-export async function getReadingsForMonth(
-  propertyId: string,
-  utilityType: 'water' | 'electricity',
-  year: number,
-  month: number // 1-indexed
-) {
-  const startDate = `${year}-${String(month).padStart(2, '0')}-01`
-  const endDate = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`
-
-  const readings = await db
-    .select()
-    .from(utilityMeterReadings)
-    .where(
-      and(
-        eq(utilityMeterReadings.propertyId, propertyId),
-        eq(utilityMeterReadings.utilityType, utilityType),
-        gte(utilityMeterReadings.readingDate, startDate),
-        lte(utilityMeterReadings.readingDate, endDate)
-      )
-    )
-    .orderBy(asc(utilityMeterReadings.readingDate))
-
-  // Fetch recorder names
-  const recorderIds = readings
-    .map((r) => r.recordedBy)
-    .filter(Boolean) as string[]
-
-  let recorderMap: Record<string, string> = {}
-  if (recorderIds.length > 0) {
-    const recorders = await db
-      .select({ id: profiles.id, fullName: profiles.fullName })
-      .from(profiles)
-
-    recorderMap = Object.fromEntries(
-      recorders.map((p) => [p.id, p.fullName])
-    )
-  }
-
-  return readings.map((r) => ({
-    ...r,
-    recorderName: r.recordedBy ? recorderMap[r.recordedBy] ?? null : null,
-  }))
-}
-
 /** Readings for a property/utility in [from, to] inclusive, ascending, with recorder names. */
 export async function getReadingsInRange(
   propertyId: string,
@@ -146,36 +98,6 @@ export async function getLatestReading(
       and(
         eq(utilityMeterReadings.propertyId, propertyId),
         eq(utilityMeterReadings.utilityType, utilityType)
-      )
-    )
-    .orderBy(desc(utilityMeterReadings.readingDate))
-    .limit(1)
-
-  return results[0] ?? null
-}
-
-/**
- * Get the last reading from the previous month (used as baseline).
- */
-export async function getPreviousMonthLastReading(
-  propertyId: string,
-  utilityType: 'water' | 'electricity',
-  year: number,
-  month: number // 1-indexed
-) {
-  // Calculate previous month
-  const prevMonth = month === 1 ? 12 : month - 1
-  const prevYear = month === 1 ? year - 1 : year
-  const prevEndDate = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${new Date(prevYear, prevMonth, 0).getDate()}`
-
-  const results = await db
-    .select()
-    .from(utilityMeterReadings)
-    .where(
-      and(
-        eq(utilityMeterReadings.propertyId, propertyId),
-        eq(utilityMeterReadings.utilityType, utilityType),
-        lte(utilityMeterReadings.readingDate, prevEndDate)
       )
     )
     .orderBy(desc(utilityMeterReadings.readingDate))
@@ -326,27 +248,6 @@ export async function upsertOccupancy(data: {
     .returning()
 
   return row
-}
-
-export async function getOccupancyForMonth(
-  propertyId: string,
-  year: number,
-  month: number
-) {
-  const startDate = `${year}-${String(month).padStart(2, '0')}-01`
-  const endDate = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`
-
-  return db
-    .select()
-    .from(dailyOccupancy)
-    .where(
-      and(
-        eq(dailyOccupancy.propertyId, propertyId),
-        gte(dailyOccupancy.logDate, startDate),
-        lte(dailyOccupancy.logDate, endDate)
-      )
-    )
-    .orderBy(asc(dailyOccupancy.logDate))
 }
 
 // ---------------------------------------------------------------------------

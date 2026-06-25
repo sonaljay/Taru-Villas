@@ -24,17 +24,17 @@ interface UtilitiesPageClientProps {
 interface SummaryData {
   range: { from: string; to: string; days: number }
   current: {
-    totalConsumption: number
-    avgPerDay: number
-    totalCost: number
+    totalConsumption: number | null
+    avgPerDay: number | null
+    totalCost: number | null
     kpiPct: number | null
     kpiEvaluatedDays: number
     kpiAchievedDays: number
   }
   previous: {
-    totalConsumption: number
-    avgPerDay: number
-    totalCost: number
+    totalConsumption: number | null
+    avgPerDay: number | null
+    totalCost: number | null
     kpiPct: number | null
     kpiEvaluatedDays: number
     kpiAchievedDays: number
