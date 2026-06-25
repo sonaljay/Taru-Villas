@@ -8,12 +8,14 @@ import {
   getLastSurveyDates,
   getSparklines,
   getOrgTrends,
+  getOrgUtilityKpiRollup,
 } from '@/lib/db/queries/dashboard'
 import {
   DashboardOverview,
   type PropertyOverview,
   type OverviewStats,
 } from '@/components/dashboard/dashboard-overview'
+import { UtilityKpiRollup } from '@/components/dashboard/utility-kpi-rollup'
 
 // ---------------------------------------------------------------------------
 // Chart colors
@@ -49,7 +51,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const orgId = profile.orgId
 
   // Fetch real data in parallel
-  const [scores, surveysCount, lastDates, sparklines, trendData, allProperties] =
+  const [scores, surveysCount, lastDates, sparklines, trendData, allProperties, kpiRollup] =
     await Promise.all([
       getAllPropertyScores(orgId, undefined, surveyType),
       getSurveysThisMonth(orgId, surveyType),
@@ -57,6 +59,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       getSparklines(orgId, undefined, surveyType),
       getOrgTrends(orgId, 6, surveyType),
       getProperties(orgId),
+      getOrgUtilityKpiRollup(orgId),
     ])
 
   // Build PropertyOverview list from real scores
@@ -126,12 +129,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   }))
 
   return (
-    <DashboardOverview
-      properties={propertyOverviews}
-      stats={stats}
-      trendData={trendData}
-      trendLines={trendLines}
-      surveyType={surveyType ?? 'internal'}
-    />
+    <div className="space-y-6">
+      <DashboardOverview
+        properties={propertyOverviews}
+        stats={stats}
+        trendData={trendData}
+        trendLines={trendLines}
+        surveyType={surveyType ?? 'internal'}
+      />
+      <UtilityKpiRollup rollup={kpiRollup} />
+    </div>
   )
 }
