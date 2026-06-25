@@ -6,13 +6,6 @@ import { ArrowLeft, Droplets, Zap, Link2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { UtilitySummaryCards } from '@/components/admin/utility-summary-cards'
 import { UtilityCharts } from '@/components/admin/utility-charts'
 import { UtilityReadingsTable } from '@/components/admin/utility-readings-table'
@@ -21,6 +14,7 @@ import { UtilityTierForm } from '@/components/admin/utility-tier-form'
 import { UtilityKpiBandsForm } from '@/components/admin/utility-kpi-bands-form'
 import { UtilityWaterKpiForm } from '@/components/admin/utility-water-kpi-form'
 import { UtilitySlotConfigForm } from '@/components/admin/utility-slot-config-form'
+import { UtilityRangeSelector } from '@/components/admin/utility-range-selector'
 
 interface UtilitiesPageClientProps {
   property: { id: string; name: string; code: string; slug: string }
@@ -28,21 +22,32 @@ interface UtilitiesPageClientProps {
 }
 
 interface SummaryData {
-  prediction: {
-    actualConsumption: number
-    actualCost: number
-    predictedConsumption: number
-    predictedCost: number
-    avgDailyConsumption: number
-    daysElapsed: number
-    daysInMonth: number
-    costBreakdown: { tierNumber: number; unitsInTier: number; ratePerUnit: number; cost: number }[]
-    predictedBreakdown: { tierNumber: number; unitsInTier: number; ratePerUnit: number; cost: number }[]
+  range: { from: string; to: string; days: number }
+  current: {
+    totalConsumption: number
+    avgPerDay: number
+    totalCost: number
+    kpiPct: number | null
+    kpiEvaluatedDays: number
+    kpiAchievedDays: number
+  }
+  previous: {
+    totalConsumption: number
+    avgPerDay: number
+    totalCost: number
+    kpiPct: number | null
+    kpiEvaluatedDays: number
+    kpiAchievedDays: number
+  }
+  deltas: {
+    consumptionPct: number | null
+    avgPct: number | null
+    costPct: number | null
+    kpiDeltaPp: number | null
   }
   dailyConsumption: { date: string; consumption: number }[]
   history: { month: string; consumption: number; readingCount: number }[]
   tiersConfigured: boolean
-  readingCount: number
   dailyRows: {
     date: string
     readingValue: number | null
@@ -57,6 +62,17 @@ interface SummaryData {
     achieved: boolean | null
     penalty: 'missed' | 'edited' | 'normal'
   }[]
+  prediction: {
+    actualConsumption: number
+    actualCost: number
+    predictedConsumption: number
+    predictedCost: number
+    avgDailyConsumption: number
+    daysElapsed: number
+    daysInMonth: number
+    costBreakdown: { tierNumber: number; unitsInTier: number; ratePerUnit: number; cost: number }[]
+    predictedBreakdown: { tierNumber: number; unitsInTier: number; ratePerUnit: number; cost: number }[]
+  } | null
   kpi: { configured: boolean; pct: number | null; evaluatedDays: number; achievedDays: number }
 }
 
@@ -75,10 +91,8 @@ interface ReadingEntry {
 
 export function UtilitiesPageClient({ property, isAdmin }: UtilitiesPageClientProps) {
   const router = useRouter()
-  const now = new Date()
   const [utilityType, setUtilityType] = useState<'water' | 'electricity'>('water')
-  const [year, setYear] = useState(now.getFullYear())
-  const [month, setMonth] = useState(now.getMonth() + 1)
+  const [range, setRange] = useState<{ from: string; to: string; isThisMonth: boolean } | null>(null)
   const [summary, setSummary] = useState<SummaryData | null>(null)
   const [readings, setReadings] = useState<ReadingEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -92,42 +106,26 @@ export function UtilitiesPageClient({ property, isAdmin }: UtilitiesPageClientPr
   }, [])
 
   const fetchData = useCallback(async () => {
+    if (!range) return
     setLoading(true)
     try {
+      const qs = `propertyId=${property.id}&utilityType=${utilityType}&from=${range.from}&to=${range.to}&isThisMonth=${range.isThisMonth ? 1 : 0}`
       const [summaryRes, readingsRes] = await Promise.all([
-        fetch(
-          `/api/utilities/summary?propertyId=${property.id}&utilityType=${utilityType}&year=${year}&month=${month}`
-        ),
-        fetch(
-          `/api/utilities/readings?propertyId=${property.id}&utilityType=${utilityType}&year=${year}&month=${month}`
-        ),
+        fetch(`/api/utilities/summary?${qs}`),
+        fetch(`/api/utilities/readings?propertyId=${property.id}&utilityType=${utilityType}&from=${range.from}&to=${range.to}`),
       ])
-
-      if (summaryRes.ok) {
-        setSummary(await summaryRes.json())
-      }
-      if (readingsRes.ok) {
-        setReadings(await readingsRes.json())
-      }
+      if (summaryRes.ok) setSummary(await summaryRes.json())
+      if (readingsRes.ok) setReadings(await readingsRes.json())
     } catch (error) {
       console.error('Failed to fetch utility data:', error)
     } finally {
       setLoading(false)
     }
-  }, [property.id, utilityType, year, month])
+  }, [property.id, utilityType, range])
 
   useEffect(() => {
     fetchData()
   }, [fetchData])
-
-  const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
-  ]
-
-  const yearOptions = Array.from({ length: 3 }, (_, i) => now.getFullYear() - i)
-
-  const pred = summary?.prediction
 
   const todayStr = new Date().toISOString().split('T')[0]
   const todayRow = summary?.dailyRows?.find((r) => r.date === todayStr)
@@ -137,17 +135,12 @@ export function UtilitiesPageClient({ property, isAdmin }: UtilitiesPageClientPr
       {/* Summary Cards */}
       <UtilitySummaryCards
         utilityType={utilityType}
-        actualConsumption={pred?.actualConsumption ?? 0}
-        actualCost={pred?.actualCost ?? 0}
-        predictedConsumption={pred?.predictedConsumption ?? 0}
-        predictedCost={pred?.predictedCost ?? 0}
-        avgDailyConsumption={pred?.avgDailyConsumption ?? 0}
-        daysElapsed={pred?.daysElapsed ?? 0}
-        daysInMonth={pred?.daysInMonth ?? 30}
+        isThisMonth={range?.isThisMonth ?? false}
+        current={summary?.current ?? null}
+        deltas={summary?.deltas ?? null}
+        prediction={summary?.prediction ?? null}
         tiersConfigured={summary?.tiersConfigured ?? false}
-        kpiConfigured={summary?.kpi?.configured ?? false}
-        kpiPct={summary?.kpi?.pct ?? null}
-        kpiEvaluatedDays={summary?.kpi?.evaluatedDays ?? 0}
+        rangeLabel={summary?.range ? `${summary.range.days} days` : ''}
         showKpi={isAdmin}
         loading={loading}
       />
@@ -247,37 +240,7 @@ export function UtilitiesPageClient({ property, isAdmin }: UtilitiesPageClientPr
             Copy Public Link
           </Button>
 
-          <Select
-            value={String(month)}
-            onValueChange={(v) => setMonth(parseInt(v))}
-          >
-            <SelectTrigger className="w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {monthNames.map((name, i) => (
-                <SelectItem key={i + 1} value={String(i + 1)}>
-                  {name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={String(year)}
-            onValueChange={(v) => setYear(parseInt(v))}
-          >
-            <SelectTrigger className="w-[100px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {yearOptions.map((y) => (
-                <SelectItem key={y} value={String(y)}>
-                  {y}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <UtilityRangeSelector onChange={(r) => setRange({ from: r.from, to: r.to, isThisMonth: r.isThisMonth })} />
         </div>
       </div>
 
