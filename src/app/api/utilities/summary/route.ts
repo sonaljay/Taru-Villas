@@ -6,8 +6,7 @@ import {
   getOccupancyInRange,
   getTiersForProperty,
   getConsumptionHistory,
-  getElectricityBands,
-  getWaterKpiTarget,
+  getKpiBands,
 } from '@/lib/db/queries/utilities'
 import {
   predictMonthlyBill,
@@ -65,8 +64,7 @@ function buildDailyRows(
   readings: ReadingRow[],
   baseline: ReadingRow | null,
   occByDate: Map<string, { guestCount: number; staffCount: number }>,
-  bandInputs: { minGuests: number; targetUnits: number }[],
-  waterTarget: number | null
+  bandInputs: { minGuests: number; targetUnits: number }[]
 ): EnrichedDayRow[] {
   if (utilityType === 'electricity') {
     const slotRows: SlotRow[] = readings.map((r) => ({
@@ -97,11 +95,13 @@ function buildDailyRows(
       ? parseFloat(r.readingValue) - parseFloat(prev.readingValue) : null
     const total = rawTotal !== null && rawTotal >= 0 ? rawTotal : null
     const occ = occByDate.get(r.readingDate)
+    const guestCount = occ ? occ.guestCount : null
+    const target = resolveBandTarget(guestCount, bandInputs)
     return {
       date: r.readingDate, readingValue: r.readingValue !== null ? parseFloat(r.readingValue) : null,
       day: null, peak: null, offPeak: null, total, pending: total === null,
-      guestCount: occ ? occ.guestCount : null, staffCount: occ ? occ.staffCount : null,
-      target: waterTarget, achieved: total !== null && waterTarget !== null ? total <= waterTarget : null,
+      guestCount, staffCount: occ ? occ.staffCount : null,
+      target, achieved: total !== null && target !== null ? total <= target : null,
       penalty: 'normal' as const,
     }
   })
@@ -160,7 +160,7 @@ export async function GET(request: NextRequest) {
 
     const prev = previousPeriod(from, to)
     const [
-      curReadings, curBaseline, tiers, history, occupancy, bands, waterTarget,
+      curReadings, curBaseline, tiers, history, occupancy, bands,
       prevReadings, prevBaseline, prevOccupancy,
     ] = await Promise.all([
       getReadingsInRange(propertyId, utilityType, from, to),
@@ -168,8 +168,7 @@ export async function GET(request: NextRequest) {
       getTiersForProperty(propertyId, utilityType),
       getConsumptionHistory(propertyId, utilityType, 6),
       getOccupancyInRange(propertyId, from, to),
-      utilityType === 'electricity' ? getElectricityBands(propertyId) : Promise.resolve([]),
-      utilityType === 'water' ? getWaterKpiTarget(propertyId) : Promise.resolve(null),
+      getKpiBands(propertyId, utilityType),
       getReadingsInRange(propertyId, utilityType, prev.from, prev.to),
       getBaselineReading(propertyId, utilityType, prev.from),
       getOccupancyInRange(propertyId, prev.from, prev.to),
@@ -180,12 +179,11 @@ export async function GET(request: NextRequest) {
       maxUnits: t.maxUnits ? parseFloat(t.maxUnits) : null, ratePerUnit: parseFloat(t.ratePerUnit),
     }))
     const bandInputs = bands.map((b) => ({ minGuests: b.minGuests, targetUnits: parseFloat(b.targetUnits) }))
-    const waterTargetNum = waterTarget ? parseFloat(waterTarget.dailyTargetUnits) : null
     const curOcc = new Map(occupancy.map((o) => [o.logDate, { guestCount: o.guestCount, staffCount: o.staffCount }]))
     const prevOcc = new Map(prevOccupancy.map((o) => [o.logDate, { guestCount: o.guestCount, staffCount: o.staffCount }]))
 
-    const dailyRows = buildDailyRows(utilityType, curReadings as ReadingRow[], curBaseline as ReadingRow | null, curOcc, bandInputs, waterTargetNum)
-    const prevRows = buildDailyRows(utilityType, prevReadings as ReadingRow[], prevBaseline as ReadingRow | null, prevOcc, bandInputs, waterTargetNum)
+    const dailyRows = buildDailyRows(utilityType, curReadings as ReadingRow[], curBaseline as ReadingRow | null, curOcc, bandInputs)
+    const prevRows = buildDailyRows(utilityType, prevReadings as ReadingRow[], prevBaseline as ReadingRow | null, prevOcc, bandInputs)
 
     const current = aggregatePeriod(dailyRows, curReadings as ReadingRow[], curBaseline as ReadingRow | null, from, to, tierInputs)
     const previousAgg = aggregatePeriod(prevRows, prevReadings as ReadingRow[], prevBaseline as ReadingRow | null, prev.from, prev.to, tierInputs)
@@ -232,7 +230,7 @@ export async function GET(request: NextRequest) {
       tiersConfigured: tiers.length > 0,
       prediction,
       kpi: isAdmin
-        ? { configured: utilityType === 'electricity' ? bands.length > 0 : waterTarget !== null, pct: current.kpiPct, evaluatedDays: current.kpiEvaluatedDays, achievedDays: current.kpiAchievedDays }
+        ? { configured: bands.length > 0, pct: current.kpiPct, evaluatedDays: current.kpiEvaluatedDays, achievedDays: current.kpiAchievedDays }
         : { configured: false, pct: null, evaluatedDays: 0, achievedDays: 0 },
     })
   } catch (error) {
