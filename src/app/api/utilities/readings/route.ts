@@ -34,7 +34,7 @@ const createReadingSchema = z.object({
   staffCount: z.number().int().min(0).optional(),
 })
 
-// GET /api/utilities/readings?propertyId=xxx&utilityType=water&year=2026&month=4
+// GET /api/utilities/readings?propertyId=xxx&utilityType=water&from=2026-04-01&to=2026-04-30
 export async function GET(request: NextRequest) {
   try {
     const profile = await getProfile()
