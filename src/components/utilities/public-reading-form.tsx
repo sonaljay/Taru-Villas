@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Camera, CheckCircle2, Clock, Droplets, Loader2, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { currentISTMinutes, openSlot, slotWindowLabel, type SlotTimes } from '@/lib/utilities/slot-windows'
 
 function nowIST(): string {
   return new Date().toLocaleString('en-IN', {
@@ -31,9 +32,10 @@ function nowIST(): string {
 
 interface PublicReadingFormProps {
   property: { id: string; name: string; location: string | null }
+  slotTimes?: SlotTimes
 }
 
-export function PublicReadingForm({ property }: PublicReadingFormProps) {
+export function PublicReadingForm({ property, slotTimes }: PublicReadingFormProps) {
   const today = new Date().toISOString().split('T')[0]
   const [utilityType, setUtilityType] = useState<'water' | 'electricity'>('water')
   const [readingDate, setReadingDate] = useState(today)
@@ -49,7 +51,19 @@ export function PublicReadingForm({ property }: PublicReadingFormProps) {
   const [isScannedReading, setIsScannedReading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [nowMin, setNowMin] = useState(() => currentISTMinutes())
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const t = setInterval(() => setNowMin(currentISTMinutes()), 30000)
+    return () => clearInterval(t)
+  }, [])
+
+  const currentlyOpen = slotTimes ? openSlot(nowMin, slotTimes) : null
+
+  useEffect(() => {
+    if (utilityType === 'electricity' && currentlyOpen) setSlot(currentlyOpen)
+  }, [currentlyOpen, utilityType])
 
   async function handleScan(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -223,6 +237,15 @@ export function PublicReadingForm({ property }: PublicReadingFormProps) {
                     <SelectItem value="night">Night</SelectItem>
                   </SelectContent>
                 </Select>
+                {slotTimes && (
+                  currentlyOpen ? (
+                    <p className="text-xs text-emerald-600">
+                      Window open: {currentlyOpen} ({slotWindowLabel(currentlyOpen, slotTimes)} IST)
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No reading window open right now.</p>
+                  )
+                )}
               </div>
             )}
 
@@ -322,7 +345,7 @@ export function PublicReadingForm({ property }: PublicReadingFormProps) {
               type="submit"
               className="w-full"
               size="lg"
-              disabled={isSubmitting}
+              disabled={isSubmitting || (utilityType === 'electricity' && !!slotTimes && !currentlyOpen)}
             >
               {isSubmitting ? 'Saving...' : 'Submit Reading'}
             </Button>

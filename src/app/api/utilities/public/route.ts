@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getLatestReading, upsertReading, upsertOccupancy } from '@/lib/db/queries/utilities'
+import { getLatestReading, upsertReading, upsertOccupancy, getSlotConfig } from '@/lib/db/queries/utilities'
+import { getPropertyById } from '@/lib/db/queries/properties'
+import { currentISTMinutes, isSlotOpen, slotWindowLabel } from '@/lib/utilities/slot-windows'
 
 const publicReadingSchema = z.object({
   propertyId: z.string().uuid(),
@@ -31,6 +33,22 @@ export async function POST(request: NextRequest) {
         ? parsed.data.slot ?? 'morning'
         : 'morning'
 
+    // Electricity slot entry window (±15 min IST). Public users are never admin → always reject if closed.
+    if (parsed.data.utilityType === 'electricity') {
+      const property = await getPropertyById(parsed.data.propertyId)
+      if (!property) {
+        return NextResponse.json({ error: 'Property not found' }, { status: 404 })
+      }
+      const slotTimes = await getSlotConfig(property.orgId)
+      const nowMin = currentISTMinutes()
+      if (!isSlotOpen(slot, nowMin, slotTimes)) {
+        return NextResponse.json(
+          { error: `The ${slot} reading window (${slotWindowLabel(slot, slotTimes)} IST) is closed.` },
+          { status: 422 }
+        )
+      }
+    }
+
     // Validate cumulative order against the latest morning reading
     const latest = await getLatestReading(
       parsed.data.propertyId,
@@ -56,6 +74,7 @@ export async function POST(request: NextRequest) {
       readingDate: parsed.data.readingDate,
       readingValue: String(parsed.data.readingValue),
       slot,
+      status: 'manual',
       note: parsed.data.note ?? null,
       recordedBy: null,
     })

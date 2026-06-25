@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { getPropertyBySlug } from '@/lib/db/queries/excursions'
+import { getSlotConfig } from '@/lib/db/queries/utilities'
 import { PublicReadingForm } from '@/components/utilities/public-reading-form'
 
 export async function generateMetadata({
@@ -33,6 +34,8 @@ export default async function PublicMeterReadingPage({
     notFound()
   }
 
+  const slotTimes = await getSlotConfig(property.orgId)
+
   return (
     <PublicReadingForm
       property={{
@@ -40,6 +43,7 @@ export default async function PublicMeterReadingPage({
         name: property.name,
         location: property.location,
       }}
+      slotTimes={slotTimes}
     />
   )
 }

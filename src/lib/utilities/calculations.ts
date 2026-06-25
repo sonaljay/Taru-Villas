@@ -267,18 +267,49 @@ export function resolveBandTarget(
 }
 
 /**
- * Compute KPI achievement over a set of days. A day is only evaluated when both
- * its total and target are non-null; achieved when total <= target. Returns a
- * null pct when no days are evaluable.
+ * Compute KPI achievement over a set of days.
+ * - A day with `missed: true` is forced to count as evaluated AND not-achieved
+ *   (the missed-entry penalty), regardless of total/target.
+ * - Otherwise a day is evaluated only when both total and target are non-null;
+ *   achieved when total <= target.
+ * Returns a null pct when no days are evaluable.
  */
 export function computeKpiAchievement(
-  days: { total: number | null; target: number | null }[]
+  days: { total: number | null; target: number | null; missed?: boolean }[]
 ): { evaluatedDays: number; achievedDays: number; pct: number | null } {
-  const evaluable = days.filter((d) => d.total !== null && d.target !== null)
-  const achieved = evaluable.filter((d) => (d.total as number) <= (d.target as number))
-  return {
-    evaluatedDays: evaluable.length,
-    achievedDays: achieved.length,
-    pct: evaluable.length > 0 ? (achieved.length / evaluable.length) * 100 : null,
+  let evaluated = 0
+  let achieved = 0
+  for (const d of days) {
+    if (d.missed) {
+      evaluated++ // counts, never achieved
+      continue
+    }
+    if (d.total !== null && d.target !== null) {
+      evaluated++
+      if (d.total <= d.target) achieved++
+    }
   }
+  return {
+    evaluatedDays: evaluated,
+    achievedDays: achieved,
+    pct: evaluated > 0 ? (achieved / evaluated) * 100 : null,
+  }
+}
+
+export type SlotStatus = 'manual' | 'autofilled' | 'edited' | null
+
+/**
+ * Day-level penalty state derived from the three slot statuses.
+ * 'missed' if ANY slot was auto-filled; else 'edited' if any was an admin late
+ * edit; else 'normal'.
+ */
+export function dayPenaltyState(statuses: {
+  morning: SlotStatus
+  evening: SlotStatus
+  night: SlotStatus
+}): 'missed' | 'edited' | 'normal' {
+  const vals = [statuses.morning, statuses.evening, statuses.night]
+  if (vals.includes('autofilled')) return 'missed'
+  if (vals.includes('edited')) return 'edited'
+  return 'normal'
 }

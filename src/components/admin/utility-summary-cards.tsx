@@ -16,6 +16,7 @@ interface SummaryCardsProps {
   kpiConfigured: boolean
   kpiPct: number | null
   kpiEvaluatedDays: number
+  showKpi?: boolean
   loading: boolean
 }
 
@@ -32,6 +33,7 @@ export function UtilitySummaryCards({
   kpiConfigured,
   kpiPct,
   kpiEvaluatedDays,
+  showKpi = false,
   loading,
 }: SummaryCardsProps) {
   const unit = utilityType === 'water' ? 'kL' : 'kWh'
@@ -72,25 +74,28 @@ export function UtilitySummaryCards({
       subtitle: loading ? '' : 'full month estimate',
       icon: TrendingUp,
     },
-    {
-      title: 'KPI Achieved',
-      value: loading
-        ? '—'
-        : !kpiConfigured
-          ? 'No KPI set'
-          : kpiPct === null
-            ? 'No data'
-            : `${kpiPct.toFixed(0)}%`,
-      subtitle: loading || !kpiConfigured || kpiPct === null
-        ? ''
-        : `${kpiEvaluatedDays} day${kpiEvaluatedDays === 1 ? '' : 's'} evaluated`,
-      icon: Target,
-    },
   ]
 
+  const kpiCard = {
+    title: 'KPI Achieved',
+    value: loading
+      ? '—'
+      : !kpiConfigured
+        ? 'No KPI set'
+        : kpiPct === null
+          ? 'No data'
+          : `${kpiPct.toFixed(0)}%`,
+    subtitle: loading || !kpiConfigured || kpiPct === null
+      ? ''
+      : `${kpiEvaluatedDays} day${kpiEvaluatedDays === 1 ? '' : 's'} evaluated`,
+    icon: Target,
+  }
+
+  const visibleCards = showKpi ? [...cards, kpiCard] : cards
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-      {cards.map((card) => (
+    <div className={`grid gap-4 sm:grid-cols-2 ${showKpi ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
+      {visibleCards.map((card) => (
         <Card key={card.title}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">

@@ -15,6 +15,7 @@ import {
   computeElectricityBreakdown,
   resolveBandTarget,
   computeKpiAchievement,
+  dayPenaltyState,
   type TierInput,
   type SlotRow,
 } from '@/lib/utilities/calculations'
@@ -130,6 +131,7 @@ export async function GET(request: NextRequest) {
       staffCount: number | null
       target: number | null
       achieved: boolean | null
+      penalty: 'missed' | 'edited' | 'normal'
     }
 
     let dailyRows: EnrichedDayRow[] = []
@@ -151,6 +153,18 @@ export async function GET(request: NextRequest) {
         const occ = occByDate.get(b.date)
         const guestCount = occ ? occ.guestCount : null
         const target = resolveBandTarget(guestCount, bandInputs)
+        const r = monthReadings[i]
+        const penalty = dayPenaltyState({
+          morning: r.morningStatus,
+          evening: r.eveningStatus,
+          night: r.nightStatus,
+        })
+        const achieved =
+          penalty === 'missed'
+            ? false
+            : b.total !== null && target !== null
+              ? b.total <= target
+              : null
         return {
           date: b.date,
           readingValue: slotRows[i].morning,
@@ -162,8 +176,8 @@ export async function GET(request: NextRequest) {
           guestCount,
           staffCount: occ ? occ.staffCount : null,
           target,
-          achieved:
-            b.total !== null && target !== null ? b.total <= target : null,
+          achieved,
+          penalty,
         }
       })
     } else {
@@ -194,15 +208,21 @@ export async function GET(request: NextRequest) {
           staffCount: occ ? occ.staffCount : null,
           target,
           achieved: total !== null && target !== null ? total <= target : null,
+          penalty: 'normal' as const,
         }
       })
     }
 
     const achievement = computeKpiAchievement(
-      dailyRows.map((r) => ({ total: r.total, target: r.target }))
+      dailyRows.map((r) => ({ total: r.total, target: r.target, missed: r.penalty === 'missed' }))
     )
     const kpiConfigured =
       utilityType === 'electricity' ? bands.length > 0 : waterTarget !== null
+
+    const isAdmin = profile.role === 'admin'
+    const safeDailyRows = isAdmin
+      ? dailyRows
+      : dailyRows.map((r) => ({ ...r, target: null, achieved: null, penalty: 'normal' as const }))
 
     return NextResponse.json({
       prediction,
@@ -214,13 +234,10 @@ export async function GET(request: NextRequest) {
       })),
       tiersConfigured: tiers.length > 0,
       readingCount: monthReadings.length,
-      dailyRows,
-      kpi: {
-        configured: kpiConfigured,
-        pct: achievement.pct,
-        evaluatedDays: achievement.evaluatedDays,
-        achievedDays: achievement.achievedDays,
-      },
+      dailyRows: safeDailyRows,
+      kpi: isAdmin
+        ? { configured: kpiConfigured, pct: achievement.pct, evaluatedDays: achievement.evaluatedDays, achievedDays: achievement.achievedDays }
+        : { configured: false, pct: null, evaluatedDays: 0, achievedDays: 0 },
     })
   } catch (error) {
     console.error('GET /api/utilities/summary error:', error)

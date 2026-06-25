@@ -8,6 +8,7 @@ import {
   utilityKpiTargets,
   electricitySlotConfig,
   profiles,
+  properties,
 } from '../schema'
 
 // ---------------------------------------------------------------------------
@@ -132,22 +133,24 @@ export async function getReadingById(id: string) {
  * Upsert a meter reading for a (property, utilityType, date). Water always uses
  * the 'morning' slot (= reading_value). Electricity writes the column for the
  * given slot, leaving the others intact on conflict.
+ * The optional `status` defaults to 'manual'; pass 'autofilled' or 'edited' for
+ * cron-generated or user-corrected rows respectively.
  */
 export async function upsertReading(data: {
   propertyId: string
   utilityType: 'water' | 'electricity'
   readingDate: string
-  readingValue: string
+  readingValue: string | null
   slot: 'morning' | 'evening' | 'night'
+  status?: 'manual' | 'autofilled' | 'edited'
   note?: string | null
   recordedBy?: string | null
 }) {
-  const column =
-    data.slot === 'morning'
-      ? 'readingValue'
-      : data.slot === 'evening'
-        ? 'eveningReading'
-        : 'nightReading'
+  const valueColumn =
+    data.slot === 'morning' ? 'readingValue' : data.slot === 'evening' ? 'eveningReading' : 'nightReading'
+  const statusColumn =
+    data.slot === 'morning' ? 'morningStatus' : data.slot === 'evening' ? 'eveningStatus' : 'nightStatus'
+  const status = data.status ?? 'manual'
 
   const insertValues = {
     propertyId: data.propertyId,
@@ -156,12 +159,16 @@ export async function upsertReading(data: {
     readingValue: data.slot === 'morning' ? data.readingValue : null,
     eveningReading: data.slot === 'evening' ? data.readingValue : null,
     nightReading: data.slot === 'night' ? data.readingValue : null,
+    morningStatus: data.slot === 'morning' ? status : null,
+    eveningStatus: data.slot === 'evening' ? status : null,
+    nightStatus: data.slot === 'night' ? status : null,
     note: data.note ?? null,
     recordedBy: data.recordedBy ?? null,
   }
 
   const setOnConflict: Record<string, unknown> = {
-    [column]: data.readingValue,
+    [valueColumn]: data.readingValue,
+    [statusColumn]: status,
     updatedAt: new Date(),
   }
   if (data.note !== undefined) setOnConflict.note = data.note
@@ -494,4 +501,26 @@ export async function getConsumptionHistory(
     )
     .groupBy(sql`TO_CHAR(${utilityMeterReadings.readingDate}::date, 'YYYY-MM')`)
     .orderBy(sql`TO_CHAR(${utilityMeterReadings.readingDate}::date, 'YYYY-MM')`)
+}
+
+/** Electricity readings for a property on/after a date, ascending. */
+export async function getReadingsSince(propertyId: string, sinceDate: string) {
+  return db
+    .select()
+    .from(utilityMeterReadings)
+    .where(
+      and(
+        eq(utilityMeterReadings.propertyId, propertyId),
+        eq(utilityMeterReadings.utilityType, 'electricity'),
+        gte(utilityMeterReadings.readingDate, sinceDate)
+      )
+    )
+    .orderBy(asc(utilityMeterReadings.readingDate))
+}
+
+/** All properties with their org id (for the autofill cron sweep). */
+export async function getAllPropertiesWithOrg() {
+  return db
+    .select({ id: properties.id, orgId: properties.orgId })
+    .from(properties)
 }

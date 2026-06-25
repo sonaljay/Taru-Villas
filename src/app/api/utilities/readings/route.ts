@@ -6,7 +6,9 @@ import {
   getLatestReading,
   upsertReading,
   upsertOccupancy,
+  getSlotConfig,
 } from '@/lib/db/queries/utilities'
+import { currentISTMinutes, isSlotOpen, slotWindowLabel } from '@/lib/utilities/slot-windows'
 
 async function checkPropertyAccess(
   profile: { id: string; role: string },
@@ -104,6 +106,24 @@ export async function POST(request: NextRequest) {
         ? parsed.data.slot ?? 'morning'
         : 'morning'
 
+    // Electricity slot entry window (±15 min IST). Admins may backfill outside it.
+    let status: 'manual' | 'edited' = 'manual'
+    if (parsed.data.utilityType === 'electricity') {
+      const slotTimes = await getSlotConfig(profile.orgId)
+      const nowMin = currentISTMinutes()
+      if (!isSlotOpen(slot, nowMin, slotTimes)) {
+        if (profile.role !== 'admin') {
+          return NextResponse.json(
+            {
+              error: `The ${slot} reading window (${slotWindowLabel(slot, slotTimes)} IST) is closed.`,
+            },
+            { status: 422 }
+          )
+        }
+        status = 'edited' // admin backfill outside the window
+      }
+    }
+
     // Validate cumulative order against the latest morning reading
     const latest = await getLatestReading(
       parsed.data.propertyId,
@@ -129,6 +149,7 @@ export async function POST(request: NextRequest) {
       readingDate: parsed.data.readingDate,
       readingValue: String(parsed.data.readingValue),
       slot,
+      status,
       note: parsed.data.note ?? null,
       recordedBy: profile.id,
     })

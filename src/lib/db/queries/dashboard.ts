@@ -18,6 +18,7 @@ import {
   computeElectricityBreakdown,
   resolveBandTarget,
   computeKpiAchievement,
+  dayPenaltyState,
 } from '../../utilities/calculations'
 
 // ---------------------------------------------------------------------------
@@ -792,12 +793,20 @@ export async function getOrgUtilityKpiRollup(
         night: r.nightReading !== null ? parseFloat(r.nightReading) : null,
       }))
     )
+    const statusByDate = new Map(
+      elecReadings.map((r) => [r.readingDate, { morning: r.morningStatus, evening: r.eveningStatus, night: r.nightStatus }])
+    )
     const elecAch = bands.length > 0
       ? computeKpiAchievement(
-          elecBreakdown.map((b) => ({
-            total: b.total,
-            target: resolveBandTarget(occByDate.get(b.date)?.guestCount ?? null, bandInputs),
-          }))
+          elecBreakdown.map((b) => {
+            const s = statusByDate.get(b.date)
+            const penalty = s ? dayPenaltyState(s) : 'normal'
+            return {
+              total: b.total,
+              target: resolveBandTarget(occByDate.get(b.date)?.guestCount ?? null, bandInputs),
+              missed: penalty === 'missed',
+            }
+          })
         )
       : { pct: null, evaluatedDays: 0, achievedDays: 0 }
 

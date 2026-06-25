@@ -1,20 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getProfile, getUserProperties } from '@/lib/auth/guards'
+import { getProfile } from '@/lib/auth/guards'
 import { getElectricityBands, upsertElectricityBands } from '@/lib/db/queries/utilities'
-
-async function checkPropertyAccess(
-  profile: { id: string; role: string },
-  propertyId: string
-) {
-  if (profile.role === 'admin') return true
-  const userProps = await getUserProperties(
-    profile.id,
-    profile.role as 'admin' | 'property_manager' | 'staff'
-  )
-  if (!userProps) return true
-  return userProps.includes(propertyId)
-}
 
 const upsertBandsSchema = z.object({
   propertyId: z.string().uuid(),
@@ -34,13 +21,12 @@ export async function GET(request: NextRequest) {
   try {
     const profile = await getProfile()
     if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (profile.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden: admin only' }, { status: 403 })
+    }
 
     const propertyId = new URL(request.url).searchParams.get('propertyId')
     if (!propertyId) return NextResponse.json({ error: 'propertyId is required' }, { status: 400 })
-
-    if (!(await checkPropertyAccess(profile, propertyId))) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
 
     return NextResponse.json(await getElectricityBands(propertyId))
   } catch (error) {
