@@ -313,3 +313,20 @@ export function dayPenaltyState(statuses: {
   if (vals.includes('edited')) return 'edited'
   return 'normal'
 }
+
+/**
+ * Percentage change from previous to current. Null when previous is null or 0
+ * (no meaningful base to compare against).
+ */
+export function pctDelta(current: number | null, previous: number | null): number | null {
+  if (current === null || previous === null || previous === 0) return null
+  return ((current - previous) / previous) * 100
+}
+
+/**
+ * Total cost over a range = sum of each calendar month's tiered cost. Tiers
+ * reset monthly, so each month's consumption is priced independently.
+ */
+export function calculateRangeCost(monthlyConsumptions: number[], tiers: TierInput[]): number {
+  return monthlyConsumptions.reduce((sum, c) => sum + calculateTieredCost(c, tiers).totalCost, 0)
+}

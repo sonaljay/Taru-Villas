@@ -53,8 +53,12 @@ export function UtilityCharts({
   const unit = utilityType === 'water' ? 'kL' : 'kWh'
   const color = utilityType === 'water' ? 'var(--chart-1)' : 'var(--chart-3)'
 
+  const isMonthly =
+    dailyConsumption.length > 1 && dailyConsumption.every((d) => d.date.endsWith('-01'))
   const dailyData = dailyConsumption.map((d) => ({
-    date: formatDate(d.date),
+    date: isMonthly
+      ? new Date(d.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short' })
+      : formatDate(d.date),
     consumption: d.consumption,
   }))
 
@@ -68,7 +72,7 @@ export function UtilityCharts({
       {/* Daily Consumption */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Daily Consumption</CardTitle>
+          <CardTitle className="text-base">Consumption</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
