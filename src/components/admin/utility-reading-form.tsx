@@ -1,7 +1,7 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import { Camera, Clock, Loader2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Camera, Clock, Loader2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { prepareImage, extractMeterReading } from '@/lib/utilities/ocr'
+import { currentISTMinutes, openSlot, slotWindowLabel, type SlotTimes } from '@/lib/utilities/slot-windows'
 
 function nowIST(): string {
   return new Date().toLocaleString('en-IN', {
@@ -33,6 +34,9 @@ interface ReadingFormProps {
   propertyId: string
   utilityType: 'water' | 'electricity'
   slotTimes?: { morningTime: string; eveningTime: string; nightTime: string }
+  isAdmin?: boolean
+  initialGuests?: number | null
+  initialStaff?: number | null
   onSuccess: () => void
 }
 
@@ -40,6 +44,9 @@ export function UtilityReadingForm({
   propertyId,
   utilityType,
   slotTimes,
+  isAdmin = false,
+  initialGuests,
+  initialStaff,
   onSuccess,
 }: ReadingFormProps) {
   const today = new Date().toISOString().split('T')[0]
@@ -47,12 +54,31 @@ export function UtilityReadingForm({
   const [slot, setSlot] = useState<'morning' | 'evening' | 'night'>('morning')
   const [readingValue, setReadingValue] = useState('')
   const [note, setNote] = useState('')
+  const [guestCount, setGuestCount] = useState(initialGuests != null ? String(initialGuests) : '')
+  const [staffCount, setStaffCount] = useState(initialStaff != null ? String(initialStaff) : '')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isScanning, setIsScanning] = useState(false)
   const [scannedPreview, setScannedPreview] = useState<string | null>(null)
   const [readingTimestamp, setReadingTimestamp] = useState<string | null>(null)
   const [isScannedReading, setIsScannedReading] = useState(false)
+  const [nowMin, setNowMin] = useState(() => currentISTMinutes())
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setGuestCount(initialGuests != null ? String(initialGuests) : '')
+    setStaffCount(initialStaff != null ? String(initialStaff) : '')
+  }, [initialGuests, initialStaff])
+
+  useEffect(() => {
+    const t = setInterval(() => setNowMin(currentISTMinutes()), 30000)
+    return () => clearInterval(t)
+  }, [])
+
+  const currentlyOpen = slotTimes ? openSlot(nowMin, slotTimes as SlotTimes) : null
+
+  useEffect(() => {
+    if (utilityType === 'electricity' && currentlyOpen) setSlot(currentlyOpen)
+  }, [currentlyOpen, utilityType])
 
   function fmtTime(t?: string) {
     if (!t) return ''
@@ -115,6 +141,8 @@ export function UtilityReadingForm({
           readingValue: value,
           slot,
           note: note || null,
+          ...(guestCount !== '' ? { guestCount: parseInt(guestCount) || 0 } : {}),
+          ...(staffCount !== '' ? { staffCount: parseInt(staffCount) || 0 } : {}),
         }),
       })
 
@@ -174,6 +202,19 @@ export function UtilityReadingForm({
                   </SelectItem>
                 </SelectContent>
               </Select>
+              {slotTimes && (
+                currentlyOpen ? (
+                  <p className="text-xs text-emerald-600">
+                    Window open: {currentlyOpen} ({slotWindowLabel(currentlyOpen, slotTimes as SlotTimes)} IST)
+                  </p>
+                ) : isAdmin ? (
+                  <p className="text-xs text-amber-600">
+                    No window open — admin entry will be recorded as a late edit.
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">No reading window open right now.</p>
+                )
+              )}
             </div>
           )}
 
@@ -247,7 +288,30 @@ export function UtilityReadingForm({
             />
           </div>
 
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="reading-guests" className="flex items-center gap-1.5">
+                <Users className="size-3.5" />
+                Guests
+              </Label>
+              <Input id="reading-guests" type="number" min="0" value={guestCount}
+                onChange={(e) => setGuestCount(e.target.value)} placeholder="0" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="reading-staff" className="flex items-center gap-1.5">
+                <Users className="size-3.5" />
+                Staff
+              </Label>
+              <Input id="reading-staff" type="number" min="0" value={staffCount}
+                onChange={(e) => setStaffCount(e.target.value)} placeholder="0" />
+            </div>
+          </div>
+
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={isSubmitting || (utilityType === 'electricity' && !!slotTimes && !currentlyOpen && !isAdmin)}
+          >
             {isSubmitting ? 'Saving...' : 'Save Reading'}
           </Button>
         </form>
