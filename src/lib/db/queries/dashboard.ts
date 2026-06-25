@@ -1,4 +1,4 @@
-import { eq, and, sql, desc, gte, lte } from 'drizzle-orm'
+import { eq, and, sql, desc, gte, lte, asc } from 'drizzle-orm'
 import { db } from '..'
 import {
   surveySubmissions,
@@ -9,7 +9,16 @@ import {
   surveyTemplates,
   properties,
   profiles,
+  utilityMeterReadings,
+  dailyOccupancy,
+  electricityKpiBands,
+  utilityKpiTargets,
 } from '../schema'
+import {
+  computeElectricityBreakdown,
+  resolveBandTarget,
+  computeKpiAchievement,
+} from '../../utilities/calculations'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -714,4 +723,109 @@ export async function getOrgTrends(
   }
 
   return Array.from(monthMap.values())
+}
+
+// ---------------------------------------------------------------------------
+// Utility KPI rollup
+// ---------------------------------------------------------------------------
+
+export interface PropertyKpiRollup {
+  propertyId: string
+  propertyName: string
+  electricityPct: number | null
+  waterPct: number | null
+}
+
+/**
+ * Per-property KPI-achievement % over a trailing window (default 30 days),
+ * for both electricity (banded) and water (flat). Indeterminate days excluded.
+ */
+export async function getOrgUtilityKpiRollup(
+  orgId: string,
+  days: number = 30
+): Promise<PropertyKpiRollup[]> {
+  const cutoffDate = new Date()
+  cutoffDate.setDate(cutoffDate.getDate() - days)
+  const cutoff = cutoffDate.toISOString().split('T')[0]
+
+  const props = await db
+    .select({ id: properties.id, name: properties.name })
+    .from(properties)
+    .where(eq(properties.orgId, orgId))
+    .orderBy(asc(properties.name))
+
+  const rollup: PropertyKpiRollup[] = []
+
+  for (const p of props) {
+    const [readings, occupancy, bands, waterTarget] = await Promise.all([
+      db.select().from(utilityMeterReadings)
+        .where(and(
+          eq(utilityMeterReadings.propertyId, p.id),
+          gte(utilityMeterReadings.readingDate, cutoff)
+        ))
+        .orderBy(asc(utilityMeterReadings.readingDate)),
+      db.select().from(dailyOccupancy)
+        .where(and(
+          eq(dailyOccupancy.propertyId, p.id),
+          gte(dailyOccupancy.logDate, cutoff)
+        )),
+      db.select().from(electricityKpiBands)
+        .where(eq(electricityKpiBands.propertyId, p.id))
+        .orderBy(asc(electricityKpiBands.minGuests)),
+      db.select().from(utilityKpiTargets)
+        .where(and(
+          eq(utilityKpiTargets.propertyId, p.id),
+          eq(utilityKpiTargets.utilityType, 'water')
+        )),
+    ])
+
+    const occByDate = new Map(occupancy.map((o) => [o.logDate, o]))
+
+    // Electricity
+    const elecReadings = readings.filter((r) => r.utilityType === 'electricity')
+    const bandInputs = bands.map((b) => ({ minGuests: b.minGuests, targetUnits: parseFloat(b.targetUnits) }))
+    const elecBreakdown = computeElectricityBreakdown(
+      elecReadings.map((r) => ({
+        date: r.readingDate,
+        morning: r.readingValue !== null ? parseFloat(r.readingValue) : null,
+        evening: r.eveningReading !== null ? parseFloat(r.eveningReading) : null,
+        night: r.nightReading !== null ? parseFloat(r.nightReading) : null,
+      }))
+    )
+    const elecAch = bands.length > 0
+      ? computeKpiAchievement(
+          elecBreakdown.map((b) => ({
+            total: b.total,
+            target: resolveBandTarget(occByDate.get(b.date)?.guestCount ?? null, bandInputs),
+          }))
+        )
+      : { pct: null, evaluatedDays: 0, achievedDays: 0 }
+
+    // Water
+    // first in-window day has no predecessor → excluded (acceptable for a rolling % over ~30 days)
+    const waterReadings = readings.filter((r) => r.utilityType === 'water')
+    const wTarget = waterTarget[0] ? parseFloat(waterTarget[0].dailyTargetUnits) : null
+    const waterAch = wTarget !== null
+      ? computeKpiAchievement(
+          waterReadings.map((r, i) => {
+            const prev = i > 0 ? waterReadings[i - 1] : null
+            const rawTotal =
+              prev && prev.readingValue !== null && r.readingValue !== null
+                ? parseFloat(r.readingValue) - parseFloat(prev.readingValue)
+                : null
+            const total = rawTotal !== null && rawTotal >= 0 ? rawTotal : null
+            return { total, target: wTarget }
+          })
+        )
+      : { pct: null, evaluatedDays: 0, achievedDays: 0 }
+
+    rollup.push({
+      propertyId: p.id,
+      propertyName: p.name,
+      electricityPct: elecAch.pct,
+      waterPct: waterAch.pct,
+    })
+  }
+
+  return rollup
 }

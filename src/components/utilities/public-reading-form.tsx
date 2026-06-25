@@ -9,6 +9,13 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { prepareImage, extractMeterReading } from '@/lib/utilities/ocr'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 function nowIST(): string {
   return new Date().toLocaleString('en-IN', {
@@ -30,6 +37,9 @@ export function PublicReadingForm({ property }: PublicReadingFormProps) {
   const today = new Date().toISOString().split('T')[0]
   const [utilityType, setUtilityType] = useState<'water' | 'electricity'>('water')
   const [readingDate, setReadingDate] = useState(today)
+  const [slot, setSlot] = useState<'morning' | 'evening' | 'night'>('morning')
+  const [guestCount, setGuestCount] = useState('')
+  const [staffCount, setStaffCount] = useState('')
   const [readingValue, setReadingValue] = useState('')
   const [note, setNote] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -92,7 +102,10 @@ export function PublicReadingForm({ property }: PublicReadingFormProps) {
           utilityType,
           readingDate,
           readingValue: value,
+          slot,
           note: note || null,
+          ...(guestCount !== '' ? { guestCount: parseInt(guestCount) || 0 } : {}),
+          ...(staffCount !== '' ? { staffCount: parseInt(staffCount) || 0 } : {}),
         }),
       })
 
@@ -104,6 +117,8 @@ export function PublicReadingForm({ property }: PublicReadingFormProps) {
       setSuccess(true)
       setReadingValue('')
       setNote('')
+      setGuestCount('')
+      setStaffCount('')
       setScannedPreview(null)
       setReadingTimestamp(null)
       setIsScannedReading(false)
@@ -195,6 +210,22 @@ export function PublicReadingForm({ property }: PublicReadingFormProps) {
               />
             </div>
 
+            {utilityType === 'electricity' && (
+              <div className="space-y-2">
+                <Label htmlFor="pub-slot">Reading Time</Label>
+                <Select value={slot} onValueChange={(v) => setSlot(v as typeof slot)}>
+                  <SelectTrigger id="pub-slot">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="morning">Morning</SelectItem>
+                    <SelectItem value="evening">Evening</SelectItem>
+                    <SelectItem value="night">Night</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Camera scan button */}
             <div>
               <input
@@ -272,6 +303,19 @@ export function PublicReadingForm({ property }: PublicReadingFormProps) {
                 onChange={(e) => setNote(e.target.value)}
                 rows={2}
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="pub-guests">Guests (optional)</Label>
+                <Input id="pub-guests" type="number" min="0" value={guestCount}
+                  onChange={(e) => setGuestCount(e.target.value)} placeholder="0" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pub-staff">Staff (optional)</Label>
+                <Input id="pub-staff" type="number" min="0" value={staffCount}
+                  onChange={(e) => setStaffCount(e.target.value)} placeholder="0" />
+              </div>
             </div>
 
             <Button

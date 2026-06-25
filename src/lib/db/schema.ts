@@ -10,6 +10,7 @@ import {
   numeric,
   timestamp,
   date,
+  time,
   unique,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
@@ -858,7 +859,9 @@ export const utilityMeterReadings = pgTable(
       .references(() => properties.id, { onDelete: 'cascade' }),
     utilityType: utilityTypeEnum('utility_type').notNull(),
     readingDate: date('reading_date').notNull(),
-    readingValue: numeric('reading_value', { precision: 12, scale: 2 }).notNull(),
+    readingValue: numeric('reading_value', { precision: 12, scale: 2 }),
+    eveningReading: numeric('evening_reading', { precision: 12, scale: 2 }),
+    nightReading: numeric('night_reading', { precision: 12, scale: 2 }),
     note: text('note'),
     recordedBy: uuid('recorded_by').references(() => profiles.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -883,6 +886,115 @@ export const utilityMeterReadingsRelations = relations(utilityMeterReadings, ({ 
     references: [profiles.id],
   }),
 }))
+
+// ---------------------------------------------------------------------------
+// Daily Occupancy (one row per property per day — guests + staff)
+// ---------------------------------------------------------------------------
+export const dailyOccupancy = pgTable(
+  'daily_occupancy',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    propertyId: uuid('property_id')
+      .notNull()
+      .references(() => properties.id, { onDelete: 'cascade' }),
+    logDate: date('log_date').notNull(),
+    guestCount: integer('guest_count').default(0).notNull(),
+    staffCount: integer('staff_count').default(0).notNull(),
+    note: text('note'),
+    recordedBy: uuid('recorded_by').references(() => profiles.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('daily_occupancy_property_date_unique').on(table.propertyId, table.logDate),
+  ]
+)
+
+export const dailyOccupancyRelations = relations(dailyOccupancy, ({ one }) => ({
+  property: one(properties, {
+    fields: [dailyOccupancy.propertyId],
+    references: [properties.id],
+  }),
+}))
+
+// ---------------------------------------------------------------------------
+// Electricity KPI Bands (guest-count step function, per property)
+// ---------------------------------------------------------------------------
+export const electricityKpiBands = pgTable(
+  'electricity_kpi_bands',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    propertyId: uuid('property_id')
+      .notNull()
+      .references(() => properties.id, { onDelete: 'cascade' }),
+    minGuests: integer('min_guests').notNull(),
+    targetUnits: numeric('target_units', { precision: 12, scale: 2 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('electricity_kpi_bands_property_minguests_unique').on(
+      table.propertyId,
+      table.minGuests
+    ),
+  ]
+)
+
+export const electricityKpiBandsRelations = relations(electricityKpiBands, ({ one }) => ({
+  property: one(properties, {
+    fields: [electricityKpiBands.propertyId],
+    references: [properties.id],
+  }),
+}))
+
+// ---------------------------------------------------------------------------
+// Utility KPI Targets (flat daily target — water in v1)
+// ---------------------------------------------------------------------------
+export const utilityKpiTargets = pgTable(
+  'utility_kpi_targets',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    propertyId: uuid('property_id')
+      .notNull()
+      .references(() => properties.id, { onDelete: 'cascade' }),
+    utilityType: utilityTypeEnum('utility_type').notNull(),
+    dailyTargetUnits: numeric('daily_target_units', { precision: 12, scale: 2 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('utility_kpi_targets_property_type_unique').on(
+      table.propertyId,
+      table.utilityType
+    ),
+  ]
+)
+
+export const utilityKpiTargetsRelations = relations(utilityKpiTargets, ({ one }) => ({
+  property: one(properties, {
+    fields: [utilityKpiTargets.propertyId],
+    references: [properties.id],
+  }),
+}))
+
+// ---------------------------------------------------------------------------
+// Electricity Slot Config (org-wide reading times — labels/guidance only)
+// ---------------------------------------------------------------------------
+export const electricitySlotConfig = pgTable(
+  'electricity_slot_config',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id),
+    morningTime: time('morning_time').default('05:30').notNull(),
+    eveningTime: time('evening_time').default('17:30').notNull(),
+    nightTime: time('night_time').default('22:30').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [unique('electricity_slot_config_org_unique').on(table.orgId)]
+)
 
 // ---------------------------------------------------------------------------
 // Daily Wastage (one combined row per property per day, kg per category)
@@ -999,6 +1111,15 @@ export type NewUtilityRateTier = typeof utilityRateTiers.$inferInsert
 
 export type UtilityMeterReading = typeof utilityMeterReadings.$inferSelect
 export type NewUtilityMeterReading = typeof utilityMeterReadings.$inferInsert
+
+export type DailyOccupancy = typeof dailyOccupancy.$inferSelect
+export type NewDailyOccupancy = typeof dailyOccupancy.$inferInsert
+export type ElectricityKpiBand = typeof electricityKpiBands.$inferSelect
+export type NewElectricityKpiBand = typeof electricityKpiBands.$inferInsert
+export type UtilityKpiTarget = typeof utilityKpiTargets.$inferSelect
+export type NewUtilityKpiTarget = typeof utilityKpiTargets.$inferInsert
+export type ElectricitySlotConfig = typeof electricitySlotConfig.$inferSelect
+export type NewElectricitySlotConfig = typeof electricitySlotConfig.$inferInsert
 
 export type WasteLog = typeof wasteLogs.$inferSelect
 export type NewWasteLog = typeof wasteLogs.$inferInsert

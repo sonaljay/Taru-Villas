@@ -8,6 +8,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { prepareImage, extractMeterReading } from '@/lib/utilities/ocr'
 
 function nowIST(): string {
@@ -25,16 +32,19 @@ function nowIST(): string {
 interface ReadingFormProps {
   propertyId: string
   utilityType: 'water' | 'electricity'
+  slotTimes?: { morningTime: string; eveningTime: string; nightTime: string }
   onSuccess: () => void
 }
 
 export function UtilityReadingForm({
   propertyId,
   utilityType,
+  slotTimes,
   onSuccess,
 }: ReadingFormProps) {
   const today = new Date().toISOString().split('T')[0]
   const [readingDate, setReadingDate] = useState(today)
+  const [slot, setSlot] = useState<'morning' | 'evening' | 'night'>('morning')
   const [readingValue, setReadingValue] = useState('')
   const [note, setNote] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -43,6 +53,15 @@ export function UtilityReadingForm({
   const [readingTimestamp, setReadingTimestamp] = useState<string | null>(null)
   const [isScannedReading, setIsScannedReading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  function fmtTime(t?: string) {
+    if (!t) return ''
+    const [h, m] = t.split(':')
+    const hour = parseInt(h)
+    const ampm = hour >= 12 ? 'PM' : 'AM'
+    const h12 = hour % 12 === 0 ? 12 : hour % 12
+    return `${h12}:${m} ${ampm}`
+  }
 
   async function handleScan(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -94,6 +113,7 @@ export function UtilityReadingForm({
           utilityType,
           readingDate,
           readingValue: value,
+          slot,
           note: note || null,
         }),
       })
@@ -134,6 +154,28 @@ export function UtilityReadingForm({
               required
             />
           </div>
+
+          {utilityType === 'electricity' && (
+            <div className="space-y-2">
+              <Label htmlFor="reading-slot">Reading Time</Label>
+              <Select value={slot} onValueChange={(v) => setSlot(v as typeof slot)}>
+                <SelectTrigger id="reading-slot">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="morning">
+                    Morning {fmtTime(slotTimes?.morningTime)}
+                  </SelectItem>
+                  <SelectItem value="evening">
+                    Evening {fmtTime(slotTimes?.eveningTime)}
+                  </SelectItem>
+                  <SelectItem value="night">
+                    Night {fmtTime(slotTimes?.nightTime)}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Camera scan button */}
           <div>
