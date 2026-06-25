@@ -12,7 +12,6 @@ import { UtilityReadingsTable } from '@/components/admin/utility-readings-table'
 import { UtilityReadingForm } from '@/components/admin/utility-reading-form'
 import { UtilityTierForm } from '@/components/admin/utility-tier-form'
 import { UtilityKpiBandsForm } from '@/components/admin/utility-kpi-bands-form'
-import { UtilityWaterKpiForm } from '@/components/admin/utility-water-kpi-form'
 import { UtilitySlotConfigForm } from '@/components/admin/utility-slot-config-form'
 import { UtilityRangeSelector } from '@/components/admin/utility-range-selector'
 
@@ -180,23 +179,15 @@ export function UtilitiesPageClient({ property, isAdmin }: UtilitiesPageClientPr
       {/* Config (admin only) */}
       {isAdmin && (
         <div className="space-y-6">
-          <UtilityTierForm
-            propertyId={property.id}
-            utilityType={utilityType}
-            onRefresh={fetchData}
-          />
-          {utilityType === 'electricity' ? (
-            <>
-              <UtilityKpiBandsForm propertyId={property.id} onRefresh={fetchData} />
-              <UtilitySlotConfigForm onRefresh={() => {
-                fetch('/api/utilities/slot-config')
-                  .then((r) => (r.ok ? r.json() : null))
-                  .then((d) => d && setSlotTimes(d))
-                  .catch(() => {})
-              }} />
-            </>
-          ) : (
-            <UtilityWaterKpiForm propertyId={property.id} onRefresh={fetchData} />
+          <UtilityTierForm propertyId={property.id} utilityType={utilityType} onRefresh={fetchData} />
+          <UtilityKpiBandsForm propertyId={property.id} utilityType={utilityType} onRefresh={fetchData} />
+          {utilityType === 'electricity' && (
+            <UtilitySlotConfigForm onRefresh={() => {
+              fetch('/api/utilities/slot-config')
+                .then((r) => (r.ok ? r.json() : null))
+                .then((d) => d && setSlotTimes(d))
+                .catch(() => {})
+            }} />
           )}
         </div>
       )}

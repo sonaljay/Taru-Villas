@@ -11,8 +11,7 @@ import {
   profiles,
   utilityMeterReadings,
   dailyOccupancy,
-  electricityKpiBands,
-  utilityKpiTargets,
+  utilityKpiBands,
 } from '../schema'
 import {
   computeElectricityBreakdown,
@@ -758,7 +757,7 @@ export async function getOrgUtilityKpiRollup(
   const rollup: PropertyKpiRollup[] = []
 
   for (const p of props) {
-    const [readings, occupancy, bands, waterTarget] = await Promise.all([
+    const [readings, occupancy, bands, waterBands] = await Promise.all([
       db.select().from(utilityMeterReadings)
         .where(and(
           eq(utilityMeterReadings.propertyId, p.id),
@@ -770,14 +769,12 @@ export async function getOrgUtilityKpiRollup(
           eq(dailyOccupancy.propertyId, p.id),
           gte(dailyOccupancy.logDate, cutoff)
         )),
-      db.select().from(electricityKpiBands)
-        .where(eq(electricityKpiBands.propertyId, p.id))
-        .orderBy(asc(electricityKpiBands.minGuests)),
-      db.select().from(utilityKpiTargets)
-        .where(and(
-          eq(utilityKpiTargets.propertyId, p.id),
-          eq(utilityKpiTargets.utilityType, 'water')
-        )),
+      db.select().from(utilityKpiBands)
+        .where(and(eq(utilityKpiBands.propertyId, p.id), eq(utilityKpiBands.utilityType, 'electricity')))
+        .orderBy(asc(utilityKpiBands.minGuests)),
+      db.select().from(utilityKpiBands)
+        .where(and(eq(utilityKpiBands.propertyId, p.id), eq(utilityKpiBands.utilityType, 'water')))
+        .orderBy(asc(utilityKpiBands.minGuests)),
     ])
 
     const occByDate = new Map(occupancy.map((o) => [o.logDate, o]))
@@ -810,20 +807,17 @@ export async function getOrgUtilityKpiRollup(
         )
       : { pct: null, evaluatedDays: 0, achievedDays: 0 }
 
-    // Water
-    // first in-window day has no predecessor → excluded (acceptable for a rolling % over ~30 days)
+    // Water — guest-count bands (first in-window day has no predecessor → excluded)
     const waterReadings = readings.filter((r) => r.utilityType === 'water')
-    const wTarget = waterTarget[0] ? parseFloat(waterTarget[0].dailyTargetUnits) : null
-    const waterAch = wTarget !== null
+    const waterBandInputs = waterBands.map((b) => ({ minGuests: b.minGuests, targetUnits: parseFloat(b.targetUnits) }))
+    const waterAch = waterBands.length > 0
       ? computeKpiAchievement(
           waterReadings.map((r, i) => {
             const prev = i > 0 ? waterReadings[i - 1] : null
-            const rawTotal =
-              prev && prev.readingValue !== null && r.readingValue !== null
-                ? parseFloat(r.readingValue) - parseFloat(prev.readingValue)
-                : null
+            const rawTotal = prev && prev.readingValue !== null && r.readingValue !== null
+              ? parseFloat(r.readingValue) - parseFloat(prev.readingValue) : null
             const total = rawTotal !== null && rawTotal >= 0 ? rawTotal : null
-            return { total, target: wTarget }
+            return { total, target: resolveBandTarget(occByDate.get(r.readingDate)?.guestCount ?? null, waterBandInputs) }
           })
         )
       : { pct: null, evaluatedDays: 0, achievedDays: 0 }

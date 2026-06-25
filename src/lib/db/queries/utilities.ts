@@ -4,8 +4,7 @@ import {
   utilityRateTiers,
   utilityMeterReadings,
   dailyOccupancy,
-  electricityKpiBands,
-  utilityKpiTargets,
+  utilityKpiBands,
   electricitySlotConfig,
   profiles,
   properties,
@@ -323,76 +322,36 @@ export async function upsertTiers(
 }
 
 // ---------------------------------------------------------------------------
-// Electricity KPI Bands
+// KPI Bands (parameterized by utility type)
 // ---------------------------------------------------------------------------
 
-export async function getElectricityBands(propertyId: string) {
+export async function getKpiBands(propertyId: string, utilityType: 'water' | 'electricity') {
   return db
     .select()
-    .from(electricityKpiBands)
-    .where(eq(electricityKpiBands.propertyId, propertyId))
-    .orderBy(asc(electricityKpiBands.minGuests))
+    .from(utilityKpiBands)
+    .where(and(eq(utilityKpiBands.propertyId, propertyId), eq(utilityKpiBands.utilityType, utilityType)))
+    .orderBy(asc(utilityKpiBands.minGuests))
 }
 
-/**
- * Replace all electricity KPI bands for a property (delete + insert in a tx).
- */
-export async function upsertElectricityBands(
+/** Replace all KPI bands for a property + utility (delete + insert in a tx). */
+export async function upsertKpiBands(
   propertyId: string,
+  utilityType: 'water' | 'electricity',
   bands: { minGuests: number; targetUnits: string }[]
 ) {
   return db.transaction(async (tx) => {
     await tx
-      .delete(electricityKpiBands)
-      .where(eq(electricityKpiBands.propertyId, propertyId))
+      .delete(utilityKpiBands)
+      .where(and(eq(utilityKpiBands.propertyId, propertyId), eq(utilityKpiBands.utilityType, utilityType)))
 
     if (bands.length > 0) {
       return tx
-        .insert(electricityKpiBands)
-        .values(
-          bands.map((b) => ({
-            propertyId,
-            minGuests: b.minGuests,
-            targetUnits: b.targetUnits,
-          }))
-        )
+        .insert(utilityKpiBands)
+        .values(bands.map((b) => ({ propertyId, utilityType, minGuests: b.minGuests, targetUnits: b.targetUnits })))
         .returning()
     }
     return []
   })
-}
-
-// ---------------------------------------------------------------------------
-// Water KPI Target (flat)
-// ---------------------------------------------------------------------------
-
-export async function getWaterKpiTarget(propertyId: string) {
-  const [row] = await db
-    .select()
-    .from(utilityKpiTargets)
-    .where(
-      and(
-        eq(utilityKpiTargets.propertyId, propertyId),
-        eq(utilityKpiTargets.utilityType, 'water')
-      )
-    )
-    .limit(1)
-  return row ?? null
-}
-
-export async function upsertWaterKpiTarget(
-  propertyId: string,
-  dailyTargetUnits: string
-) {
-  const [row] = await db
-    .insert(utilityKpiTargets)
-    .values({ propertyId, utilityType: 'water', dailyTargetUnits })
-    .onConflictDoUpdate({
-      target: [utilityKpiTargets.propertyId, utilityKpiTargets.utilityType],
-      set: { dailyTargetUnits, updatedAt: new Date() },
-    })
-    .returning()
-  return row
 }
 
 // ---------------------------------------------------------------------------
