@@ -61,6 +61,8 @@ export const sopCompletionStatusEnum = pgEnum('sop_completion_status', [
 
 export const utilityTypeEnum = pgEnum('utility_type', ['water', 'electricity'])
 
+export const readingSlotStatusEnum = pgEnum('reading_slot_status', ['manual', 'autofilled', 'edited'])
+
 // ---------------------------------------------------------------------------
 // Organizations
 // ---------------------------------------------------------------------------
@@ -862,6 +864,9 @@ export const utilityMeterReadings = pgTable(
     readingValue: numeric('reading_value', { precision: 12, scale: 2 }),
     eveningReading: numeric('evening_reading', { precision: 12, scale: 2 }),
     nightReading: numeric('night_reading', { precision: 12, scale: 2 }),
+    morningStatus: readingSlotStatusEnum('morning_status'),
+    eveningStatus: readingSlotStatusEnum('evening_status'),
+    nightStatus: readingSlotStatusEnum('night_status'),
     note: text('note'),
     recordedBy: uuid('recorded_by').references(() => profiles.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
