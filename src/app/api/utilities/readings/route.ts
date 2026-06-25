@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getProfile, getUserProperties } from '@/lib/auth/guards'
 import {
-  getReadingsForMonth,
+  getReadingsInRange,
   getLatestReading,
   upsertReading,
   upsertOccupancy,
@@ -45,32 +45,19 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const propertyId = searchParams.get('propertyId')
     const utilityType = searchParams.get('utilityType') as 'water' | 'electricity' | null
-    const year = searchParams.get('year')
-    const month = searchParams.get('month')
+    const from = searchParams.get('from')
+    const to = searchParams.get('to')
 
-    if (!propertyId || !utilityType || !year || !month) {
-      return NextResponse.json(
-        { error: 'propertyId, utilityType, year, and month are required' },
-        { status: 400 }
-      )
+    if (!propertyId || !utilityType || !from || !to) {
+      return NextResponse.json({ error: 'propertyId, utilityType, from, to are required' }, { status: 400 })
     }
-
     if (!['water', 'electricity'].includes(utilityType)) {
       return NextResponse.json({ error: 'Invalid utilityType' }, { status: 400 })
     }
-
     const hasAccess = await checkPropertyAccess(profile, propertyId)
-    if (!hasAccess) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    if (!hasAccess) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-    const readings = await getReadingsForMonth(
-      propertyId,
-      utilityType,
-      parseInt(year),
-      parseInt(month)
-    )
-
+    const readings = await getReadingsInRange(propertyId, utilityType, from, to)
     return NextResponse.json(readings)
   } catch (error) {
     console.error('GET /api/utilities/readings error:', error)
