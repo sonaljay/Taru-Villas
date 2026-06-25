@@ -44,6 +44,7 @@ interface DailyRow {
   staffCount: number | null
   target: number | null
   achieved: boolean | null
+  penalty: 'missed' | 'edited' | 'normal'
 }
 
 interface ReadingEntry {
@@ -58,10 +59,11 @@ interface ReadingsTableProps {
   readings: ReadingEntry[]
   dailyRows: DailyRow[]
   utilityType: 'water' | 'electricity'
+  isAdmin: boolean
   onRefresh: () => void
 }
 
-export function UtilityReadingsTable({ readings, dailyRows, utilityType, onRefresh }: ReadingsTableProps) {
+export function UtilityReadingsTable({ readings, dailyRows, utilityType, isAdmin, onRefresh }: ReadingsTableProps) {
   const [deleteReading, setDeleteReading] = useState<ReadingEntry | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [editReading, setEditReading] = useState<ReadingEntry | null>(null)
@@ -140,8 +142,8 @@ export function UtilityReadingsTable({ readings, dailyRows, utilityType, onRefre
                       </>
                     ) : null}
                     <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="text-right">Target</TableHead>
-                    <TableHead className="text-center">KPI</TableHead>
+                    {isAdmin && <TableHead className="text-right">Target</TableHead>}
+                    {isAdmin && <TableHead className="text-center">KPI</TableHead>}
                     <TableHead className="text-right">Guests</TableHead>
                     <TableHead className="text-right">Staff</TableHead>
                     <TableHead className="w-[80px]" />
@@ -153,7 +155,12 @@ export function UtilityReadingsTable({ readings, dailyRows, utilityType, onRefre
                     const num = (v: number | null) => (v !== null ? v.toFixed(1) : '—')
                     return (
                       <TableRow key={row.date}>
-                        <TableCell className="font-medium">{formatDate(row.date)}</TableCell>
+                        <TableCell className="font-medium">
+                          <span>{formatDate(row.date)}</span>
+                          {isAdmin && row.penalty === 'edited' && (
+                            <span className="ml-1.5 text-xs text-amber-600 font-normal">(late edit)</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {row.readingValue !== null ? row.readingValue.toLocaleString() : '—'}
                         </TableCell>
@@ -171,22 +178,30 @@ export function UtilityReadingsTable({ readings, dailyRows, utilityType, onRefre
                             num(row.total)
                           )}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums text-muted-foreground">
-                          {num(row.target)}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {row.achieved === null ? (
-                            <span className="text-muted-foreground text-xs">—</span>
-                          ) : row.achieved ? (
-                            <span className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                              Met
-                            </span>
-                          ) : (
-                            <span className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
-                              Over
-                            </span>
-                          )}
-                        </TableCell>
+                        {isAdmin && (
+                          <TableCell className="text-right tabular-nums text-muted-foreground">
+                            {num(row.target)}
+                          </TableCell>
+                        )}
+                        {isAdmin && (
+                          <TableCell className="text-center">
+                            {row.penalty === 'missed' ? (
+                              <span className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                                Missed
+                              </span>
+                            ) : row.achieved === null ? (
+                              <span className="text-muted-foreground text-xs">—</span>
+                            ) : row.achieved ? (
+                              <span className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                                Met
+                              </span>
+                            ) : (
+                              <span className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                                Over
+                              </span>
+                            )}
+                          </TableCell>
+                        )}
                         <TableCell className="text-right tabular-nums">
                           {row.guestCount ?? '—'}
                         </TableCell>

@@ -18,7 +18,6 @@ import { UtilityCharts } from '@/components/admin/utility-charts'
 import { UtilityReadingsTable } from '@/components/admin/utility-readings-table'
 import { UtilityReadingForm } from '@/components/admin/utility-reading-form'
 import { UtilityTierForm } from '@/components/admin/utility-tier-form'
-import { UtilityOccupancyForm } from '@/components/admin/utility-occupancy-form'
 import { UtilityKpiBandsForm } from '@/components/admin/utility-kpi-bands-form'
 import { UtilityWaterKpiForm } from '@/components/admin/utility-water-kpi-form'
 import { UtilitySlotConfigForm } from '@/components/admin/utility-slot-config-form'
@@ -56,6 +55,7 @@ interface SummaryData {
     staffCount: number | null
     target: number | null
     achieved: boolean | null
+    penalty: 'missed' | 'edited' | 'normal'
   }[]
   kpi: { configured: boolean; pct: number | null; evaluatedDays: number; achievedDays: number }
 }
@@ -148,6 +148,7 @@ export function UtilitiesPageClient({ property, isAdmin }: UtilitiesPageClientPr
         kpiConfigured={summary?.kpi?.configured ?? false}
         kpiPct={summary?.kpi?.pct ?? null}
         kpiEvaluatedDays={summary?.kpi?.evaluatedDays ?? 0}
+        showKpi={isAdmin}
         loading={loading}
       />
 
@@ -159,15 +160,6 @@ export function UtilitiesPageClient({ property, isAdmin }: UtilitiesPageClientPr
         loading={loading}
       />
 
-      {/* Daily occupancy (shared once per day) */}
-      <UtilityOccupancyForm
-        propertyId={property.id}
-        date={todayStr}
-        initialGuests={todayRow?.guestCount ?? null}
-        initialStaff={todayRow?.staffCount ?? null}
-        onSuccess={fetchData}
-      />
-
       {/* Readings Table + Entry Form */}
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
@@ -175,6 +167,7 @@ export function UtilitiesPageClient({ property, isAdmin }: UtilitiesPageClientPr
             readings={readings}
             dailyRows={summary?.dailyRows ?? []}
             utilityType={utilityType}
+            isAdmin={isAdmin}
             onRefresh={fetchData}
           />
         </div>
@@ -183,6 +176,9 @@ export function UtilitiesPageClient({ property, isAdmin }: UtilitiesPageClientPr
             propertyId={property.id}
             utilityType={utilityType}
             slotTimes={slotTimes ?? undefined}
+            isAdmin={isAdmin}
+            initialGuests={todayRow?.guestCount ?? null}
+            initialStaff={todayRow?.staffCount ?? null}
             onSuccess={fetchData}
           />
         </div>
