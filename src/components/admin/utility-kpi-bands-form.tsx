@@ -29,34 +29,41 @@ interface Band {
 
 interface KpiBandsFormProps {
   propertyId: string
+  utilityType: 'water' | 'electricity'
   onRefresh: () => void
 }
 
-const DEFAULT_BANDS: Band[] = [
-  { minGuests: 0, targetUnits: 224 },
-  { minGuests: 1, targetUnits: 305 },
-  { minGuests: 6, targetUnits: 331 },
-  { minGuests: 11, targetUnits: 390 },
-  { minGuests: 16, targetUnits: 434 },
-  { minGuests: 21, targetUnits: 483 },
-  { minGuests: 26, targetUnits: 501 },
-]
+const DEFAULT_BANDS_BY_UTILITY: Record<'water' | 'electricity', Band[]> = {
+  electricity: [
+    { minGuests: 0, targetUnits: 224 }, { minGuests: 1, targetUnits: 305 }, { minGuests: 6, targetUnits: 331 },
+    { minGuests: 11, targetUnits: 390 }, { minGuests: 16, targetUnits: 434 }, { minGuests: 21, targetUnits: 483 },
+    { minGuests: 26, targetUnits: 501 },
+  ],
+  water: [
+    { minGuests: 0, targetUnits: 7 }, { minGuests: 1, targetUnits: 10 }, { minGuests: 6, targetUnits: 10 },
+    { minGuests: 11, targetUnits: 11 }, { minGuests: 16, targetUnits: 11 }, { minGuests: 21, targetUnits: 11 },
+    { minGuests: 26, targetUnits: 4 },
+  ],
+}
 
-export function UtilityKpiBandsForm({ propertyId, onRefresh }: KpiBandsFormProps) {
+export function UtilityKpiBandsForm({ propertyId, utilityType, onRefresh }: KpiBandsFormProps) {
   const [bands, setBands] = useState<Band[]>([])
   const [editBands, setEditBands] = useState<Band[]>([])
   const [showDialog, setShowDialog] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [loading, setLoading] = useState(true)
 
+  const unit = utilityType === 'water' ? 'm³' : 'kWh'
+  const label = utilityType === 'water' ? 'Water' : 'Electricity'
+
   useEffect(() => {
     fetchBands()
-  }, [propertyId])
+  }, [propertyId, utilityType])
 
   async function fetchBands() {
     setLoading(true)
     try {
-      const res = await fetch(`/api/utilities/kpi-bands?propertyId=${propertyId}`)
+      const res = await fetch(`/api/utilities/kpi-bands?propertyId=${propertyId}&utilityType=${utilityType}`)
       if (res.ok) {
         const data = await res.json()
         setBands(
@@ -74,7 +81,7 @@ export function UtilityKpiBandsForm({ propertyId, onRefresh }: KpiBandsFormProps
   }
 
   function openEdit() {
-    setEditBands(bands.length > 0 ? [...bands] : [...DEFAULT_BANDS])
+    setEditBands(bands.length > 0 ? [...bands] : [...DEFAULT_BANDS_BY_UTILITY[utilityType]])
     setShowDialog(true)
   }
 
@@ -110,7 +117,7 @@ export function UtilityKpiBandsForm({ propertyId, onRefresh }: KpiBandsFormProps
       const res = await fetch('/api/utilities/kpi-bands', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ propertyId, bands: sorted }),
+        body: JSON.stringify({ propertyId, utilityType, bands: sorted }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
@@ -132,7 +139,7 @@ export function UtilityKpiBandsForm({ propertyId, onRefresh }: KpiBandsFormProps
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">
-            Electricity KPI Bands (kWh by guest count)
+            {`${label} KPI Bands (${unit} by guest count)`}
           </CardTitle>
           <Button variant="outline" size="sm" onClick={openEdit}>
             <Settings2 className="size-4" />
@@ -148,7 +155,7 @@ export function UtilityKpiBandsForm({ propertyId, onRefresh }: KpiBandsFormProps
                 <TableHeader>
                   <TableRow>
                     <TableHead>Guests (from)</TableHead>
-                    <TableHead className="text-right">Daily target (kWh)</TableHead>
+                    <TableHead className="text-right">{`Daily target (${unit})`}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -165,7 +172,7 @@ export function UtilityKpiBandsForm({ propertyId, onRefresh }: KpiBandsFormProps
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              No KPI bands configured. Set up bands to track electricity KPI achievement.
+              {`No KPI bands configured. Set up bands to track ${label.toLowerCase()} KPI achievement.`}
             </p>
           )}
         </CardContent>
@@ -174,7 +181,7 @@ export function UtilityKpiBandsForm({ propertyId, onRefresh }: KpiBandsFormProps
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit Electricity KPI Bands</DialogTitle>
+            <DialogTitle>{`Edit ${label} KPI Bands`}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             {editBands.map((band, index) => (
@@ -188,7 +195,7 @@ export function UtilityKpiBandsForm({ propertyId, onRefresh }: KpiBandsFormProps
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Target (kWh)</Label>
+                  <Label className="text-xs">{`Target (${unit})`}</Label>
                   <Input
                     type="number" min="0" step="0.01"
                     value={band.targetUnits}
