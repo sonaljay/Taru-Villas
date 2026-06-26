@@ -16,6 +16,7 @@ import { WasteSummaryCards } from '@/components/waste/waste-summary-cards'
 import { WasteCharts } from '@/components/waste/waste-charts'
 import { WasteLogTable } from '@/components/waste/waste-log-table'
 import { WasteLogForm } from '@/components/waste/waste-log-form'
+import { BulkImportCard } from '@/components/admin/bulk-import-card'
 
 interface WasteTotals {
   paperKg: number
@@ -55,7 +56,7 @@ interface WastePageClientProps {
   isAdmin: boolean
 }
 
-export function WastePageClient({ property }: WastePageClientProps) {
+export function WastePageClient({ property, isAdmin }: WastePageClientProps) {
   const router = useRouter()
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
@@ -164,6 +165,11 @@ export function WastePageClient({ property }: WastePageClientProps) {
           </Card>
         </div>
       </div>
+
+      {/* Bulk import (admin only) */}
+      {isAdmin && (
+        <BulkImportCard type="wastage" propertyId={property.id} onSuccess={fetchData} />
+      )}
     </div>
   )
 }
