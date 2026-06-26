@@ -47,6 +47,25 @@ export const taskStatusEnum = pgEnum('task_status', [
   'closed',
 ])
 
+export const guestProfileStatusEnum = pgEnum('guest_profile_status', [
+  'pending_questionnaire',
+  'pending_approval',
+  'pending_checkin',
+  'checked_in',
+  'cancelled',
+])
+
+export const preArrivalQuestionTypeEnum = pgEnum('pre_arrival_question_type', [
+  'short_text',
+  'long_text',
+  'single_choice',
+  'multi_choice',
+  'date',
+  'time',
+  'yes_no',
+  'file',
+])
+
 export const sopFrequencyEnum = pgEnum('sop_frequency', [
   'daily',
   'weekly',
@@ -97,6 +116,7 @@ export const properties = pgTable('properties', {
   menuCoverImageUrl: text('menu_cover_image_url'),
   excursionCoverImageUrl: text('excursion_cover_image_url'),
   location: text('location'),
+  oracleHotelId: varchar('oracle_hotel_id', { length: 50 }),
   primaryPmId: uuid('primary_pm_id')
     .references(() => profiles.id, { onDelete: 'set null' }),
   isActive: boolean('is_active').default(true).notNull(),
@@ -353,6 +373,107 @@ export const guestSurveyLinksRelations = relations(
     }),
   })
 )
+
+// ---------------------------------------------------------------------------
+// Oracle Guest Profiles + Pre-Arrival
+// ---------------------------------------------------------------------------
+
+export const guestProfiles = pgTable(
+  'guest_profiles',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id),
+    propertyId: uuid('property_id')
+      .notNull()
+      .references(() => properties.id, { onDelete: 'cascade' }),
+    oracleReservationId: varchar('oracle_reservation_id', { length: 255 }).notNull(),
+    confirmationNumber: varchar('confirmation_number', { length: 255 }),
+    guestName: text('guest_name'),
+    guestEmail: text('guest_email'),
+    arrivalDate: date('arrival_date'),
+    departureDate: date('departure_date'),
+    roomType: varchar('room_type', { length: 100 }),
+    roomNumber: varchar('room_number', { length: 50 }),
+    status: guestProfileStatusEnum('status').default('pending_questionnaire').notNull(),
+    oracleReservationStatus: varchar('oracle_reservation_status', { length: 100 }),
+    token: varchar('token', { length: 255 }).notNull().unique(),
+    postedAt: timestamp('posted_at', { withTimezone: true }),
+    postedBy: uuid('posted_by').references(() => profiles.id, { onDelete: 'set null' }),
+    oracleError: text('oracle_error'),
+    lastPulledAt: timestamp('last_pulled_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('guest_profiles_property_reservation_unique').on(
+      table.propertyId,
+      table.oracleReservationId
+    ),
+  ]
+)
+
+export const preArrivalQuestions = pgTable('pre_arrival_questions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => organizations.id),
+  propertyId: uuid('property_id')
+    .notNull()
+    .references(() => properties.id, { onDelete: 'cascade' }),
+  prompt: varchar('prompt', { length: 500 }).notNull(),
+  type: preArrivalQuestionTypeEnum('type').notNull(),
+  options: text('options').array().default(sql`'{}'::text[]`).notNull(),
+  required: boolean('required').default(false).notNull(),
+  mapsToEta: boolean('maps_to_eta').default(false).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export const preArrivalAnswers = pgTable('pre_arrival_answers', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  guestProfileId: uuid('guest_profile_id')
+    .notNull()
+    .references(() => guestProfiles.id, { onDelete: 'cascade' }),
+  questionId: uuid('question_id').references(() => preArrivalQuestions.id, {
+    onDelete: 'set null',
+  }),
+  promptSnapshot: varchar('prompt_snapshot', { length: 500 }).notNull(),
+  valueText: text('value_text'),
+  valueOptions: text('value_options').array().default(sql`'{}'::text[]`).notNull(),
+  fileUrl: text('file_url'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export const guestProfilesRelations = relations(guestProfiles, ({ one, many }) => ({
+  property: one(properties, {
+    fields: [guestProfiles.propertyId],
+    references: [properties.id],
+  }),
+  answers: many(preArrivalAnswers),
+}))
+
+export const preArrivalQuestionsRelations = relations(preArrivalQuestions, ({ one }) => ({
+  property: one(properties, {
+    fields: [preArrivalQuestions.propertyId],
+    references: [properties.id],
+  }),
+}))
+
+export const preArrivalAnswersRelations = relations(preArrivalAnswers, ({ one }) => ({
+  guestProfile: one(guestProfiles, {
+    fields: [preArrivalAnswers.guestProfileId],
+    references: [guestProfiles.id],
+  }),
+  question: one(preArrivalQuestions, {
+    fields: [preArrivalAnswers.questionId],
+    references: [preArrivalQuestions.id],
+  }),
+}))
 
 // ---------------------------------------------------------------------------
 // Survey Submissions
@@ -1046,6 +1167,13 @@ export type NewSurveyResponse = typeof surveyResponses.$inferInsert
 
 export type GuestSurveyLink = typeof guestSurveyLinks.$inferSelect
 export type NewGuestSurveyLink = typeof guestSurveyLinks.$inferInsert
+
+export type GuestProfile = typeof guestProfiles.$inferSelect
+export type NewGuestProfile = typeof guestProfiles.$inferInsert
+export type PreArrivalQuestion = typeof preArrivalQuestions.$inferSelect
+export type NewPreArrivalQuestion = typeof preArrivalQuestions.$inferInsert
+export type PreArrivalAnswer = typeof preArrivalAnswers.$inferSelect
+export type NewPreArrivalAnswer = typeof preArrivalAnswers.$inferInsert
 
 export type Task = typeof tasks.$inferSelect
 export type NewTask = typeof tasks.$inferInsert
