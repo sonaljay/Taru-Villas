@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, RefreshCw } from 'lucide-react'
+import { ArrowLeft, RefreshCw, PlugZap } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -31,11 +31,30 @@ const STATUS_CLASS: Record<GuestProfile['status'], string> = {
 interface Props {
   property: { id: string; name: string; oracleHotelId: string | null }
   profiles: GuestProfile[]
+  isAdmin: boolean
 }
 
-export function GuestProfilesPageClient({ property, profiles }: Props) {
+export function GuestProfilesPageClient({ property, profiles, isAdmin }: Props) {
   const router = useRouter()
   const [pulling, setPulling] = useState(false)
+  const [testing, setTesting] = useState(false)
+
+  async function testConnection() {
+    setTesting(true)
+    try {
+      const res = await fetch('/api/oracle/test-connection', { method: 'POST' })
+      const data = await res.json()
+      if (data.ok) {
+        toast.success('Oracle connection OK')
+      } else {
+        toast.error(data.error ?? 'Oracle connection failed')
+      }
+    } catch {
+      toast.error('Oracle connection failed')
+    } finally {
+      setTesting(false)
+    }
+  }
 
   async function pull() {
     setPulling(true)
@@ -74,10 +93,18 @@ export function GuestProfilesPageClient({ property, profiles }: Props) {
             <p className="text-sm text-muted-foreground">Upcoming arrivals and pre-arrival status</p>
           </div>
         </div>
-        <Button onClick={pull} disabled={pulling || !property.oracleHotelId}>
-          <RefreshCw className={cn('size-4', pulling && 'animate-spin')} />
-          {pulling ? 'Pulling…' : 'Pull arrivals'}
-        </Button>
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <Button variant="outline" onClick={testConnection} disabled={testing}>
+              <PlugZap className={cn('size-4', testing && 'animate-pulse')} />
+              {testing ? 'Testing…' : 'Test connection'}
+            </Button>
+          )}
+          <Button onClick={pull} disabled={pulling || !property.oracleHotelId}>
+            <RefreshCw className={cn('size-4', pulling && 'animate-spin')} />
+            {pulling ? 'Pulling…' : 'Pull arrivals'}
+          </Button>
+        </div>
       </div>
 
       {!property.oracleHotelId && (
