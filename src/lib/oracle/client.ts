@@ -119,7 +119,7 @@ export async function getReservation(
 export async function postPreArrival(
   hotelId: string,
   reservationId: string,
-  payload: { eta: string | null; comment: string }
+  _payload: { eta: string | null; comment: string }
 ): Promise<OhipResult<true>> {
   const current = await ohipRequest<any>(
     `/rsv/v1/hotels/${hotelId}/reservations/${reservationId}`,
