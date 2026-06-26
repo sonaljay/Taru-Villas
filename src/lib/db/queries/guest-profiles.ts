@@ -1,5 +1,5 @@
 import { randomBytes } from 'crypto'
-import { eq, and, desc } from 'drizzle-orm'
+import { eq, desc } from 'drizzle-orm'
 import { db } from '..'
 import { guestProfiles } from '../schema'
 import type { GuestProfile } from '../schema'
