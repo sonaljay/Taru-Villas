@@ -194,6 +194,14 @@ POSTGRES_URL="postgres://user:pass@host:6543/db"  # Transaction mode (port 6543)
 DATABASE_URL="..."          # Fallback for POSTGRES_URL
 DEV_BYPASS_AUTH="true"      # Skip auth in development
 CRON_SECRET="..."           # Bearer token for /api/cron routes
+
+# Oracle OHIP (Guest Profiles / pre-arrival) — sandbox values for now
+ORACLE_OHIP_GATEWAY="https://<customer-gateway-host>"
+ORACLE_OHIP_CLIENT_ID="..."
+ORACLE_OHIP_CLIENT_SECRET="..."
+ORACLE_OHIP_APP_KEY="..."
+ORACLE_OHIP_USERNAME="..."
+ORACLE_OHIP_PASSWORD="..."
 ```
 
 ## Development Commands

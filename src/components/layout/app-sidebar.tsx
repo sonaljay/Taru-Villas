@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Gauge,
   Trash2,
+  UserCheck,
 } from 'lucide-react'
 
 import { useAuth } from '@/components/providers/auth-provider'
@@ -71,6 +72,7 @@ const mainNavItems: NavItem[] = [
 const propertyNavItems: NavItem[] = [
   { title: 'Excursions', href: '/excursions', icon: Compass },
   { title: 'Menus', href: '/menus', icon: UtensilsCrossed },
+  { title: 'Guest Profiles', href: '/guest-profiles', icon: UserCheck },
 ]
 
 const adminNavItems: NavItem[] = [
