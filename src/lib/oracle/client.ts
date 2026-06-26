@@ -135,3 +135,13 @@ export async function postPreArrival(
   if (!put.ok) return put
   return { ok: true, data: true }
 }
+
+/**
+ * Verify OHIP is configured and the credentials can obtain an access token.
+ * Returns ok on success; the token itself is never exposed to callers.
+ */
+export async function testConnection(): Promise<OhipResult<true>> {
+  const tok = await getAccessToken()
+  if (!tok.ok) return tok
+  return { ok: true, data: true }
+}

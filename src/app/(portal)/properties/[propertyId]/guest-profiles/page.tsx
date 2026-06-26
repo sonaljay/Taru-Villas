@@ -28,6 +28,7 @@ export default async function GuestProfilesPage({
     <GuestProfilesPageClient
       property={{ id: property.id, name: property.name, oracleHotelId: property.oracleHotelId }}
       profiles={profiles}
+      isAdmin={profile.role === 'admin'}
     />
   )
 }
