@@ -20,6 +20,7 @@ const updatePropertySchema = z.object({
   slug: z.string().min(1).max(255).optional(),
   location: z.string().max(500).nullable().optional(),
   imageUrl: z.string().nullable().optional(),
+  oracleHotelId: z.string().max(50).nullable().optional(),
   menuCoverImageUrl: z.string().nullable().optional(),
   excursionCoverImageUrl: z.string().nullable().optional(),
   isActive: z.boolean().optional(),

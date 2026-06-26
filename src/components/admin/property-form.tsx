@@ -33,6 +33,7 @@ const propertySchema = z.object({
   slug: z.string().min(1, 'Slug is required').max(255),
   location: z.string().max(500).optional(),
   imageUrl: z.string().optional().or(z.literal('')),
+  oracleHotelId: z.string().max(50).optional().or(z.literal('')),
   isActive: z.boolean(),
 })
 
@@ -98,6 +99,7 @@ export function PropertyForm({
       slug: property?.slug ?? '',
       location: property?.location ?? '',
       imageUrl: property?.imageUrl ?? '',
+      oracleHotelId: property?.oracleHotelId ?? '',
       isActive: property?.isActive ?? true,
     },
   })
@@ -153,6 +155,7 @@ export function PropertyForm({
           ...data,
           imageUrl: data.imageUrl || null,
           location: data.location || null,
+          oracleHotelId: data.oracleHotelId || null,
           ...(isEditing && {
             assignedUserIds: Array.from(selectedUserIds),
             primaryPmId,
@@ -236,6 +239,16 @@ export function PropertyForm({
           id="location"
           placeholder="e.g. Bentota, Sri Lanka"
           {...register('location')}
+        />
+      </div>
+
+      {/* Oracle Hotel ID */}
+      <div className="space-y-2">
+        <Label htmlFor="oracleHotelId">Oracle Hotel ID</Label>
+        <Input
+          id="oracleHotelId"
+          placeholder="OPERA hotelId for this property (e.g. SAND01)"
+          {...register('oracleHotelId')}
         />
       </div>
 
