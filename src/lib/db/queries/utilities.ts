@@ -1,4 +1,4 @@
-import { eq, and, asc, desc, gte, lte, lt, sql } from 'drizzle-orm'
+import { eq, and, asc, desc, gte, lte, lt, sql, inArray } from 'drizzle-orm'
 import { db } from '..'
 import {
   utilityRateTiers,
@@ -247,6 +247,118 @@ export async function upsertOccupancy(data: {
     .returning()
 
   return row
+}
+
+// ---------------------------------------------------------------------------
+// Bulk import (admin backfill — bypasses entry-window & cumulative checks)
+// ---------------------------------------------------------------------------
+
+/** Which of the given dates already have a reading row for this property/utility. */
+export async function getExistingReadingDates(
+  propertyId: string,
+  utilityType: 'water' | 'electricity',
+  dates: string[]
+): Promise<Set<string>> {
+  if (dates.length === 0) return new Set()
+  const rows = await db
+    .select({ readingDate: utilityMeterReadings.readingDate })
+    .from(utilityMeterReadings)
+    .where(
+      and(
+        eq(utilityMeterReadings.propertyId, propertyId),
+        eq(utilityMeterReadings.utilityType, utilityType),
+        inArray(utilityMeterReadings.readingDate, dates)
+      )
+    )
+  return new Set(rows.map((r) => r.readingDate))
+}
+
+export interface BulkReadingRow {
+  readingDate: string
+  morning: string | null
+  evening: string | null
+  night: string | null
+  guestCount: number | null
+  staffCount: number | null
+  note: string | null
+}
+
+/**
+ * Bulk upsert meter readings (and optional occupancy) for one property/utility.
+ * Only non-null slots are written; existing slots are preserved on conflict.
+ * Occupancy is upserted only when at least one of guest/staff is provided
+ * (a blank counterpart defaults to 0). All writes run in a single transaction.
+ */
+export async function bulkUpsertReadings(
+  propertyId: string,
+  utilityType: 'water' | 'electricity',
+  rows: BulkReadingRow[],
+  recordedBy: string | null
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    for (const r of rows) {
+      const insertValues = {
+        propertyId,
+        utilityType,
+        readingDate: r.readingDate,
+        readingValue: r.morning,
+        eveningReading: r.evening,
+        nightReading: r.night,
+        morningStatus: (r.morning !== null ? 'manual' : null) as 'manual' | null,
+        eveningStatus: (r.evening !== null ? 'manual' : null) as 'manual' | null,
+        nightStatus: (r.night !== null ? 'manual' : null) as 'manual' | null,
+        note: r.note,
+        recordedBy,
+      }
+
+      const set: Record<string, unknown> = { updatedAt: new Date() }
+      if (r.morning !== null) {
+        set.readingValue = r.morning
+        set.morningStatus = 'manual'
+      }
+      if (r.evening !== null) {
+        set.eveningReading = r.evening
+        set.eveningStatus = 'manual'
+      }
+      if (r.night !== null) {
+        set.nightReading = r.night
+        set.nightStatus = 'manual'
+      }
+      if (r.note !== null) set.note = r.note
+
+      await tx
+        .insert(utilityMeterReadings)
+        .values(insertValues)
+        .onConflictDoUpdate({
+          target: [
+            utilityMeterReadings.propertyId,
+            utilityMeterReadings.utilityType,
+            utilityMeterReadings.readingDate,
+          ],
+          set,
+        })
+
+      if (r.guestCount !== null || r.staffCount !== null) {
+        const occSet: Record<string, unknown> = { updatedAt: new Date() }
+        if (r.guestCount !== null) occSet.guestCount = r.guestCount
+        if (r.staffCount !== null) occSet.staffCount = r.staffCount
+
+        await tx
+          .insert(dailyOccupancy)
+          .values({
+            propertyId,
+            logDate: r.readingDate,
+            guestCount: r.guestCount ?? 0,
+            staffCount: r.staffCount ?? 0,
+            recordedBy,
+          })
+          .onConflictDoUpdate({
+            target: [dailyOccupancy.propertyId, dailyOccupancy.logDate],
+            set: occSet,
+          })
+      }
+    }
+  })
 }
 
 // ---------------------------------------------------------------------------

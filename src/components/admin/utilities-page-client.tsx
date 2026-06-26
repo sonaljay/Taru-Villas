@@ -14,6 +14,7 @@ import { UtilityTierForm } from '@/components/admin/utility-tier-form'
 import { UtilityKpiBandsForm } from '@/components/admin/utility-kpi-bands-form'
 import { UtilitySlotConfigForm } from '@/components/admin/utility-slot-config-form'
 import { UtilityRangeSelector } from '@/components/admin/utility-range-selector'
+import { BulkImportCard } from '@/components/admin/bulk-import-card'
 
 interface UtilitiesPageClientProps {
   property: { id: string; name: string; code: string; slug: string }
@@ -189,6 +190,7 @@ export function UtilitiesPageClient({ property, isAdmin }: UtilitiesPageClientPr
                 .catch(() => {})
             }} />
           )}
+          <BulkImportCard type={utilityType} propertyId={property.id} onSuccess={fetchData} />
         </div>
       )}
     </div>

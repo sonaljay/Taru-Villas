@@ -1,4 +1,4 @@
-import { eq, and, asc, gte, lte, sql } from 'drizzle-orm'
+import { eq, and, asc, gte, lte, sql, inArray } from 'drizzle-orm'
 import { db } from '..'
 import { wasteLogs, profiles } from '../schema'
 import type { WasteLog } from '../schema'
@@ -103,6 +103,69 @@ export async function updateWasteLog(
 export async function deleteWasteLog(id: string): Promise<WasteLog> {
   const [deleted] = await db.delete(wasteLogs).where(eq(wasteLogs.id, id)).returning()
   return deleted
+}
+
+/** Which of the given dates already have a waste log for this property. */
+export async function getExistingWasteDates(
+  propertyId: string,
+  dates: string[]
+): Promise<Set<string>> {
+  if (dates.length === 0) return new Set()
+  const rows = await db
+    .select({ logDate: wasteLogs.logDate })
+    .from(wasteLogs)
+    .where(and(eq(wasteLogs.propertyId, propertyId), inArray(wasteLogs.logDate, dates)))
+  return new Set(rows.map((r) => r.logDate))
+}
+
+export interface BulkWasteRow {
+  logDate: string
+  paperKg: string
+  glassKg: string
+  plasticKg: string
+  foodKg: string
+  metalKg: string
+  electronicKg: string
+  note: string | null
+}
+
+/** Bulk upsert daily waste logs on (propertyId, logDate) in one transaction. */
+export async function bulkUpsertWasteLogs(
+  propertyId: string,
+  rows: BulkWasteRow[],
+  recordedBy: string | null
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    for (const r of rows) {
+      await tx
+        .insert(wasteLogs)
+        .values({
+          propertyId,
+          logDate: r.logDate,
+          paperKg: r.paperKg,
+          glassKg: r.glassKg,
+          plasticKg: r.plasticKg,
+          foodKg: r.foodKg,
+          metalKg: r.metalKg,
+          electronicKg: r.electronicKg,
+          note: r.note,
+          recordedBy,
+        })
+        .onConflictDoUpdate({
+          target: [wasteLogs.propertyId, wasteLogs.logDate],
+          set: {
+            paperKg: r.paperKg,
+            glassKg: r.glassKg,
+            plasticKg: r.plasticKg,
+            foodKg: r.foodKg,
+            metalKg: r.metalKg,
+            electronicKg: r.electronicKg,
+            note: r.note,
+            updatedAt: new Date(),
+          },
+        })
+    }
+  })
 }
 
 /** Per-category totals + grand total for a property/month. */
