@@ -80,6 +80,7 @@ export async function POST(request: NextRequest) {
         errors.push({ row: lineNo, message: `Duplicate date ${date} in file` })
         return
       }
+      seen.add(date)
 
       const parsedKg = KG_COLUMNS.map((c) => parseKg(row[c] ?? ''))
       const kgError = parsedKg.find((p) => p.error)?.error
@@ -94,7 +95,6 @@ export async function POST(request: NextRequest) {
         return
       }
 
-      seen.add(date)
       valid.push({
         logDate: date,
         paperKg: parsedKg[0].value,

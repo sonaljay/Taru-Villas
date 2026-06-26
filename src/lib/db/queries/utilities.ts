@@ -339,6 +339,10 @@ export async function bulkUpsertReadings(
         })
 
       if (r.guestCount !== null || r.staffCount !== null) {
+        const occSet: Record<string, unknown> = { updatedAt: new Date() }
+        if (r.guestCount !== null) occSet.guestCount = r.guestCount
+        if (r.staffCount !== null) occSet.staffCount = r.staffCount
+
         await tx
           .insert(dailyOccupancy)
           .values({
@@ -350,11 +354,7 @@ export async function bulkUpsertReadings(
           })
           .onConflictDoUpdate({
             target: [dailyOccupancy.propertyId, dailyOccupancy.logDate],
-            set: {
-              guestCount: r.guestCount ?? 0,
-              staffCount: r.staffCount ?? 0,
-              updatedAt: new Date(),
-            },
+            set: occSet,
           })
       }
     }

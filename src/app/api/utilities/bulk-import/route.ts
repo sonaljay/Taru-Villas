@@ -89,6 +89,7 @@ export async function POST(request: NextRequest) {
         errors.push({ row: lineNo, message: `Duplicate date ${date} in file` })
         return
       }
+      seen.add(date)
 
       const morning = parseValue(row['morning'] ?? row['reading'] ?? '')
       const evening = utilityType === 'electricity' ? parseValue(row['evening'] ?? '') : { value: null }
@@ -112,7 +113,6 @@ export async function POST(request: NextRequest) {
         return
       }
 
-      seen.add(date)
       valid.push({
         readingDate: date,
         morning: morning.value,
