@@ -1,9 +1,13 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useQueryState } from 'nuqs'
-import { ListTodo, LayoutGrid, List, Plus } from 'lucide-react'
+import { toast } from 'sonner'
+import { ListTodo, LayoutGrid, List, Plus, ChevronLeft, Pencil, Trash2 } from 'lucide-react'
 
+import type { Project } from '@/lib/db/schema'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -13,10 +17,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { TaskBoard } from './task-board'
 import { TaskList } from './task-list'
 import { TaskFormDialog } from './task-form-dialog'
-import { TasksAreaTabs } from './tasks-area-tabs'
+import { ProjectFormDialog } from './project-form-dialog'
 import { STATUSES, STATUS_META, PRIORITIES, PRIORITY_META } from './task-meta'
 import type { TaskWithRelations } from '@/lib/db/queries/tasks'
 
@@ -29,6 +43,9 @@ interface TasksPageClientProps {
   users: { id: string; fullName: string }[]
   currentUserId: string
   isAdmin: boolean
+  project: Project
+  projects: { id: string; name: string }[]
+  canDeleteProject: boolean
 }
 
 export function TasksPageClient({
@@ -38,7 +55,11 @@ export function TasksPageClient({
   users,
   currentUserId,
   isAdmin,
+  project,
+  projects,
+  canDeleteProject,
 }: TasksPageClientProps) {
+  const router = useRouter()
   const [view, setView] = useQueryState('view', { defaultValue: 'board' })
   const [search, setSearch] = useState('')
   const [propertyFilter, setPropertyFilter] = useState(NONE)
@@ -49,6 +70,10 @@ export function TasksPageClient({
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<TaskWithRelations | null>(null)
+
+  const [editProjectOpen, setEditProjectOpen] = useState(false)
+  const [showDeleteProject, setShowDeleteProject] = useState(false)
+  const [deleteProjectPending, setDeleteProjectPending] = useState(false)
 
   const filtered = useMemo(() => {
     return tasks.filter((t) => {
@@ -76,21 +101,56 @@ export function TasksPageClient({
     ? isAdmin || editingTask.createdBy === currentUserId
     : false
 
+  async function handleDeleteProject() {
+    setDeleteProjectPending(true)
+    try {
+      const res = await fetch(`/api/projects/${project.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const body: { error?: string } = await res.json().catch(() => ({}))
+        toast.error(body.error ?? 'Failed to delete project')
+        return
+      }
+      toast.success('Project deleted')
+      router.push('/tasks')
+    } catch {
+      toast.error('Failed to delete project')
+    } finally {
+      setDeleteProjectPending(false)
+      setShowDeleteProject(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Project header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Tasks</h1>
-          <p className="text-sm text-muted-foreground">Plan and track work across the team.</p>
+          <Link
+            href="/tasks"
+            className="mb-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ChevronLeft className="size-4" />
+            Projects
+          </Link>
+          <h1 className="text-2xl font-semibold tracking-tight">{project.name}</h1>
         </div>
-        <Button onClick={openNew}>
-          <Plus className="mr-1.5 size-4" />
-          New Task
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setEditProjectOpen(true)}>
+            <Pencil className="mr-1.5 size-4" />
+            Edit
+          </Button>
+          {canDeleteProject && (
+            <Button variant="destructive" size="sm" onClick={() => setShowDeleteProject(true)}>
+              <Trash2 className="mr-1.5 size-4" />
+              Delete
+            </Button>
+          )}
+          <Button onClick={openNew}>
+            <Plus className="mr-1.5 size-4" />
+            New Task
+          </Button>
+        </div>
       </div>
-
-      <TasksAreaTabs isAdmin={isAdmin} />
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2">
@@ -218,9 +278,39 @@ export function TasksPageClient({
         properties={properties}
         teams={teams}
         users={users}
+        projects={projects}
+        defaultProjectId={project.id}
         canDelete={canDelete}
         onSaved={() => setEditingTask(null)}
       />
+
+      <ProjectFormDialog
+        open={editProjectOpen}
+        onOpenChange={setEditProjectOpen}
+        project={project}
+        onSaved={() => {}}
+      />
+
+      <AlertDialog open={showDeleteProject} onOpenChange={setShowDeleteProject}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete &quot;{project.name}&quot;?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the project. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteProjectPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={handleDeleteProject}
+              disabled={deleteProjectPending}
+            >
+              {deleteProjectPending ? 'Deleting…' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

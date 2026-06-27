@@ -8,6 +8,7 @@ const createSchema = z.object({
   description: z.string().nullable().optional(),
   status: z.enum(['todo', 'in_progress', 'stuck', 'done']).optional(),
   priority: z.enum(['low', 'medium', 'high']).optional(),
+  projectId: z.string().uuid(),
   propertyId: z.string().uuid().nullable().optional(),
   dueDate: z.string().nullable().optional(),
   assigneeIds: z.array(z.string().uuid()).nullable().optional(),
@@ -23,6 +24,7 @@ export async function GET(request: NextRequest) {
     const statusParam = sp.get('status')
     const priorityParam = sp.get('priority')
     const filters: TaskFilters = {
+      projectId: sp.get('projectId') || undefined,
       propertyId: sp.get('propertyId') || undefined,
       status: (['todo', 'in_progress', 'stuck', 'done'].includes(statusParam || '') ? statusParam : undefined) as TaskFilters['status'],
       teamId: sp.get('teamId') || undefined,

@@ -60,6 +60,8 @@ export interface TaskFormDialogProps {
   properties: { id: string; name: string }[]
   teams: { id: string; name: string }[]
   users: { id: string; fullName: string }[]
+  projects: { id: string; name: string }[]
+  defaultProjectId?: string
   canDelete?: boolean
   onSaved: () => void
 }
@@ -69,6 +71,7 @@ type FormValues = {
   description: string
   status: TaskStatus
   priority: TaskPriority
+  projectId: string  // required; defaults to defaultProjectId
   propertyId: string // '' maps to null on submit
   dueDate: string    // '' maps to null on submit
 }
@@ -101,6 +104,8 @@ export function TaskFormDialog({
   properties,
   teams,
   users,
+  projects,
+  defaultProjectId,
   canDelete,
   onSaved,
 }: TaskFormDialogProps) {
@@ -124,6 +129,7 @@ export function TaskFormDialog({
       description: '',
       status: 'todo',
       priority: 'medium',
+      projectId: defaultProjectId ?? '',
       propertyId: '',
       dueDate: '',
     },
@@ -136,18 +142,23 @@ export function TaskFormDialog({
       description: task?.description ?? '',
       status: task?.status ?? 'todo',
       priority: task?.priority ?? 'medium',
+      projectId: task?.projectId ?? defaultProjectId ?? '',
       propertyId: task?.propertyId ?? '',
       dueDate: task?.dueDate ?? '',
     })
     setAssigneeIds(task?.assignees.map((a) => a.id) ?? [])
     setTeamIds(task?.teams.map((t) => t.id) ?? [])
-  }, [open, task?.id, reset])
+  }, [open, task?.id, defaultProjectId, reset])
 
   // -------------------------------------------------------------------------
   // Handlers
   // -------------------------------------------------------------------------
 
   async function onSubmit(values: FormValues) {
+    if (!values.projectId) {
+      toast.error('Project is required')
+      return
+    }
     setIsPending(true)
     try {
       const body = {
@@ -155,6 +166,7 @@ export function TaskFormDialog({
         description: values.description || null,
         status: values.status,
         priority: values.priority,
+        projectId: values.projectId,
         propertyId: values.propertyId || null,
         dueDate: values.dueDate || null,
         assigneeIds,
@@ -293,6 +305,31 @@ export function TaskFormDialog({
                   )}
                 />
               </div>
+            </div>
+
+            {/* Project */}
+            <div className="space-y-1.5">
+              <Label>
+                Project <span className="text-destructive">*</span>
+              </Label>
+              <Controller
+                control={control}
+                name="projectId"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projects.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
             </div>
 
             {/* Property */}
