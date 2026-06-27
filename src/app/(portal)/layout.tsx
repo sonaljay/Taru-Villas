@@ -24,7 +24,13 @@ export default async function PortalLayout({
         <AppSidebar />
         <SidebarInset>
           <Header />
-          <main className="flex-1 p-6">{children}</main>
+          <main className="relative flex-1 p-4 sm:p-6">
+            <div
+              aria-hidden
+              className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(120%_120%_at_50%_-10%,color-mix(in_oklch,var(--primary)_7%,transparent),transparent_55%)]"
+            />
+            {children}
+          </main>
         </SidebarInset>
       </SidebarProvider>
       <Toaster position="top-right" />
