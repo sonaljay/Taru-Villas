@@ -41,7 +41,7 @@ export const submissionStatusEnum = pgEnum('submission_status', [
 
 export const surveyTypeEnum = pgEnum('survey_type', ['internal', 'guest'])
 
-export const taskStatusEnum = pgEnum('task_status', [
+export const issueStatusEnum = pgEnum('issue_status', [
   'open',
   'investigating',
   'closed',
@@ -135,7 +135,7 @@ export const propertiesRelations = relations(properties, ({ one, many }) => ({
   }),
   propertyAssignments: many(propertyAssignments),
   surveySubmissions: many(surveySubmissions),
-  tasks: many(tasks),
+  issues: many(issues),
   excursions: many(excursions),
   menuCategories: many(menuCategories),
   sopAssignments: many(sopAssignments),
@@ -552,9 +552,9 @@ export const surveyResponsesRelations = relations(
 )
 
 // ---------------------------------------------------------------------------
-// Tasks (auto-created from low-score survey responses)
+// Issues (auto-created from low-score survey responses)
 // ---------------------------------------------------------------------------
-export const tasks = pgTable('tasks', {
+export const issues = pgTable('issues', {
   id: uuid('id').defaultRandom().primaryKey(),
   orgId: uuid('org_id')
     .notNull()
@@ -573,7 +573,7 @@ export const tasks = pgTable('tasks', {
     .references(() => surveyQuestions.id),
   title: text('title').notNull(),
   description: text('description'),
-  status: taskStatusEnum('status').default('open').notNull(),
+  status: issueStatusEnum('status').default('open').notNull(),
   assignedTo: uuid('assigned_to')
     .references(() => profiles.id, { onDelete: 'set null' }),
   isRepeatIssue: boolean('is_repeat_issue').default(false).notNull(),
@@ -585,36 +585,36 @@ export const tasks = pgTable('tasks', {
     .references(() => profiles.id, { onDelete: 'set null' }),
 })
 
-export const tasksRelations = relations(tasks, ({ one }) => ({
+export const issuesRelations = relations(issues, ({ one }) => ({
   organization: one(organizations, {
-    fields: [tasks.orgId],
+    fields: [issues.orgId],
     references: [organizations.id],
   }),
   property: one(properties, {
-    fields: [tasks.propertyId],
+    fields: [issues.propertyId],
     references: [properties.id],
   }),
   submission: one(surveySubmissions, {
-    fields: [tasks.submissionId],
+    fields: [issues.submissionId],
     references: [surveySubmissions.id],
   }),
   response: one(surveyResponses, {
-    fields: [tasks.responseId],
+    fields: [issues.responseId],
     references: [surveyResponses.id],
   }),
   question: one(surveyQuestions, {
-    fields: [tasks.questionId],
+    fields: [issues.questionId],
     references: [surveyQuestions.id],
   }),
   assignee: one(profiles, {
-    fields: [tasks.assignedTo],
+    fields: [issues.assignedTo],
     references: [profiles.id],
-    relationName: 'taskAssignee',
+    relationName: 'issueAssignee',
   }),
   closer: one(profiles, {
-    fields: [tasks.closedBy],
+    fields: [issues.closedBy],
     references: [profiles.id],
-    relationName: 'taskCloser',
+    relationName: 'issueCloser',
   }),
 }))
 
@@ -1175,8 +1175,8 @@ export type NewPreArrivalQuestion = typeof preArrivalQuestions.$inferInsert
 export type PreArrivalAnswer = typeof preArrivalAnswers.$inferSelect
 export type NewPreArrivalAnswer = typeof preArrivalAnswers.$inferInsert
 
-export type Task = typeof tasks.$inferSelect
-export type NewTask = typeof tasks.$inferInsert
+export type Issue = typeof issues.$inferSelect
+export type NewIssue = typeof issues.$inferInsert
 
 export type Excursion = typeof excursions.$inferSelect
 export type NewExcursion = typeof excursions.$inferInsert
