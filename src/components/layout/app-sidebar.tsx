@@ -177,7 +177,7 @@ export function AppSidebar() {
                     asChild
                     isActive={isActive(item.href)}
                     tooltip={item.title}
-                    className="h-9 rounded-lg transition-colors data-[active=true]:font-medium"
+                    className="h-9 rounded-lg transition-colors data-[active=true]:font-medium hover:bg-white/40 dark:hover:bg-white/5 data-[active=true]:bg-white/55 dark:data-[active=true]:bg-white/10 data-[active=true]:shadow-sm"
                   >
                     <Link href={item.href} onClick={() => setOpenMobile(false)}>
                       <item.icon className="size-4" />
