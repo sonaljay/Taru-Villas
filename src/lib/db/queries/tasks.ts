@@ -7,6 +7,7 @@ import {
 
 export interface TaskFilters {
   propertyId?: string
+  projectId?: string
   status?: 'todo' | 'in_progress' | 'stuck' | 'done'
   teamId?: string
   priority?: 'low' | 'medium' | 'high'
@@ -62,6 +63,7 @@ async function hydrate(rows: Task[]): Promise<TaskWithRelations[]> {
 export async function getTasks(orgId: string, filters: TaskFilters = {}): Promise<TaskWithRelations[]> {
   const conditions = [eq(tasks.orgId, orgId)]
   if (filters.propertyId) conditions.push(eq(tasks.propertyId, filters.propertyId))
+  if (filters.projectId) conditions.push(eq(tasks.projectId, filters.projectId))
   if (filters.status) conditions.push(eq(tasks.status, filters.status))
   if (filters.priority) conditions.push(eq(tasks.priority, filters.priority))
   if (filters.search) conditions.push(ilike(tasks.title, `%${filters.search}%`))
