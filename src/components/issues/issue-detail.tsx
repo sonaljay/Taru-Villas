@@ -41,7 +41,7 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
-interface TaskDetailData {
+interface IssueDetailData {
   id: string
   title: string
   description: string | null
@@ -59,8 +59,8 @@ interface TaskDetailData {
   closedAt: Date | string | null
 }
 
-interface TaskDetailProps {
-  task: TaskDetailData
+interface IssueDetailProps {
+  issue: IssueDetailData
   backHref?: string
 }
 
@@ -112,7 +112,7 @@ function ScoreBadge({ score }: { score: number }) {
 // Component
 // ---------------------------------------------------------------------------
 
-export function TaskDetail({ task, backHref = '/tasks' }: TaskDetailProps) {
+export function IssueDetail({ issue, backHref = '/issues' }: IssueDetailProps) {
   const router = useRouter()
   const [isUpdating, setIsUpdating] = useState(false)
   const [closingNotes, setClosingNotes] = useState('')
@@ -126,7 +126,7 @@ export function TaskDetail({ task, backHref = '/tasks' }: TaskDetailProps) {
 
     setIsUpdating(true)
     try {
-      const res = await fetch(`/api/tasks/${task.id}`, {
+      const res = await fetch(`/api/issues/${issue.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -137,27 +137,27 @@ export function TaskDetail({ task, backHref = '/tasks' }: TaskDetailProps) {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        throw new Error(data.error ?? 'Failed to update task')
+        throw new Error(data.error ?? 'Failed to update issue')
       }
 
       toast.success(
         newStatus === 'investigating'
-          ? 'Task marked as investigating'
-          : 'Task closed'
+          ? 'Issue marked as investigating'
+          : 'Issue closed'
       )
       setShowCloseDialog(false)
       router.refresh()
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : 'Failed to update task'
+        error instanceof Error ? error.message : 'Failed to update issue'
       )
     } finally {
       setIsUpdating(false)
     }
   }
 
-  const canInvestigate = task.status === 'open'
-  const canClose = task.status === 'open' || task.status === 'investigating'
+  const canInvestigate = issue.status === 'open'
+  const canClose = issue.status === 'open' || issue.status === 'investigating'
 
   return (
     <div className="space-y-6">
@@ -165,7 +165,7 @@ export function TaskDetail({ task, backHref = '/tasks' }: TaskDetailProps) {
       <Button variant="ghost" size="sm" asChild>
         <Link href={backHref}>
           <ArrowLeft className="size-4" />
-          Back to Tasks
+          Back to Issues
         </Link>
       </Button>
 
@@ -173,15 +173,15 @@ export function TaskDetail({ task, backHref = '/tasks' }: TaskDetailProps) {
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-2">
           <div className="flex items-center gap-3 flex-wrap">
-            <StatusBadge status={task.status} />
-            {task.isRepeatIssue && (
+            <StatusBadge status={issue.status} />
+            {issue.isRepeatIssue && (
               <Badge variant="destructive" className="gap-1">
                 <RotateCcw className="size-3" />
                 Repeat Issue
               </Badge>
             )}
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">{task.title}</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{issue.title}</h1>
         </div>
       </div>
 
@@ -198,7 +198,7 @@ export function TaskDetail({ task, backHref = '/tasks' }: TaskDetailProps) {
             </CardHeader>
             <CardContent>
               <p className="text-sm leading-relaxed">
-                {task.description || 'No description provided.'}
+                {issue.description || 'No description provided.'}
               </p>
             </CardContent>
           </Card>
@@ -209,27 +209,27 @@ export function TaskDetail({ task, backHref = '/tasks' }: TaskDetailProps) {
               <CardTitle className="text-base">Survey Question</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-sm">{task.questionText}</p>
+              <p className="text-sm">{issue.questionText}</p>
               <div className="flex items-center gap-3">
                 <span className="text-sm text-muted-foreground">Score:</span>
-                <ScoreBadge score={task.responseScore} />
+                <ScoreBadge score={issue.responseScore} />
               </div>
             </CardContent>
           </Card>
 
           {/* Closing notes (if closed) */}
-          {task.status === 'closed' && task.closingNotes && (
+          {issue.status === 'closed' && issue.closingNotes && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Closing Notes</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <p className="text-sm leading-relaxed">{task.closingNotes}</p>
-                {task.closerName && (
+                <p className="text-sm leading-relaxed">{issue.closingNotes}</p>
+                {issue.closerName && (
                   <p className="text-xs text-muted-foreground">
-                    Closed by {task.closerName}
-                    {task.closedAt &&
-                      ` on ${format(new Date(task.closedAt), 'MMM d, yyyy')}`}
+                    Closed by {issue.closerName}
+                    {issue.closedAt &&
+                      ` on ${format(new Date(issue.closedAt), 'MMM d, yyyy')}`}
                   </p>
                 )}
               </CardContent>
@@ -257,12 +257,12 @@ export function TaskDetail({ task, backHref = '/tasks' }: TaskDetailProps) {
                   <AlertDialog open={showCloseDialog} onOpenChange={setShowCloseDialog}>
                     <AlertDialogTrigger asChild>
                       <Button disabled={isUpdating}>
-                        Close Task
+                        Close Issue
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Close Task</AlertDialogTitle>
+                        <AlertDialogTitle>Close Issue</AlertDialogTitle>
                         <AlertDialogDescription>
                           Please provide closing notes explaining how this issue was resolved.
                         </AlertDialogDescription>
@@ -280,7 +280,7 @@ export function TaskDetail({ task, backHref = '/tasks' }: TaskDetailProps) {
                           onClick={() => handleStatusUpdate('closed')}
                           disabled={isUpdating || !closingNotes.trim()}
                         >
-                          {isUpdating ? 'Closing...' : 'Close Task'}
+                          {isUpdating ? 'Closing...' : 'Close Issue'}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
@@ -299,7 +299,7 @@ export function TaskDetail({ task, backHref = '/tasks' }: TaskDetailProps) {
                 <Building2 className="size-4 text-muted-foreground shrink-0" />
                 <div>
                   <div className="text-xs text-muted-foreground">Property</div>
-                  <div className="text-sm font-medium">{task.propertyName}</div>
+                  <div className="text-sm font-medium">{issue.propertyName}</div>
                 </div>
               </div>
 
@@ -310,7 +310,7 @@ export function TaskDetail({ task, backHref = '/tasks' }: TaskDetailProps) {
                 <div>
                   <div className="text-xs text-muted-foreground">Assigned To</div>
                   <div className="text-sm font-medium">
-                    {task.assigneeName ?? 'Unassigned'}
+                    {issue.assigneeName ?? 'Unassigned'}
                   </div>
                 </div>
               </div>
@@ -322,7 +322,7 @@ export function TaskDetail({ task, backHref = '/tasks' }: TaskDetailProps) {
                 <div>
                   <div className="text-xs text-muted-foreground">Created</div>
                   <div className="text-sm font-medium">
-                    {format(new Date(task.createdAt), 'MMM d, yyyy')}
+                    {format(new Date(issue.createdAt), 'MMM d, yyyy')}
                   </div>
                 </div>
               </div>
@@ -333,9 +333,9 @@ export function TaskDetail({ task, backHref = '/tasks' }: TaskDetailProps) {
                 <FileText className="size-4 text-muted-foreground shrink-0" />
                 <div>
                   <div className="text-xs text-muted-foreground">Submission</div>
-                  {task.submissionSlug ? (
+                  {issue.submissionSlug ? (
                     <Link
-                      href={`/surveys/${task.submissionId}`}
+                      href={`/surveys/${issue.submissionId}`}
                       className="text-sm font-medium text-primary hover:underline"
                     >
                       View Survey

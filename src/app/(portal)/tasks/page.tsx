@@ -1,31 +1,30 @@
-import { requireRole } from '@/lib/auth/guards'
-import { getTasksForAdmin, getTasksForUser } from '@/lib/db/queries/tasks'
-import { getAllProperties, getPropertiesForUser } from '@/lib/db/queries/properties'
+import { requireAuth } from '@/lib/auth/guards'
+import { getTasks, getTaskTeams } from '@/lib/db/queries/tasks'
+import { getAllProperties } from '@/lib/db/queries/properties'
+import { getProfiles } from '@/lib/db/queries/profiles'
 import { TasksPageClient } from '@/components/tasks/tasks-page-client'
 
-export const metadata = {
-  title: 'Tasks | Taru Villas',
-}
+export const dynamic = 'force-dynamic'
 
 export default async function TasksPage() {
-  const profile = await requireRole(['admin', 'property_manager'])
+  const profile = await requireAuth()
+  if (!profile) return null
 
-  const isAdmin = profile.role === 'admin'
-
-  const [tasks, properties] = await Promise.all([
-    isAdmin
-      ? getTasksForAdmin(profile.orgId)
-      : getTasksForUser(profile.id),
-    isAdmin
-      ? getAllProperties(profile.orgId)
-      : getPropertiesForUser(profile.id),
+  const [tasks, teams, properties, users] = await Promise.all([
+    getTasks(profile.orgId),
+    getTaskTeams(profile.orgId),
+    getAllProperties(profile.orgId),
+    getProfiles(profile.orgId),
   ])
 
   return (
     <TasksPageClient
       tasks={tasks}
+      teams={teams}
       properties={properties.map((p) => ({ id: p.id, name: p.name }))}
-      isAdmin={isAdmin}
+      users={users.map((u) => ({ id: u.id, fullName: u.fullName }))}
+      currentUserId={profile.id}
+      isAdmin={profile.role === 'admin'}
     />
   )
 }

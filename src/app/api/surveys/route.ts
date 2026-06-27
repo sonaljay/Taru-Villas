@@ -7,7 +7,7 @@ import {
   getTemplateById,
   type SubmissionFilters,
 } from '@/lib/db/queries/surveys'
-import { createTasksFromSubmission } from '@/lib/db/queries/tasks'
+import { createIssuesFromSubmission } from '@/lib/db/queries/issues'
 
 // ---------------------------------------------------------------------------
 // Validation
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
               }))
 
             if (taskResponses.length > 0) {
-              await createTasksFromSubmission(
+              await createIssuesFromSubmission(
                 submission.id,
                 profile.orgId,
                 propertyId,
@@ -145,9 +145,9 @@ export async function POST(request: NextRequest) {
             }
           }
         }
-      } catch (taskError) {
-        console.error('Failed to create tasks from submission:', taskError)
-        // Don't fail the submission — tasks are a side effect
+      } catch (issueError) {
+        console.error('Failed to create issues from submission:', issueError)
+        // Don't fail the submission — issues are a side effect
       }
     }
 

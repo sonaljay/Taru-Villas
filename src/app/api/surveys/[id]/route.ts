@@ -8,7 +8,7 @@ import {
   submitSubmission,
   deleteSubmission,
 } from '@/lib/db/queries/surveys'
-import { createTasksFromSubmission } from '@/lib/db/queries/tasks'
+import { createIssuesFromSubmission } from '@/lib/db/queries/issues'
 
 // ---------------------------------------------------------------------------
 // Validation
@@ -283,7 +283,7 @@ export async function POST(
           }))
 
         if (lowScoreResponses.length > 0) {
-          await createTasksFromSubmission(
+          await createIssuesFromSubmission(
             id,
             profile.orgId,
             existing.propertyId,
@@ -291,8 +291,8 @@ export async function POST(
           )
         }
       }
-    } catch (taskError) {
-      console.error('Failed to create tasks from submission:', taskError)
+    } catch (issueError) {
+      console.error('Failed to create issues from submission:', issueError)
     }
 
     return NextResponse.json(submitted)

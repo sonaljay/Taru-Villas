@@ -1,58 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getProfile, getUserProperties } from '@/lib/auth/guards'
-import {
-  getTasksForAdmin,
-  getTasksForUser,
-  type TaskFilters,
-} from '@/lib/db/queries/tasks'
+import { z } from 'zod'
+import { getProfile } from '@/lib/auth/guards'
+import { getTasks, createTask, type TaskFilters } from '@/lib/db/queries/tasks'
 
-// ---------------------------------------------------------------------------
-// GET /api/tasks — List tasks with filters
-// ---------------------------------------------------------------------------
+const createSchema = z.object({
+  title: z.string().min(1, 'Title is required'),
+  description: z.string().nullable().optional(),
+  status: z.enum(['todo', 'in_progress', 'stuck', 'done']).optional(),
+  priority: z.enum(['low', 'medium', 'high']).optional(),
+  propertyId: z.string().uuid().nullable().optional(),
+  dueDate: z.string().nullable().optional(),
+  assigneeIds: z.array(z.string().uuid()).nullable().optional(),
+  teamIds: z.array(z.string().uuid()).nullable().optional(),
+})
 
 export async function GET(request: NextRequest) {
   try {
     const profile = await getProfile()
-    if (!profile) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!profile.isActive) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const sp = new URL(request.url).searchParams
+    const statusParam = sp.get('status')
+    const priorityParam = sp.get('priority')
+    const filters: TaskFilters = {
+      propertyId: sp.get('propertyId') || undefined,
+      status: (['todo', 'in_progress', 'stuck', 'done'].includes(statusParam || '') ? statusParam : undefined) as TaskFilters['status'],
+      teamId: sp.get('teamId') || undefined,
+      priority: (['low', 'medium', 'high'].includes(priorityParam || '') ? priorityParam : undefined) as TaskFilters['priority'],
+      assigneeId: sp.get('assigneeId') || undefined,
+      search: sp.get('search') || undefined,
     }
-    if (!profile.isActive) {
-      return NextResponse.json({ error: 'Account is inactive' }, { status: 403 })
-    }
-
-    // Staff cannot access tasks
-    if (profile.role === 'staff') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const { searchParams } = new URL(request.url)
-    const filters: TaskFilters = {}
-
-    const propertyId = searchParams.get('propertyId')
-    if (propertyId) filters.propertyId = propertyId
-
-    const status = searchParams.get('status') as TaskFilters['status'] | null
-    if (status && ['open', 'investigating', 'closed'].includes(status)) {
-      filters.status = status
-    }
-
-    const repeatIssue = searchParams.get('isRepeatIssue')
-    if (repeatIssue === 'true') filters.isRepeatIssue = true
-    if (repeatIssue === 'false') filters.isRepeatIssue = false
-
-    let tasks
-    if (profile.role === 'admin') {
-      tasks = await getTasksForAdmin(profile.orgId, filters)
-    } else {
-      tasks = await getTasksForUser(profile.id, filters)
-    }
-
-    return NextResponse.json(tasks)
+    const items = await getTasks(profile.orgId, filters)
+    return NextResponse.json(items)
   } catch (error) {
     console.error('GET /api/tasks error:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch tasks' },
-      { status: 500 }
+    return NextResponse.json({ error: 'Failed to fetch' }, { status: 500 })
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const profile = await getProfile()
+    if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!profile.isActive) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const parsed = createSchema.safeParse(await request.json())
+    if (!parsed.success)
+      return NextResponse.json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors }, { status: 400 })
+    const { assigneeIds, teamIds, ...fields } = parsed.data
+    const task = await createTask(
+      { ...fields, orgId: profile.orgId, createdBy: profile.id, dueDate: fields.dueDate ?? null, propertyId: fields.propertyId ?? null },
+      assigneeIds ?? [], teamIds ?? [],
     )
+    return NextResponse.json(task, { status: 201 })
+  } catch (error) {
+    console.error('POST /api/tasks error:', error)
+    return NextResponse.json({ error: 'Failed to create' }, { status: 500 })
   }
 }
