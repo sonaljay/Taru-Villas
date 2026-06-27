@@ -161,7 +161,7 @@ export function TaskFormDialog({
         teamIds,
       }
 
-      const url = isEditing ? `/api/tasks/${task.id}` : '/api/tasks'
+      const url = task ? `/api/tasks/${task.id}` : '/api/tasks'
       const method = isEditing ? 'PATCH' : 'POST'
 
       const res = await fetch(url, {
