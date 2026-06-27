@@ -32,6 +32,8 @@ const segmentLabels: Record<string, string> = {
   utilities: 'Meter Readings',
   waste: 'Daily Wastage',
   'guest-profiles': 'Guest Profiles',
+  tasks: 'Tasks',
+  teams: 'Teams',
 }
 
 function getPageTitle(pathname: string): string {
