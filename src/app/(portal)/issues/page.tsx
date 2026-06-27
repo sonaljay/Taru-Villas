@@ -1,31 +1,34 @@
 import { requireRole } from '@/lib/auth/guards'
-import { getTasksForAdmin, getTasksForUser } from '@/lib/db/queries/tasks'
+import { getIssuesForAdmin, getIssuesForUser } from '@/lib/db/queries/issues'
 import { getAllProperties, getPropertiesForUser } from '@/lib/db/queries/properties'
-import { TasksPageClient } from '@/components/tasks/tasks-page-client'
+import { IssuesPageClient } from '@/components/issues/issues-page-client'
 
 export const metadata = {
-  title: 'Tasks | Taru Villas',
+  title: 'Issues | Taru Villas',
 }
 
-export default async function TasksPage() {
+export const dynamic = 'force-dynamic'
+
+export default async function IssuesPage() {
   const profile = await requireRole(['admin', 'property_manager'])
 
   const isAdmin = profile.role === 'admin'
 
-  const [tasks, properties] = await Promise.all([
+  const [issueRows, properties] = await Promise.all([
     isAdmin
-      ? getTasksForAdmin(profile.orgId)
-      : getTasksForUser(profile.id),
+      ? getIssuesForAdmin(profile.orgId)
+      : getIssuesForUser(profile.id),
     isAdmin
       ? getAllProperties(profile.orgId)
       : getPropertiesForUser(profile.id),
   ])
 
   return (
-    <TasksPageClient
-      tasks={tasks}
+    <IssuesPageClient
+      issues={issueRows}
       properties={properties.map((p) => ({ id: p.id, name: p.name }))}
       isAdmin={isAdmin}
+      basePath="/issues"
     />
   )
 }
