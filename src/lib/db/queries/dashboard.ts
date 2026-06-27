@@ -176,6 +176,7 @@ export async function getAllPropertyScores(
 ): Promise<PropertyScore[]> {
   const conditions = [
     eq(properties.orgId, orgId),
+    eq(properties.isActive, true),
     eq(surveySubmissions.status, 'submitted'),
     ...dateRangeConditions(dateRange),
     ...surveyTypeCondition(surveyType),
@@ -480,6 +481,7 @@ export async function getSurveysThisMonth(
 
   const conditions = [
     eq(properties.orgId, orgId),
+    eq(properties.isActive, true),
     eq(surveySubmissions.status, 'submitted'),
     gte(surveySubmissions.visitDate, monthStart),
     ...surveyTypeCondition(surveyType),
@@ -513,6 +515,7 @@ export async function getLastSurveyDates(
 ): Promise<Map<string, string>> {
   const conditions = [
     eq(properties.orgId, orgId),
+    eq(properties.isActive, true),
     eq(surveySubmissions.status, 'submitted'),
     ...surveyTypeCondition(surveyType),
   ]
@@ -558,6 +561,7 @@ export async function getSparklines(
 
   const conditions = [
     eq(properties.orgId, orgId),
+    eq(properties.isActive, true),
     eq(surveySubmissions.status, 'submitted'),
     gte(surveySubmissions.visitDate, cutoff),
     ...surveyTypeCondition(surveyType),
@@ -670,6 +674,7 @@ export async function getOrgTrends(
 
   const conditions = [
     eq(properties.orgId, orgId),
+    eq(properties.isActive, true),
     eq(surveySubmissions.status, 'submitted'),
     gte(surveySubmissions.visitDate, cutoff),
     ...surveyTypeCondition(surveyType),
@@ -751,7 +756,7 @@ export async function getOrgUtilityKpiRollup(
   const props = await db
     .select({ id: properties.id, name: properties.name })
     .from(properties)
-    .where(eq(properties.orgId, orgId))
+    .where(and(eq(properties.orgId, orgId), eq(properties.isActive, true)))
     .orderBy(asc(properties.name))
 
   const rollup: PropertyKpiRollup[] = []

@@ -257,11 +257,15 @@ export function DashboardOverview({
             Quality scores overview across all properties
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <Tabs value={surveyType} onValueChange={handleSurveyTypeChange}>
-            <TabsList>
-              <TabsTrigger value="internal">Internal</TabsTrigger>
-              <TabsTrigger value="guest">Guest</TabsTrigger>
+            <TabsList className="w-full sm:w-auto">
+              <TabsTrigger value="internal" className="flex-1 sm:flex-none">
+                Internal
+              </TabsTrigger>
+              <TabsTrigger value="guest" className="flex-1 sm:flex-none">
+                Guest
+              </TabsTrigger>
             </TabsList>
           </Tabs>
           <DateFilter onChange={handleDateChange} />

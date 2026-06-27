@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 interface DailyData {
   date: string
@@ -50,6 +51,8 @@ export function UtilityCharts({
   utilityType,
   loading,
 }: UtilityChartsProps) {
+  const isMobile = useIsMobile()
+  const chartHeight = isMobile ? 200 : 250
   const unit = utilityType === 'water' ? 'kL' : 'kWh'
   const color = utilityType === 'water' ? 'var(--chart-1)' : 'var(--chart-3)'
 
@@ -76,24 +79,25 @@ export function UtilityCharts({
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex items-center justify-center h-[250px] text-sm text-muted-foreground">
+            <div className="flex items-center justify-center h-[200px] sm:h-[250px] text-sm text-muted-foreground">
               Loading...
             </div>
           ) : dailyData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={250}>
+            <ResponsiveContainer width="100%" height={chartHeight}>
               <AreaChart data={dailyData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis
                   dataKey="date"
-                  tick={{ fontSize: 12 }}
+                  tick={{ fontSize: isMobile ? 10 : 12 }}
                   tickLine={false}
                   axisLine={false}
+                  minTickGap={isMobile ? 24 : 8}
                 />
                 <YAxis
-                  tick={{ fontSize: 12 }}
+                  tick={{ fontSize: isMobile ? 10 : 12 }}
                   tickLine={false}
                   axisLine={false}
-                  width={50}
+                  width={isMobile ? 36 : 50}
                 />
                 <Tooltip
                   formatter={(value: unknown) => {
@@ -112,7 +116,7 @@ export function UtilityCharts({
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-[250px] text-sm text-muted-foreground">
+            <div className="flex items-center justify-center h-[200px] sm:h-[250px] text-sm text-muted-foreground">
               Not enough data — enter at least 2 readings
             </div>
           )}
@@ -126,24 +130,25 @@ export function UtilityCharts({
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex items-center justify-center h-[250px] text-sm text-muted-foreground">
+            <div className="flex items-center justify-center h-[200px] sm:h-[250px] text-sm text-muted-foreground">
               Loading...
             </div>
           ) : monthlyData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={250}>
+            <ResponsiveContainer width="100%" height={chartHeight}>
               <BarChart data={monthlyData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis
                   dataKey="month"
-                  tick={{ fontSize: 12 }}
+                  tick={{ fontSize: isMobile ? 10 : 12 }}
                   tickLine={false}
                   axisLine={false}
+                  minTickGap={isMobile ? 16 : 8}
                 />
                 <YAxis
-                  tick={{ fontSize: 12 }}
+                  tick={{ fontSize: isMobile ? 10 : 12 }}
                   tickLine={false}
                   axisLine={false}
-                  width={50}
+                  width={isMobile ? 36 : 50}
                 />
                 <Tooltip
                   formatter={(value: unknown) => {
@@ -159,7 +164,7 @@ export function UtilityCharts({
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-[250px] text-sm text-muted-foreground">
+            <div className="flex items-center justify-center h-[200px] sm:h-[250px] text-sm text-muted-foreground">
               No historical data yet
             </div>
           )}

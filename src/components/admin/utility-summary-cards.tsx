@@ -149,26 +149,32 @@ export function UtilitySummaryCards({
             <Target className="size-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {loading
-                ? '—'
-                : current?.kpiPct != null
-                  ? `${current.kpiPct.toFixed(0)}%`
-                  : 'No KPI set'}
+            <div className="flex items-baseline gap-1.5">
+              <div className="text-2xl font-bold">
+                {loading
+                  ? '—'
+                  : current?.kpiPct != null
+                    ? `${current.kpiPct.toFixed(0)}%`
+                    : 'No KPI set'}
+              </div>
+              {!loading && current?.kpiPct != null && (
+                <span className="text-xs text-muted-foreground">
+                  of days
+                </span>
+              )}
             </div>
             {!loading && current?.kpiPct != null && (
-              <div className="mt-1 flex items-center gap-2">
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                 <Delta
                   pct={deltas?.kpiDeltaPp ?? null}
                   goodWhenDown={false}
                   suffix=" pp"
                 />
-                {current.kpiEvaluatedDays > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    {current.kpiEvaluatedDays} day
-                    {current.kpiEvaluatedDays === 1 ? '' : 's'} evaluated
-                  </p>
-                )}
+                <p className="text-xs text-muted-foreground">
+                  hit target{current.kpiEvaluatedDays > 0
+                    ? ` · ${current.kpiEvaluatedDays} day${current.kpiEvaluatedDays === 1 ? '' : 's'} evaluated`
+                    : ''}
+                </p>
               </div>
             )}
           </CardContent>

@@ -11,6 +11,7 @@ import {
   Cell,
 } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 interface ComparisonDataPoint {
   name: string
@@ -65,6 +66,9 @@ export function ComparisonChart({
   height = 350,
   className,
 }: ComparisonChartProps) {
+  const isMobile = useIsMobile()
+  const chartHeight = isMobile ? 280 : height
+
   if (!data || data.length === 0) {
     return (
       <Card className={className}>
@@ -76,7 +80,7 @@ export function ComparisonChart({
         <CardContent>
           <div
             className="flex items-center justify-center text-sm text-muted-foreground"
-            style={{ height }}
+            style={{ height: chartHeight }}
           >
             No data available
           </div>
@@ -95,11 +99,11 @@ export function ComparisonChart({
         </CardHeader>
       )}
       <CardContent>
-        <ResponsiveContainer width="100%" height={height}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <BarChart
             data={sortedData}
             layout="vertical"
-            margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+            margin={{ top: 5, right: isMobile ? 12 : 30, left: 0, bottom: 5 }}
           >
             <CartesianGrid
               strokeDasharray="3 3"
@@ -109,7 +113,7 @@ export function ComparisonChart({
             <XAxis
               type="number"
               domain={[0, 100]}
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: isMobile ? 10 : 12 }}
               tickLine={false}
               axisLine={false}
               className="fill-muted-foreground"
@@ -117,14 +121,18 @@ export function ComparisonChart({
             <YAxis
               type="category"
               dataKey="name"
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: isMobile ? 10 : 12 }}
               tickLine={false}
               axisLine={false}
-              width={120}
+              width={isMobile ? 78 : 120}
               className="fill-muted-foreground"
             />
             <Tooltip content={<CustomTooltip />} />
-            <Bar dataKey="score" radius={[0, 4, 4, 0]} barSize={24}>
+            <Bar
+              dataKey="score"
+              radius={[0, 4, 4, 0]}
+              barSize={isMobile ? 16 : 24}
+            >
               {sortedData.map((entry) => (
                 <Cell key={entry.name} fill={getBarColor(entry.score)} />
               ))}

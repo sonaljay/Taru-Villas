@@ -11,6 +11,7 @@ import {
   Legend,
 } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 interface LineConfig {
   key: string
@@ -75,6 +76,9 @@ export function TrendChart({
   height = 350,
   className,
 }: TrendChartProps) {
+  const isMobile = useIsMobile()
+  const chartHeight = isMobile ? 240 : height
+
   if (!data || data.length === 0) {
     return (
       <Card className={className}>
@@ -86,7 +90,7 @@ export function TrendChart({
         <CardContent>
           <div
             className="flex items-center justify-center text-sm text-muted-foreground"
-            style={{ height }}
+            style={{ height: chartHeight }}
           >
             No data available
           </div>
@@ -103,7 +107,7 @@ export function TrendChart({
         </CardHeader>
       )}
       <CardContent>
-        <ResponsiveContainer width="100%" height={height}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <LineChart
             data={data}
             margin={{ top: 5, right: 10, left: -10, bottom: 5 }}
@@ -115,14 +119,16 @@ export function TrendChart({
             />
             <XAxis
               dataKey="date"
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: isMobile ? 10 : 12 }}
               tickLine={false}
               axisLine={false}
+              minTickGap={isMobile ? 24 : 8}
               className="fill-muted-foreground"
             />
             <YAxis
               domain={[0, 100]}
-              tick={{ fontSize: 12 }}
+              width={isMobile ? 28 : 40}
+              tick={{ fontSize: isMobile ? 10 : 12 }}
               tickLine={false}
               axisLine={false}
               className="fill-muted-foreground"
@@ -131,7 +137,10 @@ export function TrendChart({
             <Legend
               iconType="circle"
               iconSize={8}
-              wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }}
+              wrapperStyle={{
+                fontSize: isMobile ? '10px' : '12px',
+                paddingTop: '8px',
+              }}
             />
             {lines.map((line, i) => (
               <Line

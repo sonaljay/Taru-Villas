@@ -32,10 +32,10 @@ export function PropertySwitcher() {
   if (!isAdmin && properties.length === 1) {
     const prop = properties[0]
     return (
-      <div className="flex items-center gap-2 text-sm">
-        <Building2 className="size-4 text-muted-foreground" />
-        <span className="font-medium">{prop.propertyName}</span>
-        <Badge variant="outline" className="text-[10px] font-normal">
+      <div className="flex min-w-0 items-center gap-2 text-sm">
+        <Building2 className="size-4 shrink-0 text-muted-foreground" />
+        <span className="truncate font-medium">{prop.propertyName}</span>
+        <Badge variant="outline" className="hidden text-[10px] font-normal sm:inline-flex">
           {prop.propertyCode}
         </Badge>
       </div>
@@ -47,9 +47,9 @@ export function PropertySwitcher() {
       value={propertyId}
       onValueChange={(value) => setPropertyId(value === 'all' ? '' : value)}
     >
-      <SelectTrigger className="w-[200px]" size="sm">
-        <div className="flex items-center gap-2">
-          <Building2 className="size-4 text-muted-foreground" />
+      <SelectTrigger className="w-[140px] sm:w-[200px]" size="sm">
+        <div className="flex min-w-0 items-center gap-2">
+          <Building2 className="size-4 shrink-0 text-muted-foreground" />
           <SelectValue placeholder="All Properties" />
         </div>
       </SelectTrigger>

@@ -219,10 +219,11 @@ export function UtilitiesPageClient({ property, isAdmin }: UtilitiesPageClientPr
         </div>
 
         {/* Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-2">
           <Button
             variant="outline"
             size="sm"
+            className="w-full justify-center sm:w-auto"
             onClick={() => {
               const url = `${window.location.origin}/u/${property.slug}`
               navigator.clipboard.writeText(url)

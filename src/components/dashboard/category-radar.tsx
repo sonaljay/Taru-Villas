@@ -10,6 +10,7 @@ import {
   Tooltip,
 } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 interface RadarDataPoint {
   category: string
@@ -55,6 +56,9 @@ export function CategoryRadar({
   height = 350,
   className,
 }: CategoryRadarProps) {
+  const isMobile = useIsMobile()
+  const chartHeight = isMobile ? 280 : height
+
   if (!data || data.length === 0) {
     return (
       <Card className={className}>
@@ -66,7 +70,7 @@ export function CategoryRadar({
         <CardContent>
           <div
             className="flex items-center justify-center text-sm text-muted-foreground"
-            style={{ height }}
+            style={{ height: chartHeight }}
           >
             No data available
           </div>
@@ -83,12 +87,17 @@ export function CategoryRadar({
         </CardHeader>
       )}
       <CardContent>
-        <ResponsiveContainer width="100%" height={height}>
-          <RadarChart cx="50%" cy="50%" outerRadius="70%" data={data}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
+          <RadarChart
+            cx="50%"
+            cy="50%"
+            outerRadius={isMobile ? '62%' : '70%'}
+            data={data}
+          >
             <PolarGrid className="stroke-border" />
             <PolarAngleAxis
               dataKey="category"
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: isMobile ? 10 : 12 }}
               className="fill-muted-foreground"
             />
             <PolarRadiusAxis

@@ -144,13 +144,15 @@ export function AppSidebar() {
     <Sidebar collapsible="icon">
       {/* ---- Brand Header ---- */}
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-3">
-          <img
-            src="/TVPL.png"
-            alt="Taru Villas logo"
-            className="size-8 shrink-0"
-          />
-          <div className="flex flex-col gap-0.5 leading-none">
+        <div className="flex items-center gap-2.5 px-1.5 py-2.5">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/10">
+            <img
+              src="/TVPL.png"
+              alt="Taru Villas logo"
+              className="size-6"
+            />
+          </div>
+          <div className="flex flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
             <span className="font-semibold tracking-tight">Taru Villas</span>
             <span className="text-[11px] text-muted-foreground">
               Management Portal
@@ -173,6 +175,7 @@ export function AppSidebar() {
                     asChild
                     isActive={isActive(item.href)}
                     tooltip={item.title}
+                    className="h-9 rounded-lg transition-colors data-[active=true]:font-medium"
                   >
                     <Link href={item.href} onClick={() => setOpenMobile(false)}>
                       <item.icon className="size-4" />
