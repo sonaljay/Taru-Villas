@@ -1245,6 +1245,7 @@ export const taskTeams = pgTable('task_teams', {
 export const tasks = pgTable('tasks', {
   id: uuid('id').defaultRandom().primaryKey(),
   orgId: uuid('org_id').notNull().references(() => organizations.id),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'restrict' }),
   title: text('title').notNull(),
   description: text('description'),
   status: taskStatusEnum('status').default('todo').notNull(),
@@ -1271,6 +1272,7 @@ export const taskTeamLinks = pgTable('task_team_links', {
 
 export const tasksRelations = relations(tasks, ({ one, many }) => ({
   organization: one(organizations, { fields: [tasks.orgId], references: [organizations.id] }),
+  project: one(projects, { fields: [tasks.projectId], references: [projects.id] }),
   property: one(properties, { fields: [tasks.propertyId], references: [properties.id] }),
   creator: one(profiles, { fields: [tasks.createdBy], references: [profiles.id] }),
   assignees: many(taskAssignees),
@@ -1294,3 +1296,30 @@ export type TaskAssignee = typeof taskAssignees.$inferSelect
 export type NewTaskAssignee = typeof taskAssignees.$inferInsert
 export type TaskTeamLink = typeof taskTeamLinks.$inferSelect
 export type NewTaskTeamLink = typeof taskTeamLinks.$inferInsert
+
+// ---------------------------------------------------------------------------
+// Projects (layer above tasks)
+// ---------------------------------------------------------------------------
+export const projectStatusEnum = pgEnum('project_status', ['active', 'archived'])
+
+export const projects = pgTable('projects', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  color: varchar('color', { length: 32 }),
+  status: projectStatusEnum('status').default('active').notNull(),
+  targetDate: date('target_date'),
+  createdBy: uuid('created_by').references(() => profiles.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [unique('projects_org_name_unique').on(t.orgId, t.name)])
+
+export const projectsRelations = relations(projects, ({ one, many }) => ({
+  organization: one(organizations, { fields: [projects.orgId], references: [organizations.id] }),
+  creator: one(profiles, { fields: [projects.createdBy], references: [profiles.id] }),
+  tasks: many(tasks),
+}))
+
+export type Project = typeof projects.$inferSelect
+export type NewProject = typeof projects.$inferInsert
