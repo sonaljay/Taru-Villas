@@ -6,7 +6,6 @@ import { format } from 'date-fns'
 import {
   Search,
   ListTodo,
-  AlertTriangle,
   RotateCcw,
 } from 'lucide-react'
 
@@ -27,13 +26,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Button } from '@/components/ui/button'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-interface TaskRow {
+interface IssueRow {
   id: string
   title: string
   status: string
@@ -50,8 +48,8 @@ interface PropertyOption {
   name: string
 }
 
-interface TasksPageClientProps {
-  tasks: TaskRow[]
+interface IssuesPageClientProps {
+  issues: IssueRow[]
   properties: PropertyOption[]
   isAdmin?: boolean
   basePath?: string
@@ -90,48 +88,48 @@ function StatusBadge({ status }: { status: string }) {
 // Component
 // ---------------------------------------------------------------------------
 
-export function TasksPageClient({
-  tasks,
+export function IssuesPageClient({
+  issues,
   properties,
   isAdmin,
-  basePath = '/tasks',
-}: TasksPageClientProps) {
+  basePath = '/issues',
+}: IssuesPageClientProps) {
   const [search, setSearch] = useState('')
   const [propertyFilter, setPropertyFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [repeatFilter, setRepeatFilter] = useState('all')
 
-  const filteredTasks = useMemo(() => {
-    return tasks.filter((t) => {
+  const filteredIssues = useMemo(() => {
+    return issues.filter((i) => {
       const matchesSearch =
         !search ||
-        t.title.toLowerCase().includes(search.toLowerCase()) ||
-        t.propertyName.toLowerCase().includes(search.toLowerCase())
+        i.title.toLowerCase().includes(search.toLowerCase()) ||
+        i.propertyName.toLowerCase().includes(search.toLowerCase())
 
       const matchesProperty =
-        propertyFilter === 'all' || t.propertyId === propertyFilter
+        propertyFilter === 'all' || i.propertyId === propertyFilter
 
       const matchesStatus =
-        statusFilter === 'all' || t.status === statusFilter
+        statusFilter === 'all' || i.status === statusFilter
 
       const matchesRepeat =
         repeatFilter === 'all' ||
-        (repeatFilter === 'repeat' && t.isRepeatIssue) ||
-        (repeatFilter === 'new' && !t.isRepeatIssue)
+        (repeatFilter === 'repeat' && i.isRepeatIssue) ||
+        (repeatFilter === 'new' && !i.isRepeatIssue)
 
       return matchesSearch && matchesProperty && matchesStatus && matchesRepeat
     })
-  }, [tasks, search, propertyFilter, statusFilter, repeatFilter])
+  }, [issues, search, propertyFilter, statusFilter, repeatFilter])
 
-  const openCount = tasks.filter((t) => t.status === 'open').length
-  const investigatingCount = tasks.filter((t) => t.status === 'investigating').length
-  const repeatCount = tasks.filter((t) => t.isRepeatIssue).length
+  const openCount = issues.filter((i) => i.status === 'open').length
+  const investigatingCount = issues.filter((i) => i.status === 'investigating').length
+  const repeatCount = issues.filter((i) => i.isRepeatIssue).length
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Tasks</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Issues</h1>
         <p className="text-sm text-muted-foreground">
           Track and resolve issues flagged from survey assessments
         </p>
@@ -161,7 +159,7 @@ export function TasksPageClient({
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search tasks..."
+            placeholder="Search issues..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -204,7 +202,7 @@ export function TasksPageClient({
       </div>
 
       {/* Table */}
-      {filteredTasks.length > 0 ? (
+      {filteredIssues.length > 0 ? (
         <div className="rounded-lg border">
           <Table>
             <TableHeader>
@@ -219,34 +217,34 @@ export function TasksPageClient({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredTasks.map((task) => (
-                <TableRow key={task.id} className="cursor-pointer hover:bg-muted/50">
+              {filteredIssues.map((issue) => (
+                <TableRow key={issue.id} className="cursor-pointer hover:bg-muted/50">
                   <TableCell>
                     <Link
-                      href={`${basePath}/${task.id}`}
+                      href={`${basePath}/${issue.id}`}
                       className="font-medium hover:underline line-clamp-2"
                     >
-                      {task.title}
+                      {issue.title}
                     </Link>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {task.propertyName}
+                    {issue.propertyName}
                   </TableCell>
                   <TableCell>
-                    <StatusBadge status={task.status} />
+                    <StatusBadge status={issue.status} />
                   </TableCell>
                   <TableCell className="text-sm">
-                    {task.raisedByName ?? (
+                    {issue.raisedByName ?? (
                       <span className="text-muted-foreground">Unknown</span>
                     )}
                   </TableCell>
                   <TableCell className="text-sm">
-                    {task.assigneeName ?? (
+                    {issue.assigneeName ?? (
                       <span className="text-muted-foreground">Unassigned</span>
                     )}
                   </TableCell>
                   <TableCell className="text-center">
-                    {task.isRepeatIssue && (
+                    {issue.isRepeatIssue && (
                       <Badge variant="destructive" className="text-[10px] gap-1">
                         <RotateCcw className="size-3" />
                         Repeat
@@ -254,7 +252,7 @@ export function TasksPageClient({
                     )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground tabular-nums">
-                    {format(new Date(task.createdAt), 'MMM d, yyyy')}
+                    {format(new Date(issue.createdAt), 'MMM d, yyyy')}
                   </TableCell>
                 </TableRow>
               ))}
@@ -264,11 +262,11 @@ export function TasksPageClient({
       ) : (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16">
           <ListTodo className="size-10 text-muted-foreground/50" />
-          <h3 className="mt-4 text-sm font-semibold">No tasks found</h3>
+          <h3 className="mt-4 text-sm font-semibold">No issues found</h3>
           <p className="mt-1 text-sm text-muted-foreground">
             {search || propertyFilter !== 'all' || statusFilter !== 'all'
               ? 'Try adjusting your search or filter criteria.'
-              : 'Tasks will appear here when surveys with low scores are submitted.'}
+              : 'Issues will appear here when surveys with low scores are submitted.'}
           </p>
         </div>
       )}

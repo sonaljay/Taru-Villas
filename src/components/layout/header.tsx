@@ -25,7 +25,7 @@ const segmentLabels: Record<string, string> = {
   new: 'New',
   edit: 'Edit',
   sops: 'SOPs',
-  tasks: 'Tasks',
+  issues: 'Issues',
   excursions: 'Excursions',
   menus: 'Menus',
   'allowed-emails': 'Allowed Emails',
