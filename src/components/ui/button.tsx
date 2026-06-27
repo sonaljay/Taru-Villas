@@ -9,16 +9,19 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default:
+          "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 active:scale-[0.98]",
         destructive:
-          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+          "bg-destructive text-white shadow-sm hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60 active:scale-[0.98]",
         outline:
-          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
+          "border border-white/30 bg-card/60 backdrop-blur-md shadow-xs hover:bg-accent/70 hover:text-accent-foreground dark:border-white/10 dark:bg-input/30 dark:hover:bg-input/50 active:scale-[0.98]",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "bg-secondary/70 text-secondary-foreground backdrop-blur-md shadow-xs hover:bg-secondary/90 active:scale-[0.98]",
         ghost:
-          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
+          "hover:bg-accent/60 hover:text-accent-foreground dark:hover:bg-accent/40",
         link: "text-primary underline-offset-4 hover:underline",
+        glass:
+          "glass glass-sheen text-foreground hover:bg-card/80 active:scale-[0.98]",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
