@@ -31,14 +31,14 @@ export function TaskBoard({ tasks, onEdit }: { tasks: TaskWithRelations[]; onEdi
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:snap-none sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 lg:grid-cols-4">
       {STATUSES.map((status) => {
         const col = tasks.filter((t) => t.status === status)
         return (
           <div key={status}
             onDragOver={(e) => { e.preventDefault(); setOverCol(status) }}
             onDrop={() => drop(status)}
-            className={`flex min-h-24 flex-col gap-2 rounded-xl border bg-muted/30 p-2 transition-colors ${overCol === status ? 'ring-2 ring-primary/40' : ''}`}>
+            className={`w-[80%] shrink-0 snap-start sm:w-auto flex min-h-24 flex-col gap-2 rounded-xl border bg-muted/30 p-2 transition-colors ${overCol === status ? 'ring-2 ring-primary/40' : ''}`}>
             <div className="flex items-center gap-2 px-1 py-1 text-sm font-medium">
               <span className={`size-2 rounded-full ${STATUS_META[status].dot}`} />
               {STATUS_META[status].label}
