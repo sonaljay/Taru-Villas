@@ -20,6 +20,7 @@ export async function GET(_request: NextRequest, context: Ctx) {
   try {
     const profile = await getProfile()
     if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!profile.isActive) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const { id } = await context.params
     const task = await getTaskById(id)
     if (!task) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -55,6 +56,7 @@ export async function DELETE(_request: NextRequest, context: Ctx) {
   try {
     const profile = await getProfile()
     if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!profile.isActive) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const { id } = await context.params
     const task = await getTaskById(id)
     if (!task) return NextResponse.json({ error: 'Not found' }, { status: 404 })
