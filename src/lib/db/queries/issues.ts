@@ -1,31 +1,31 @@
-import { eq, and, desc, sql, inArray } from 'drizzle-orm'
+import { eq, and, desc, inArray } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { db } from '..'
 import {
-  tasks,
+  issues,
   properties,
   profiles,
   surveyQuestions,
   surveySubmissions,
   surveyResponses,
   propertyAssignments,
-  type Task,
-  type NewTask,
+  type Issue,
+  type NewIssue,
 } from '../schema'
 
 // Alias for joining profiles a second time (submitter vs assignee)
 const submitterProfiles = alias(profiles, 'submitter_profiles')
 
 // ---------------------------------------------------------------------------
-// Create tasks from a submitted survey
+// Create issues from a submitted survey
 // ---------------------------------------------------------------------------
 
 /**
- * For each response with score <= 6 and an issueDescription, create a task.
+ * For each response with score <= 6 and an issueDescription, create an issue.
  * Looks up question text for title, property's primaryPmId for assignment,
- * and checks for repeat issues (existing closed tasks with same questionId + propertyId).
+ * and checks for repeat issues (existing closed issues with same questionId + propertyId).
  */
-export async function createTasksFromSubmission(
+export async function createIssuesFromSubmission(
   submissionId: string,
   orgId: string,
   propertyId: string,
@@ -60,22 +60,22 @@ export async function createTasksFromSubmission(
 
   const assignedTo = prop?.primaryPmId ?? null
 
-  // Check for repeat issues: existing closed tasks with same questionId + propertyId
-  const existingClosedTasks = await db
-    .select({ questionId: tasks.questionId })
-    .from(tasks)
+  // Check for repeat issues: existing closed issues with same questionId + propertyId
+  const existingClosedIssues = await db
+    .select({ questionId: issues.questionId })
+    .from(issues)
     .where(
       and(
-        eq(tasks.propertyId, propertyId),
-        eq(tasks.status, 'closed'),
-        inArray(tasks.questionId, questionIds)
+        eq(issues.propertyId, propertyId),
+        eq(issues.status, 'closed'),
+        inArray(issues.questionId, questionIds)
       )
     )
 
-  const repeatQuestionIds = new Set(existingClosedTasks.map((t) => t.questionId))
+  const repeatQuestionIds = new Set(existingClosedIssues.map((i) => i.questionId))
 
-  // Insert tasks
-  const newTasks: NewTask[] = lowScoreResponses.map((r) => ({
+  // Insert issues
+  const newIssues: NewIssue[] = lowScoreResponses.map((r) => ({
     orgId,
     propertyId,
     submissionId,
@@ -87,71 +87,71 @@ export async function createTasksFromSubmission(
     isRepeatIssue: repeatQuestionIds.has(r.questionId),
   }))
 
-  const inserted = await db.insert(tasks).values(newTasks).returning()
+  const inserted = await db.insert(issues).values(newIssues).returning()
   return inserted
 }
 
 // ---------------------------------------------------------------------------
-// Get tasks for admin (all org tasks)
+// Get issues for admin (all org issues)
 // ---------------------------------------------------------------------------
 
-export interface TaskFilters {
+export interface IssueFilters {
   propertyId?: string
   status?: 'open' | 'investigating' | 'closed'
   isRepeatIssue?: boolean
 }
 
-export async function getTasksForAdmin(orgId: string, filters: TaskFilters = {}) {
-  const conditions = [eq(tasks.orgId, orgId)]
+export async function getIssuesForAdmin(orgId: string, filters: IssueFilters = {}) {
+  const conditions = [eq(issues.orgId, orgId)]
 
   if (filters.propertyId) {
-    conditions.push(eq(tasks.propertyId, filters.propertyId))
+    conditions.push(eq(issues.propertyId, filters.propertyId))
   }
   if (filters.status) {
-    conditions.push(eq(tasks.status, filters.status))
+    conditions.push(eq(issues.status, filters.status))
   }
   if (filters.isRepeatIssue !== undefined) {
-    conditions.push(eq(tasks.isRepeatIssue, filters.isRepeatIssue))
+    conditions.push(eq(issues.isRepeatIssue, filters.isRepeatIssue))
   }
 
   const rows = await db
     .select({
-      id: tasks.id,
-      orgId: tasks.orgId,
-      propertyId: tasks.propertyId,
-      submissionId: tasks.submissionId,
-      responseId: tasks.responseId,
-      questionId: tasks.questionId,
-      title: tasks.title,
-      description: tasks.description,
-      status: tasks.status,
-      assignedTo: tasks.assignedTo,
-      isRepeatIssue: tasks.isRepeatIssue,
-      closingNotes: tasks.closingNotes,
-      createdAt: tasks.createdAt,
-      updatedAt: tasks.updatedAt,
-      closedAt: tasks.closedAt,
-      closedBy: tasks.closedBy,
+      id: issues.id,
+      orgId: issues.orgId,
+      propertyId: issues.propertyId,
+      submissionId: issues.submissionId,
+      responseId: issues.responseId,
+      questionId: issues.questionId,
+      title: issues.title,
+      description: issues.description,
+      status: issues.status,
+      assignedTo: issues.assignedTo,
+      isRepeatIssue: issues.isRepeatIssue,
+      closingNotes: issues.closingNotes,
+      createdAt: issues.createdAt,
+      updatedAt: issues.updatedAt,
+      closedAt: issues.closedAt,
+      closedBy: issues.closedBy,
       propertyName: properties.name,
       assigneeName: profiles.fullName,
       raisedByName: submitterProfiles.fullName,
     })
-    .from(tasks)
-    .innerJoin(properties, eq(tasks.propertyId, properties.id))
-    .innerJoin(surveySubmissions, eq(tasks.submissionId, surveySubmissions.id))
-    .leftJoin(profiles, eq(tasks.assignedTo, profiles.id))
+    .from(issues)
+    .innerJoin(properties, eq(issues.propertyId, properties.id))
+    .innerJoin(surveySubmissions, eq(issues.submissionId, surveySubmissions.id))
+    .leftJoin(profiles, eq(issues.assignedTo, profiles.id))
     .leftJoin(submitterProfiles, eq(surveySubmissions.submittedBy, submitterProfiles.id))
     .where(and(...conditions))
-    .orderBy(desc(tasks.createdAt))
+    .orderBy(desc(issues.createdAt))
 
   return rows
 }
 
 // ---------------------------------------------------------------------------
-// Get tasks for a specific user (PM — only tasks for their assigned properties)
+// Get issues for a specific user (PM — only issues for their assigned properties)
 // ---------------------------------------------------------------------------
 
-export async function getTasksForUser(userId: string, filters: TaskFilters = {}) {
+export async function getIssuesForUser(userId: string, filters: IssueFilters = {}) {
   // Get user's assigned property IDs
   const assignments = await db
     .select({ propertyId: propertyAssignments.propertyId })
@@ -161,108 +161,108 @@ export async function getTasksForUser(userId: string, filters: TaskFilters = {})
   const propertyIds = assignments.map((a) => a.propertyId)
   if (propertyIds.length === 0) return []
 
-  const conditions = [inArray(tasks.propertyId, propertyIds)]
+  const conditions = [inArray(issues.propertyId, propertyIds)]
 
   if (filters.propertyId) {
-    conditions.push(eq(tasks.propertyId, filters.propertyId))
+    conditions.push(eq(issues.propertyId, filters.propertyId))
   }
   if (filters.status) {
-    conditions.push(eq(tasks.status, filters.status))
+    conditions.push(eq(issues.status, filters.status))
   }
   if (filters.isRepeatIssue !== undefined) {
-    conditions.push(eq(tasks.isRepeatIssue, filters.isRepeatIssue))
+    conditions.push(eq(issues.isRepeatIssue, filters.isRepeatIssue))
   }
 
   const rows = await db
     .select({
-      id: tasks.id,
-      orgId: tasks.orgId,
-      propertyId: tasks.propertyId,
-      submissionId: tasks.submissionId,
-      responseId: tasks.responseId,
-      questionId: tasks.questionId,
-      title: tasks.title,
-      description: tasks.description,
-      status: tasks.status,
-      assignedTo: tasks.assignedTo,
-      isRepeatIssue: tasks.isRepeatIssue,
-      closingNotes: tasks.closingNotes,
-      createdAt: tasks.createdAt,
-      updatedAt: tasks.updatedAt,
-      closedAt: tasks.closedAt,
-      closedBy: tasks.closedBy,
+      id: issues.id,
+      orgId: issues.orgId,
+      propertyId: issues.propertyId,
+      submissionId: issues.submissionId,
+      responseId: issues.responseId,
+      questionId: issues.questionId,
+      title: issues.title,
+      description: issues.description,
+      status: issues.status,
+      assignedTo: issues.assignedTo,
+      isRepeatIssue: issues.isRepeatIssue,
+      closingNotes: issues.closingNotes,
+      createdAt: issues.createdAt,
+      updatedAt: issues.updatedAt,
+      closedAt: issues.closedAt,
+      closedBy: issues.closedBy,
       propertyName: properties.name,
       assigneeName: profiles.fullName,
       raisedByName: submitterProfiles.fullName,
     })
-    .from(tasks)
-    .innerJoin(properties, eq(tasks.propertyId, properties.id))
-    .innerJoin(surveySubmissions, eq(tasks.submissionId, surveySubmissions.id))
-    .leftJoin(profiles, eq(tasks.assignedTo, profiles.id))
+    .from(issues)
+    .innerJoin(properties, eq(issues.propertyId, properties.id))
+    .innerJoin(surveySubmissions, eq(issues.submissionId, surveySubmissions.id))
+    .leftJoin(profiles, eq(issues.assignedTo, profiles.id))
     .leftJoin(submitterProfiles, eq(surveySubmissions.submittedBy, submitterProfiles.id))
     .where(and(...conditions))
-    .orderBy(desc(tasks.createdAt))
+    .orderBy(desc(issues.createdAt))
 
   return rows
 }
 
 // ---------------------------------------------------------------------------
-// Get a single task by ID with full details
+// Get a single issue by ID with full details
 // ---------------------------------------------------------------------------
 
-export async function getTaskById(id: string) {
+export async function getIssueById(id: string) {
   const rows = await db
     .select({
-      id: tasks.id,
-      orgId: tasks.orgId,
-      propertyId: tasks.propertyId,
-      submissionId: tasks.submissionId,
-      responseId: tasks.responseId,
-      questionId: tasks.questionId,
-      title: tasks.title,
-      description: tasks.description,
-      status: tasks.status,
-      assignedTo: tasks.assignedTo,
-      isRepeatIssue: tasks.isRepeatIssue,
-      closingNotes: tasks.closingNotes,
-      createdAt: tasks.createdAt,
-      updatedAt: tasks.updatedAt,
-      closedAt: tasks.closedAt,
-      closedBy: tasks.closedBy,
+      id: issues.id,
+      orgId: issues.orgId,
+      propertyId: issues.propertyId,
+      submissionId: issues.submissionId,
+      responseId: issues.responseId,
+      questionId: issues.questionId,
+      title: issues.title,
+      description: issues.description,
+      status: issues.status,
+      assignedTo: issues.assignedTo,
+      isRepeatIssue: issues.isRepeatIssue,
+      closingNotes: issues.closingNotes,
+      createdAt: issues.createdAt,
+      updatedAt: issues.updatedAt,
+      closedAt: issues.closedAt,
+      closedBy: issues.closedBy,
       propertyName: properties.name,
       questionText: surveyQuestions.text,
       assigneeName: profiles.fullName,
       submissionSlug: surveySubmissions.slug,
       responseScore: surveyResponses.score,
     })
-    .from(tasks)
-    .innerJoin(properties, eq(tasks.propertyId, properties.id))
-    .innerJoin(surveyQuestions, eq(tasks.questionId, surveyQuestions.id))
-    .innerJoin(surveySubmissions, eq(tasks.submissionId, surveySubmissions.id))
-    .innerJoin(surveyResponses, eq(tasks.responseId, surveyResponses.id))
-    .leftJoin(profiles, eq(tasks.assignedTo, profiles.id))
-    .where(eq(tasks.id, id))
+    .from(issues)
+    .innerJoin(properties, eq(issues.propertyId, properties.id))
+    .innerJoin(surveyQuestions, eq(issues.questionId, surveyQuestions.id))
+    .innerJoin(surveySubmissions, eq(issues.submissionId, surveySubmissions.id))
+    .innerJoin(surveyResponses, eq(issues.responseId, surveyResponses.id))
+    .leftJoin(profiles, eq(issues.assignedTo, profiles.id))
+    .where(eq(issues.id, id))
     .limit(1)
 
   if (!rows[0]) return null
 
   // If there's a closedBy, look up the closer's name separately
-  const task = rows[0]
+  const issue = rows[0]
   let closerName: string | null = null
-  if (task.closedBy) {
+  if (issue.closedBy) {
     const [closer] = await db
       .select({ fullName: profiles.fullName })
       .from(profiles)
-      .where(eq(profiles.id, task.closedBy))
+      .where(eq(profiles.id, issue.closedBy))
       .limit(1)
     closerName = closer?.fullName ?? null
   }
 
-  return { ...task, closerName }
+  return { ...issue, closerName }
 }
 
 // ---------------------------------------------------------------------------
-// Update task status
+// Update issue status
 // ---------------------------------------------------------------------------
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -271,17 +271,17 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   closed: [],
 }
 
-export async function updateTaskStatus(
+export async function updateIssueStatus(
   id: string,
   newStatus: 'open' | 'investigating' | 'closed',
   closingNotes?: string,
   closedBy?: string
 ) {
-  // Get current task
+  // Get current issue
   const [current] = await db
-    .select({ status: tasks.status })
-    .from(tasks)
-    .where(eq(tasks.id, id))
+    .select({ status: issues.status })
+    .from(issues)
+    .where(eq(issues.id, id))
     .limit(1)
 
   if (!current) return null
@@ -294,7 +294,7 @@ export async function updateTaskStatus(
   }
 
   const now = new Date()
-  const updateData: Partial<NewTask> & { closedAt?: Date | null; updatedAt: Date } = {
+  const updateData: Partial<NewIssue> & { closedAt?: Date | null; updatedAt: Date } = {
     status: newStatus,
     updatedAt: now,
   }
@@ -306,9 +306,9 @@ export async function updateTaskStatus(
   }
 
   const [updated] = await db
-    .update(tasks)
+    .update(issues)
     .set(updateData)
-    .where(eq(tasks.id, id))
+    .where(eq(issues.id, id))
     .returning()
 
   return updated
