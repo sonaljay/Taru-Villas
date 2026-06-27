@@ -162,6 +162,36 @@ Handled entirely inside migration 0020 (project insert + task backfill + `SET NO
 - Mobile: board view scrolls horizontally across To Do / In Progress / Stuck / Done; one column fills most of the width; drag still moves cards.
 - Coolify/Linux build is authoritative (local tsc/build/lint deadlock) — watch for unused imports / implicit-any in new files (the area-tab class of bug).
 
+---
+
+## Part 6 — Liquid Glass UI pass (app-wide polish)
+
+A cross-cutting visual refresh giving the app an Apple-style "liquid glass" feel — translucent frosted surfaces with backdrop blur, thin luminous borders, soft layered shadows, and a faint specular sheen. **Applied to elevated/floating surfaces only** (chrome, cards, overlays, accent buttons) — never behind dense body text — so legibility and contrast are preserved. Tasteful and subtle, not a heavy frosted overlay.
+
+### Foundation (`src/app/globals.css` + portal layout)
+- Add a **soft app backdrop** in the portal layout (a very subtle light/dark gradient tint behind `SidebarInset`) so glass surfaces have something to refract.
+- Add reusable utility classes (CSS, layered on the existing shadcn token system — extend, don't replace):
+  - `.glass` — `bg-background/60 dark:bg-background/40`, `backdrop-blur-xl`, `border border-white/25 dark:border-white/10`, soft shadow.
+  - `.glass-strong` (more opaque, for dialogs/popovers where text sits) and `.glass-subtle` (lighter, for cards).
+  - `.glass-sheen` — a thin top highlight (`::before` linear-gradient) for the specular edge.
+- Honor `prefers-reduced-transparency`/low-end fallback: classes degrade to a solid `bg-background` when backdrop-filter is unsupported.
+
+### Surfaces to glassify
+- **Sidebar / menu** (desktop `Sidebar` + mobile `Sheet`): frosted translucent panel (`.glass`); nav buttons get a glassy translucent pill on hover/active. (Explicit user ask.)
+- **Header** (`header.tsx`): sticky frosted bar (translucent + blur + subtle bottom border).
+- **Buttons** (`src/components/ui/button.tsx`): restyle so `default`/`secondary`/`outline`/`ghost` variants pick up subtle translucency + a faint inner top-highlight + smoother hover/active transitions; add a `glass` variant for accent CTAs. Keep `destructive` clearly solid/legible. (Explicit user ask.)
+- **Cards** (`src/components/ui/card.tsx`): translucent glass cards (`.glass-subtle`) with thin border — flows to dashboard tiles, project cards, task cards.
+- **Overlays** — `dialog.tsx`, `popover.tsx`, `dropdown-menu.tsx`, `select.tsx` content: frosted `.glass-strong` panels with a slightly darkened/blurred backdrop scrim.
+
+### Constraints
+- Maintain readable contrast — text-bearing overlays use `.glass-strong` (higher opacity); dense tables/forms keep solid backgrounds.
+- Keep blur moderate (`blur-xl` max) and confined to chrome/overlays for performance (avoid blurring large scrolling lists).
+- Both **light and dark** themes handled via the existing CSS variables.
+- This milestone is **pure styling** (no schema/migration); it ships independently of the Projects parts and should be built/verified first so the new Projects components inherit the glass primitives.
+
+---
+
 ## Out of scope (future)
 - Per-project Calendar/Gantt (the deferred Tasks phases) — projectId will scope them naturally.
 - Project members/permissions beyond collaborative; project-level activity feed; nested sub-projects.
+- A full theming/skin system or per-user glass intensity toggle — this pass hard-codes one tasteful liquid-glass look.
