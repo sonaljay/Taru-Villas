@@ -145,9 +145,9 @@ export async function POST(request: NextRequest) {
             }
           }
         }
-      } catch (taskError) {
-        console.error('Failed to create tasks from submission:', taskError)
-        // Don't fail the submission — tasks are a side effect
+      } catch (issueError) {
+        console.error('Failed to create issues from submission:', issueError)
+        // Don't fail the submission — issues are a side effect
       }
     }
 

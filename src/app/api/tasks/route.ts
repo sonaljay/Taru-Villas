@@ -20,11 +20,13 @@ export async function GET(request: NextRequest) {
     if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     if (!profile.isActive) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const sp = new URL(request.url).searchParams
+    const statusParam = sp.get('status')
+    const priorityParam = sp.get('priority')
     const filters: TaskFilters = {
       propertyId: sp.get('propertyId') || undefined,
-      status: (sp.get('status') as TaskFilters['status']) || undefined,
+      status: (['todo', 'in_progress', 'stuck', 'done'].includes(statusParam || '') ? statusParam : undefined) as TaskFilters['status'],
       teamId: sp.get('teamId') || undefined,
-      priority: (sp.get('priority') as TaskFilters['priority']) || undefined,
+      priority: (['low', 'medium', 'high'].includes(priorityParam || '') ? priorityParam : undefined) as TaskFilters['priority'],
       assigneeId: sp.get('assigneeId') || undefined,
       search: sp.get('search') || undefined,
     }

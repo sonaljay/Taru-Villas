@@ -9,7 +9,6 @@ import {
   surveySubmissions,
   surveyResponses,
   propertyAssignments,
-  type Issue,
   type NewIssue,
 } from '../schema'
 

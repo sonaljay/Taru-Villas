@@ -291,8 +291,8 @@ export async function POST(
           )
         }
       }
-    } catch (taskError) {
-      console.error('Failed to create tasks from submission:', taskError)
+    } catch (issueError) {
+      console.error('Failed to create issues from submission:', issueError)
     }
 
     return NextResponse.json(submitted)
