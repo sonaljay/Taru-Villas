@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getProfile, getUserProperties } from '@/lib/auth/guards'
+import { getProfile } from '@/lib/auth/guards'
 import {
-  getTasksForAdmin,
-  getTasksForUser,
-  type TaskFilters,
-} from '@/lib/db/queries/tasks'
+  getIssuesForAdmin,
+  getIssuesForUser,
+  type IssueFilters,
+} from '@/lib/db/queries/issues'
 
 // ---------------------------------------------------------------------------
-// GET /api/tasks — List tasks with filters
+// GET /api/issues — List issues with filters
 // ---------------------------------------------------------------------------
 
 export async function GET(request: NextRequest) {
@@ -20,18 +20,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Account is inactive' }, { status: 403 })
     }
 
-    // Staff cannot access tasks
+    // Staff cannot access issues
     if (profile.role === 'staff') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const { searchParams } = new URL(request.url)
-    const filters: TaskFilters = {}
+    const filters: IssueFilters = {}
 
     const propertyId = searchParams.get('propertyId')
     if (propertyId) filters.propertyId = propertyId
 
-    const status = searchParams.get('status') as TaskFilters['status'] | null
+    const status = searchParams.get('status') as IssueFilters['status'] | null
     if (status && ['open', 'investigating', 'closed'].includes(status)) {
       filters.status = status
     }
@@ -40,18 +40,18 @@ export async function GET(request: NextRequest) {
     if (repeatIssue === 'true') filters.isRepeatIssue = true
     if (repeatIssue === 'false') filters.isRepeatIssue = false
 
-    let tasks
+    let issueRows
     if (profile.role === 'admin') {
-      tasks = await getTasksForAdmin(profile.orgId, filters)
+      issueRows = await getIssuesForAdmin(profile.orgId, filters)
     } else {
-      tasks = await getTasksForUser(profile.id, filters)
+      issueRows = await getIssuesForUser(profile.id, filters)
     }
 
-    return NextResponse.json(tasks)
+    return NextResponse.json(issueRows)
   } catch (error) {
-    console.error('GET /api/tasks error:', error)
+    console.error('GET /api/issues error:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch tasks' },
+      { error: 'Failed to fetch issues' },
       { status: 500 }
     )
   }
