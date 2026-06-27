@@ -1226,3 +1226,71 @@ export type NewElectricitySlotConfig = typeof electricitySlotConfig.$inferInsert
 
 export type WasteLog = typeof wasteLogs.$inferSelect
 export type NewWasteLog = typeof wasteLogs.$inferInsert
+
+// ---------------------------------------------------------------------------
+// Employee Tasks
+// ---------------------------------------------------------------------------
+export const taskStatusEnum = pgEnum('task_status', ['todo','in_progress','stuck','done'])
+export const taskPriorityEnum = pgEnum('task_priority', ['low','medium','high'])
+
+export const taskTeams = pgTable('task_teams', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id),
+  name: varchar('name', { length: 255 }).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [unique('task_teams_org_name_unique').on(t.orgId, t.name)])
+
+export const tasks = pgTable('tasks', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id),
+  title: text('title').notNull(),
+  description: text('description'),
+  status: taskStatusEnum('status').default('todo').notNull(),
+  priority: taskPriorityEnum('priority').default('medium').notNull(),
+  propertyId: uuid('property_id').references(() => properties.id, { onDelete: 'set null' }),
+  dueDate: date('due_date'),
+  startDate: date('start_date'),
+  position: integer('position').default(0).notNull(),
+  createdBy: uuid('created_by').references(() => profiles.id, { onDelete: 'set null' }),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export const taskAssignees = pgTable('task_assignees', {
+  taskId: uuid('task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
+  profileId: uuid('profile_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
+}, (t) => [unique('task_assignees_pk').on(t.taskId, t.profileId)])
+
+export const taskTeamLinks = pgTable('task_team_links', {
+  taskId: uuid('task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
+  teamId: uuid('team_id').notNull().references(() => taskTeams.id, { onDelete: 'cascade' }),
+}, (t) => [unique('task_team_links_pk').on(t.taskId, t.teamId)])
+
+export const tasksRelations = relations(tasks, ({ one, many }) => ({
+  organization: one(organizations, { fields: [tasks.orgId], references: [organizations.id] }),
+  property: one(properties, { fields: [tasks.propertyId], references: [properties.id] }),
+  creator: one(profiles, { fields: [tasks.createdBy], references: [profiles.id] }),
+  assignees: many(taskAssignees),
+  teamLinks: many(taskTeamLinks),
+}))
+export const taskTeamsRelations = relations(taskTeams, ({ many }) => ({ links: many(taskTeamLinks) }))
+export const taskAssigneesRelations = relations(taskAssignees, ({ one }) => ({
+  task: one(tasks, { fields: [taskAssignees.taskId], references: [tasks.id] }),
+  profile: one(profiles, { fields: [taskAssignees.profileId], references: [profiles.id] }),
+}))
+export const taskTeamLinksRelations = relations(taskTeamLinks, ({ one }) => ({
+  task: one(tasks, { fields: [taskTeamLinks.taskId], references: [tasks.id] }),
+  team: one(taskTeams, { fields: [taskTeamLinks.teamId], references: [taskTeams.id] }),
+}))
+
+export type Task = typeof tasks.$inferSelect
+export type NewTask = typeof tasks.$inferInsert
+export type TaskTeam = typeof taskTeams.$inferSelect
+export type NewTaskTeam = typeof taskTeams.$inferInsert
+export type TaskAssignee = typeof taskAssignees.$inferSelect
+export type NewTaskAssignee = typeof taskAssignees.$inferInsert
+export type TaskTeamLink = typeof taskTeamLinks.$inferSelect
+export type NewTaskTeamLink = typeof taskTeamLinks.$inferInsert
