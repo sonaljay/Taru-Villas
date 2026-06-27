@@ -22,14 +22,14 @@ export function TasksAreaTabs({ isAdmin }: TasksAreaTabsProps) {
     {
       label: 'Tasks',
       href: '/tasks',
-      match: (p) => p === '/tasks',
+      match: (p: string) => p === '/tasks',
     },
     ...(isAdmin
       ? [
           {
             label: 'Teams',
             href: '/tasks/teams',
-            match: (p) => p.startsWith('/tasks/teams'),
+            match: (p: string) => p.startsWith('/tasks/teams'),
           },
         ]
       : []),
