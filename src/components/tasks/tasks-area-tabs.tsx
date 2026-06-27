@@ -20,7 +20,7 @@ export function TasksAreaTabs({ isAdmin }: TasksAreaTabsProps) {
 
   const tabs: Tab[] = [
     {
-      label: 'Tasks',
+      label: 'Projects',
       href: '/tasks',
       match: (p: string) => p === '/tasks',
     },
