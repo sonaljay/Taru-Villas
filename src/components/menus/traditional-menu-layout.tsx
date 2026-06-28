@@ -75,6 +75,11 @@ export function TraditionalMenuLayout({
                   {category.description}
                 </p>
               )}
+              {category.priceNote && (
+                <p className="mt-1 text-sm font-medium text-foreground/70">
+                  {category.priceNote}
+                </p>
+              )}
               <div className="mt-4 mx-auto h-px w-12 bg-foreground/15" />
             </div>
 
