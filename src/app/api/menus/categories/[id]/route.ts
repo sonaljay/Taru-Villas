@@ -10,6 +10,7 @@ import {
 const updateCategorySchema = z.object({
   name: z.string().min(1).max(500).optional(),
   description: z.string().max(2000).nullable().optional(),
+  priceNote: z.string().max(200).nullable().optional(),
   sortOrder: z.number().int().min(0).optional(),
   isActive: z.boolean().optional(),
 })

@@ -12,7 +12,7 @@ export default async function TaskTeamsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Tasks</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Task Manager</h1>
         <p className="text-sm text-muted-foreground">Manage teams for organizing work.</p>
       </div>
       <TasksAreaTabs isAdmin={true} />

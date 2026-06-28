@@ -16,6 +16,7 @@ import type { MenuCategory } from '@/lib/db/schema'
 const categorySchema = z.object({
   name: z.string().min(1, 'Name is required').max(500),
   description: z.string().max(2000).optional(),
+  priceNote: z.string().max(200).optional(),
   sortOrder: z.number().int().min(0),
   isActive: z.boolean(),
 })
@@ -24,12 +25,14 @@ type CategoryFormValues = z.infer<typeof categorySchema>
 
 interface MenuCategoryFormProps {
   propertyId: string
+  menuId: string
   category?: MenuCategory | null
   onSuccess?: () => void
 }
 
 export function MenuCategoryForm({
   propertyId,
+  menuId,
   category,
   onSuccess,
 }: MenuCategoryFormProps) {
@@ -47,6 +50,7 @@ export function MenuCategoryForm({
     defaultValues: {
       name: category?.name ?? '',
       description: category?.description ?? '',
+      priceNote: category?.priceNote ?? '',
       sortOrder: category?.sortOrder ?? 0,
       isActive: category?.isActive ?? true,
     },
@@ -68,7 +72,8 @@ export function MenuCategoryForm({
         body: JSON.stringify({
           ...data,
           description: data.description || null,
-          ...(!isEditing && { propertyId }),
+          priceNote: data.priceNote || null,
+          ...(!isEditing && { propertyId, menuId }),
         }),
       })
 
@@ -111,6 +116,11 @@ export function MenuCategoryForm({
           rows={2}
           {...register('description')}
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="priceNote">Price note (optional)</Label>
+        <Input id="priceNote" placeholder="e.g. $25 per person" {...register('priceNote')} />
       </div>
 
       <div className="space-y-2">

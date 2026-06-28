@@ -653,8 +653,12 @@ export const menuCategories = pgTable('menu_categories', {
   propertyId: uuid('property_id')
     .notNull()
     .references(() => properties.id, { onDelete: 'cascade' }),
+  menuId: uuid('menu_id')
+    .notNull()
+    .references(() => menus.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description'),
+  priceNote: text('price_note'),
   sortOrder: integer('sort_order').default(0).notNull(),
   isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -665,6 +669,10 @@ export const menuCategoriesRelations = relations(menuCategories, ({ one, many })
   property: one(properties, {
     fields: [menuCategories.propertyId],
     references: [properties.id],
+  }),
+  menu: one(menus, {
+    fields: [menuCategories.menuId],
+    references: [menus.id],
   }),
   menuItems: many(menuItems),
 }))
@@ -693,6 +701,44 @@ export const menuItemsRelations = relations(menuItems, ({ one }) => ({
     fields: [menuItems.categoryId],
     references: [menuCategories.id],
   }),
+}))
+
+// ---------------------------------------------------------------------------
+// Menus (parent grouping: 'set' = 7 day-specific menus, 'a_la_carte' = one)
+// ---------------------------------------------------------------------------
+export const menus = pgTable(
+  'menus',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    propertyId: uuid('property_id')
+      .notNull()
+      .references(() => properties.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(), // 'set' | 'a_la_carte'
+    dayOfWeek: integer('day_of_week'), // 0=Sun..6=Sat; null for a_la_carte
+    name: text('name').notNull(),
+    description: text('description'),
+    priceNote: text('price_note'),
+    footerNote: text('footer_note'),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('menus_property_type_day_unique').on(
+      table.propertyId,
+      table.type,
+      table.dayOfWeek
+    ),
+  ]
+)
+
+export const menusRelations = relations(menus, ({ one, many }) => ({
+  property: one(properties, {
+    fields: [menus.propertyId],
+    references: [properties.id],
+  }),
+  categories: many(menuCategories),
 }))
 
 // ---------------------------------------------------------------------------
@@ -1180,6 +1226,9 @@ export type NewIssue = typeof issues.$inferInsert
 
 export type Excursion = typeof excursions.$inferSelect
 export type NewExcursion = typeof excursions.$inferInsert
+
+export type Menu = typeof menus.$inferSelect
+export type NewMenu = typeof menus.$inferInsert
 
 export type MenuCategory = typeof menuCategories.$inferSelect
 export type NewMenuCategory = typeof menuCategories.$inferInsert
