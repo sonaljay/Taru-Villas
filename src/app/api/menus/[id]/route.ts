@@ -32,6 +32,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { id } = await context.params
     const profile = await getProfile()
     if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!profile.isActive) return NextResponse.json({ error: 'Account is inactive' }, { status: 403 })
     if (profile.role === 'staff')
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
@@ -61,6 +62,7 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     const { id } = await context.params
     const profile = await getProfile()
     if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!profile.isActive) return NextResponse.json({ error: 'Account is inactive' }, { status: 403 })
     if (profile.role === 'staff')
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
