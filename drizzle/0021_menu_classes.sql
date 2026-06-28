@@ -31,7 +31,7 @@ ALTER TABLE menu_categories ADD COLUMN IF NOT EXISTS price_note text;
 --> statement-breakpoint
 -- Backfill: every existing category gets a default a_la_carte menu per property
 INSERT INTO menus (property_id, type, day_of_week, name, sort_order)
-SELECT DISTINCT mc.property_id, 'a_la_carte', NULL, 'Menu', 0
+SELECT DISTINCT mc.property_id, 'a_la_carte', NULL::integer, 'Menu', 0
 FROM menu_categories mc
 WHERE mc.menu_id IS NULL
   AND NOT EXISTS (
