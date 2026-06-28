@@ -29,10 +29,10 @@ const segmentLabels: Record<string, string> = {
   excursions: 'Excursions',
   menus: 'Menus',
   'allowed-emails': 'Allowed Emails',
-  utilities: 'Meter Readings',
+  utilities: 'Utilities',
   waste: 'Daily Wastage',
   'guest-profiles': 'Guest Profiles',
-  tasks: 'Tasks',
+  tasks: 'Task Manager',
   teams: 'Teams',
 }
 

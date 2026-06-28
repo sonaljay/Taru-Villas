@@ -64,9 +64,9 @@ const mainNavItems: NavItem[] = [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { title: 'Surveys', href: '/surveys', icon: ClipboardCheck },
   { title: 'Issues', href: '/issues', icon: AlertTriangle },
-  { title: 'Tasks', href: '/tasks', icon: ListTodo },
+  { title: 'Task Manager', href: '/tasks', icon: ListTodo },
   { title: 'SOPs', href: '/sops', icon: ListChecks },
-  { title: 'Meter Readings', href: '/utilities', icon: Gauge },
+  { title: 'Utilities', href: '/utilities', icon: Gauge },
   { title: 'Daily Wastage', href: '/waste', icon: Trash2 },
   { title: 'Settings', href: '/settings', icon: Settings },
 ]
