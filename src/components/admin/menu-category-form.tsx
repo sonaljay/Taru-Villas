@@ -121,6 +121,11 @@ export function MenuCategoryForm({
       <div className="space-y-2">
         <Label htmlFor="priceNote">Price note (optional)</Label>
         <Input id="priceNote" placeholder="e.g. $25 per person" {...register('priceNote')} />
+        <p className="text-xs text-muted-foreground">
+          On a set menu, leave this blank to include the course in the set price
+          (shown at the menu level). Add a price here to show it as a separate,
+          standalone option (e.g. Chef&rsquo;s Special).
+        </p>
       </div>
 
       <div className="space-y-2">

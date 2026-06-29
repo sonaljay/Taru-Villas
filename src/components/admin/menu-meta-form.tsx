@@ -70,6 +70,10 @@ export function MenuMetaForm({ menu, onSuccess }: MenuMetaFormProps) {
       <div className="space-y-2">
         <Label htmlFor="priceNote">Price note</Label>
         <Input id="priceNote" placeholder="$40 per person" {...register('priceNote')} />
+        <p className="text-xs text-muted-foreground">
+          On a set menu this is the prix-fixe price covering all courses that have
+          no price of their own (shown under &ldquo;Three-Course Set Menu&rdquo;).
+        </p>
       </div>
       <div className="space-y-2">
         <Label htmlFor="description">Intro / description</Label>

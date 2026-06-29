@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { MapPin, UtensilsCrossed, ChefHat, ArrowLeft } from 'lucide-react'
-import { TraditionalMenuLayout } from '@/components/menus/traditional-menu-layout'
+import { TraditionalMenuLayout, MenuCategoryList } from '@/components/menus/traditional-menu-layout'
 import type { Property } from '@/lib/db/schema'
 import type { MenuWithCategories } from '@/lib/db/queries/menus'
 
@@ -175,18 +175,54 @@ function SelectionScreen({
 
 function SetMenuView({ menu }: { menu: MenuWithCategories }) {
   const sections = menu.categories.filter((c) => c.menuItems.length > 0)
+  // Convention: courses WITHOUT their own price note are part of the prix-fixe
+  // set (priced together via the menu-level note). Courses WITH their own price
+  // note (e.g. Chef's Special) are standalone, separately-priced options.
+  const setCourses = sections.filter((c) => !c.priceNote?.trim())
+  const standalone = sections.filter((c) => c.priceNote?.trim())
+  const setItemCount = setCourses.reduce((n, c) => n + c.menuItems.length, 0)
+
   return (
     <div>
-      <div className="mb-8 text-center">
+      <div className="mb-10 text-center">
         <h2 className="text-3xl font-light tracking-wide" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
           {menu.name}
         </h2>
-        {menu.priceNote && <p className="mt-2 text-sm font-medium text-foreground/80">{menu.priceNote}</p>}
         {menu.description && (
           <p className="mx-auto mt-4 max-w-xl text-sm italic leading-relaxed text-muted-foreground">{menu.description}</p>
         )}
       </div>
-      <TraditionalMenuLayout categories={sections} />
+
+      {/* Prix-fixe set: three courses priced together */}
+      {setCourses.length > 0 && (
+        <div>
+          <div className="mb-10 text-center">
+            <p className="text-xs font-medium uppercase tracking-[0.25em] text-muted-foreground">
+              Three-Course Set Menu
+            </p>
+            {menu.priceNote && (
+              <p className="mt-2 text-base font-medium text-foreground/80">{menu.priceNote}</p>
+            )}
+            <div className="mt-4 mx-auto h-px w-12 bg-foreground/15" />
+          </div>
+          <MenuCategoryList categories={setCourses} />
+        </div>
+      )}
+
+      {/* Standalone, separately-priced options (e.g. Chef's Special) */}
+      {standalone.length > 0 && (
+        <div>
+          {setCourses.length > 0 && (
+            <div className="my-16 flex items-center justify-center gap-3">
+              <div className="h-px w-12 bg-border" />
+              <span className="text-xs text-muted-foreground/40 select-none">&#9830; &#9830; &#9830;</span>
+              <div className="h-px w-12 bg-border" />
+            </div>
+          )}
+          <MenuCategoryList categories={standalone} startIndex={setItemCount} />
+        </div>
+      )}
+
       {menu.footerNote && (
         <p className="mt-10 text-center text-xs italic text-muted-foreground">{menu.footerNote}</p>
       )}
