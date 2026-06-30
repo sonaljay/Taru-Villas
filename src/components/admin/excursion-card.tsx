@@ -177,11 +177,24 @@ export function ExcursionCard({ excursion, propertyId }: ExcursionCardProps) {
               {excursion.description}
             </p>
           )}
+          {excursion.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-0.5">
+              {excursion.tags.map((tag) => (
+                <Badge
+                  key={tag}
+                  variant="secondary"
+                  className="rounded-full px-2 py-0 text-[10px] font-medium"
+                >
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-3 pt-1">
             {excursion.price && (
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
                 <DollarSign className="size-3 shrink-0" />
-                {excursion.price}
+                <span className="line-clamp-1">{excursion.price.split('\n')[0]}</span>
               </div>
             )}
             {excursion.duration && (

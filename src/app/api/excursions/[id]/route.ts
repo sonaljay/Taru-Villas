@@ -7,12 +7,21 @@ import {
   deleteExcursion,
 } from '@/lib/db/queries/excursions'
 
+const locationSchema = z.object({
+  name: z.string().min(1).max(300),
+  mapUrl: z.string().max(2000).nullable().optional(),
+})
+
 const updateExcursionSchema = z.object({
   title: z.string().min(1).max(500).optional(),
-  description: z.string().max(5000).nullable().optional(),
+  description: z.string().max(8000).nullable().optional(),
+  experience: z.string().max(8000).nullable().optional(),
+  whatsIncluded: z.string().max(8000).nullable().optional(),
   imageUrl: z.string().nullable().optional(),
-  price: z.string().max(100).nullable().optional(),
+  price: z.string().max(300).nullable().optional(),
   duration: z.string().max(100).nullable().optional(),
+  tags: z.array(z.string().max(60)).nullable().optional(),
+  locations: z.array(locationSchema).nullable().optional(),
   bookingUrl: z.string().nullable().optional(),
   sortOrder: z.number().int().min(0).optional(),
   isActive: z.boolean().optional(),
@@ -73,7 +82,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       )
     }
 
-    const updated = await updateExcursion(id, parsed.data)
+    // Columns are NOT NULL with a default — coerce null arrays to [] when present.
+    const { tags, locations, ...rest } = parsed.data
+    const updated = await updateExcursion(id, {
+      ...rest,
+      ...(tags !== undefined && { tags: tags ?? [] }),
+      ...(locations !== undefined && { locations: locations ?? [] }),
+    })
     return NextResponse.json(updated)
   } catch (error) {
     console.error('PATCH /api/excursions/[id] error:', error)

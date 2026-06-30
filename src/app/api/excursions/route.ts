@@ -6,13 +6,22 @@ import {
   createExcursion,
 } from '@/lib/db/queries/excursions'
 
+const locationSchema = z.object({
+  name: z.string().min(1).max(300),
+  mapUrl: z.string().max(2000).nullable().optional(),
+})
+
 const createExcursionSchema = z.object({
   propertyId: z.string().uuid(),
   title: z.string().min(1).max(500),
-  description: z.string().max(5000).nullable().optional(),
+  description: z.string().max(8000).nullable().optional(),
+  experience: z.string().max(8000).nullable().optional(),
+  whatsIncluded: z.string().max(8000).nullable().optional(),
   imageUrl: z.string().nullable().optional(),
-  price: z.string().max(100).nullable().optional(),
+  price: z.string().max(300).nullable().optional(),
   duration: z.string().max(100).nullable().optional(),
+  tags: z.array(z.string().max(60)).nullable().optional(),
+  locations: z.array(locationSchema).nullable().optional(),
   bookingUrl: z.string().nullable().optional(),
   sortOrder: z.number().int().min(0).default(0),
   isActive: z.boolean().default(true),
@@ -109,7 +118,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const excursion = await createExcursion(parsed.data)
+    const excursion = await createExcursion({
+      ...parsed.data,
+      tags: parsed.data.tags ?? [],
+      locations: parsed.data.locations ?? [],
+    })
     return NextResponse.json(excursion, { status: 201 })
   } catch (error) {
     console.error('POST /api/excursions error:', error)

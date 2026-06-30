@@ -15,16 +15,43 @@ import type { Excursion } from '@/lib/db/schema'
 
 const excursionSchema = z.object({
   title: z.string().min(1, 'Title is required').max(500),
-  description: z.string().max(5000).optional(),
+  description: z.string().max(8000).optional(),
+  experience: z.string().max(8000).optional(),
+  whatsIncluded: z.string().max(8000).optional(),
   imageUrl: z.string().optional().or(z.literal('')),
-  price: z.string().max(100).optional(),
+  price: z.string().max(300).optional(),
   duration: z.string().max(100).optional(),
+  tagsText: z.string().max(500).optional(),
+  locationsText: z.string().max(5000).optional(),
   bookingUrl: z.string().optional().or(z.literal('')),
   sortOrder: z.number().int().min(0),
   isActive: z.boolean(),
 })
 
 type ExcursionFormValues = z.infer<typeof excursionSchema>
+
+// Locations are edited as one per line in the form, "Name | https://map-url".
+function serializeLocations(
+  locations: { name: string; mapUrl?: string | null }[] | null | undefined
+): string {
+  if (!locations || locations.length === 0) return ''
+  return locations
+    .map((l) => (l.mapUrl ? `${l.name} | ${l.mapUrl}` : l.name))
+    .join('\n')
+}
+
+function parseLocations(text: string): { name: string; mapUrl: string | null }[] {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [namePart, ...urlParts] = line.split('|')
+      const mapUrl = urlParts.join('|').trim()
+      return { name: namePart.trim(), mapUrl: mapUrl || null }
+    })
+    .filter((l) => l.name.length > 0)
+}
 
 interface ExcursionFormProps {
   propertyId: string
@@ -47,9 +74,13 @@ export function ExcursionForm({ propertyId, excursion, onSuccess }: ExcursionFor
     defaultValues: {
       title: excursion?.title ?? '',
       description: excursion?.description ?? '',
+      experience: excursion?.experience ?? '',
+      whatsIncluded: excursion?.whatsIncluded ?? '',
       imageUrl: excursion?.imageUrl ?? '',
       price: excursion?.price ?? '',
       duration: excursion?.duration ?? '',
+      tagsText: (excursion?.tags ?? []).join(', '),
+      locationsText: serializeLocations(excursion?.locations),
       bookingUrl: excursion?.bookingUrl ?? '',
       sortOrder: excursion?.sortOrder ?? 0,
       isActive: excursion?.isActive ?? true,
@@ -66,15 +97,27 @@ export function ExcursionForm({ propertyId, excursion, onSuccess }: ExcursionFor
         : '/api/excursions'
       const method = isEditing ? 'PATCH' : 'POST'
 
+      const tags = (data.tagsText ?? '')
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean)
+      const locations = parseLocations(data.locationsText ?? '')
+
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...data,
+          title: data.title,
+          sortOrder: data.sortOrder,
+          isActive: data.isActive,
           description: data.description || null,
+          experience: data.experience || null,
+          whatsIncluded: data.whatsIncluded || null,
           imageUrl: data.imageUrl || null,
           price: data.price || null,
           duration: data.duration || null,
+          tags,
+          locations,
           bookingUrl: data.bookingUrl || null,
           ...(!isEditing && { propertyId }),
         }),
@@ -118,8 +161,33 @@ export function ExcursionForm({ propertyId, excursion, onSuccess }: ExcursionFor
         <Textarea
           id="description"
           placeholder="Describe the excursion..."
-          rows={3}
+          rows={4}
           {...register('description')}
+        />
+      </div>
+
+      {/* Experience */}
+      <div className="space-y-2">
+        <Label htmlFor="experience">Experience</Label>
+        <Textarea
+          id="experience"
+          placeholder="What the experience entails — itinerary, choices, duration options..."
+          rows={4}
+          {...register('experience')}
+        />
+        <p className="text-xs text-muted-foreground">
+          Line breaks are preserved on the public page
+        </p>
+      </div>
+
+      {/* What's included */}
+      <div className="space-y-2">
+        <Label htmlFor="whatsIncluded">What&rsquo;s included</Label>
+        <Textarea
+          id="whatsIncluded"
+          placeholder="Transport, guide, equipment, refreshments..."
+          rows={4}
+          {...register('whatsIncluded')}
         />
       </div>
 
@@ -151,6 +219,33 @@ export function ExcursionForm({ propertyId, excursion, onSuccess }: ExcursionFor
             {...register('duration')}
           />
         </div>
+      </div>
+
+      {/* Tags */}
+      <div className="space-y-2">
+        <Label htmlFor="tagsText">Activity tags</Label>
+        <Input
+          id="tagsText"
+          placeholder="Culture, Nature, Adventure"
+          {...register('tagsText')}
+        />
+        <p className="text-xs text-muted-foreground">
+          Comma-separated, e.g. Culture, Nature, Wildlife, Adventure, Wellness, Community
+        </p>
+      </div>
+
+      {/* Locations */}
+      <div className="space-y-2">
+        <Label htmlFor="locationsText">Locations</Label>
+        <Textarea
+          id="locationsText"
+          placeholder={'Lunuganga Estate Gardens | https://maps.app.goo.gl/...\nBrief Gardens | https://maps.app.goo.gl/...'}
+          rows={3}
+          {...register('locationsText')}
+        />
+        <p className="text-xs text-muted-foreground">
+          One per line — <code>Name | map URL</code> (the map URL is optional)
+        </p>
       </div>
 
       {/* Booking URL */}

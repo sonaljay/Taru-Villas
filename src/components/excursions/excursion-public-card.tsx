@@ -1,6 +1,14 @@
 'use client'
 
-import { Clock, ExternalLink, MessageCircle } from 'lucide-react'
+import { useState } from 'react'
+import {
+  Clock,
+  ChevronDown,
+  ExternalLink,
+  MapPin,
+  MessageCircle,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type { Excursion } from '@/lib/db/schema'
@@ -10,7 +18,20 @@ interface ExcursionPublicCardProps {
 }
 
 export function ExcursionPublicCard({ excursion }: ExcursionPublicCardProps) {
+  const [expanded, setExpanded] = useState(false)
   const isWhatsApp = excursion.bookingUrl?.includes('wa.me')
+
+  // Price field may carry secondary pricing detail on later lines — the pill
+  // shows only the headline; the full text appears in the detail panel.
+  const pricePill = excursion.price?.split('\n')[0].trim()
+
+  const tags = excursion.tags ?? []
+  const locations = excursion.locations ?? []
+  const hasDetails =
+    !!excursion.experience ||
+    !!excursion.whatsIncluded ||
+    locations.length > 0 ||
+    (excursion.price?.includes('\n') ?? false)
 
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-xl bg-card transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-black/5">
@@ -31,10 +52,10 @@ export function ExcursionPublicCard({ excursion }: ExcursionPublicCardProps) {
         )}
 
         {/* Price pill — floats over bottom-left of image */}
-        {excursion.price && (
+        {pricePill && (
           <div className="absolute bottom-3 left-3">
             <Badge className="bg-white/95 text-zinc-900 shadow-sm backdrop-blur-sm hover:bg-white/95 border-0 text-xs font-semibold tracking-wide">
-              {excursion.price}
+              {pricePill}
             </Badge>
           </div>
         )}
@@ -42,12 +63,32 @@ export function ExcursionPublicCard({ excursion }: ExcursionPublicCardProps) {
 
       {/* Content */}
       <div className="flex flex-1 flex-col p-5">
+        {/* Tags */}
+        {tags.length > 0 && (
+          <div className="mb-2.5 flex flex-wrap gap-1.5">
+            {tags.map((tag) => (
+              <Badge
+                key={tag}
+                variant="secondary"
+                className="rounded-full border-0 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium tracking-wide text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+              >
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        )}
+
         <h3 className="text-base font-semibold leading-snug tracking-tight">
           {excursion.title}
         </h3>
 
         {excursion.description && (
-          <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted-foreground">
+          <p
+            className={cn(
+              'mt-2 text-sm leading-relaxed text-muted-foreground',
+              !expanded && 'line-clamp-3'
+            )}
+          >
             {excursion.description}
           </p>
         )}
@@ -58,6 +99,76 @@ export function ExcursionPublicCard({ excursion }: ExcursionPublicCardProps) {
             <Clock className="size-3.5" strokeWidth={1.5} />
             <span>{excursion.duration}</span>
           </div>
+        )}
+
+        {/* Expandable detail */}
+        {hasDetails && (
+          <>
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="mt-4 flex items-center gap-1 text-xs font-medium text-emerald-700 transition-colors hover:text-emerald-900 dark:text-emerald-400 dark:hover:text-emerald-200"
+              aria-expanded={expanded}
+            >
+              {expanded ? 'Hide details' : 'View details'}
+              <ChevronDown
+                className={cn(
+                  'size-3.5 transition-transform duration-300',
+                  expanded && 'rotate-180'
+                )}
+                strokeWidth={2}
+              />
+            </button>
+
+            {expanded && (
+              <div className="mt-4 space-y-4 border-t pt-4 text-sm">
+                {excursion.experience && (
+                  <DetailBlock label="The experience" text={excursion.experience} />
+                )}
+                {excursion.whatsIncluded && (
+                  <DetailBlock label="What's included" text={excursion.whatsIncluded} />
+                )}
+                {excursion.price?.includes('\n') && (
+                  <DetailBlock label="Pricing" text={excursion.price} />
+                )}
+                {locations.length > 0 && (
+                  <div>
+                    <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Locations
+                    </h4>
+                    <ul className="space-y-1.5">
+                      {locations.map((loc, i) => (
+                        <li key={`${loc.name}-${i}`}>
+                          {loc.mapUrl ? (
+                            <a
+                              href={loc.mapUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-start gap-1.5 text-emerald-700 transition-colors hover:text-emerald-900 hover:underline dark:text-emerald-400 dark:hover:text-emerald-200"
+                            >
+                              <MapPin
+                                className="mt-0.5 size-3.5 shrink-0"
+                                strokeWidth={1.5}
+                              />
+                              <span>{loc.name}</span>
+                            </a>
+                          ) : (
+                            <span className="inline-flex items-start gap-1.5 text-muted-foreground">
+                              <MapPin
+                                className="mt-0.5 size-3.5 shrink-0"
+                                strokeWidth={1.5}
+                              />
+                              <span>{loc.name}</span>
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
         )}
 
         {/* Spacer pushes CTA to bottom */}
@@ -97,5 +208,18 @@ export function ExcursionPublicCard({ excursion }: ExcursionPublicCardProps) {
         )}
       </div>
     </article>
+  )
+}
+
+function DetailBlock({ label, text }: { label: string; text: string }) {
+  return (
+    <div>
+      <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </h4>
+      <p className="whitespace-pre-line leading-relaxed text-foreground/80">
+        {text.trim()}
+      </p>
+    </div>
   )
 }

@@ -12,6 +12,7 @@ import {
   date,
   time,
   unique,
+  jsonb,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import { relations } from 'drizzle-orm'
@@ -621,6 +622,9 @@ export const issuesRelations = relations(issues, ({ one }) => ({
 // ---------------------------------------------------------------------------
 // Excursions
 // ---------------------------------------------------------------------------
+// A named place tied to an excursion, with an optional map link (Google Maps).
+export type ExcursionLocation = { name: string; mapUrl?: string | null }
+
 export const excursions = pgTable('excursions', {
   id: uuid('id').defaultRandom().primaryKey(),
   propertyId: uuid('property_id')
@@ -628,9 +632,20 @@ export const excursions = pgTable('excursions', {
     .references(() => properties.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
   description: text('description'),
+  // What the experience entails — itinerary, choices, duration options.
+  experience: text('experience'),
+  // What's included in the price (transport, guide, equipment, refreshments…).
+  whatsIncluded: text('whats_included'),
   imageUrl: text('image_url'),
   price: text('price'),
   duration: text('duration'),
+  // Activity labels, e.g. Culture, Nature, Adventure, Wildlife, Wellness, Community.
+  tags: text('tags').array().default(sql`'{}'::text[]`).notNull(),
+  // Named locations with optional map links.
+  locations: jsonb('locations')
+    .$type<ExcursionLocation[]>()
+    .default(sql`'[]'::jsonb`)
+    .notNull(),
   bookingUrl: text('booking_url'),
   sortOrder: integer('sort_order').default(0).notNull(),
   isActive: boolean('is_active').default(true).notNull(),
