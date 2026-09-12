@@ -21,6 +21,7 @@ describe('getFleetNavigationItems', () => {
       '/admin/fleet/vehicles',
       '/admin/fleet/drivers',
       '/admin/fleet/distances',
+      '/admin/fleet/visit-report-categories',
     ])
   })
 })

@@ -42,6 +42,7 @@ const segmentLabels: Record<string, string> = {
   vehicles: 'Vehicles',
   drivers: 'Drivers',
   distances: 'Distances',
+  'visit-report-categories': 'Visit Report Categories',
   rostering: 'Rostering',
   approvals: 'Approvals',
   setup: 'Setup',

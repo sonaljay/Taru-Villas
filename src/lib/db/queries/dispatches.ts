@@ -18,7 +18,7 @@ import {
 } from '../schema'
 import type { EngineInput, EngineResult } from '@/lib/fleet/types'
 import { getFleetSettings, listDistances } from './fleet'
-import { ensureTripReportsInTransaction, VisitReportError } from './fleet-trip-reports'
+import { ensureTripReportForRequestInTransaction, ensureTripReportsInTransaction, VisitReportError } from './fleet-trip-reports'
 
 // --- Requests --------------------------------------------------------------
 
@@ -197,6 +197,7 @@ export async function createRequestWithTaskReason(
     }
 
     const [created] = await tx.insert(fleetRequests).values({ ...request, reportOwnerId, taskId }).returning()
+    await ensureTripReportForRequestInTransaction(tx, created.id)
     return created
   })
 }

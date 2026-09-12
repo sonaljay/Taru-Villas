@@ -1,5 +1,6 @@
 import {
   CalendarClock,
+  ListChecks,
   Route,
   Truck,
   Users,
@@ -7,7 +8,7 @@ import {
 } from 'lucide-react'
 
 export interface FleetNavigationItem {
-  title: 'My Rides' | 'Fleet' | 'Dispatch' | 'Vehicles' | 'Drivers' | 'Distances'
+  title: 'My Rides' | 'Fleet' | 'Dispatch' | 'Vehicles' | 'Drivers' | 'Distances' | 'Visit Report Categories'
   href: string
   icon: LucideIcon
 }
@@ -29,5 +30,6 @@ export function getFleetNavigationItems(
     { title: 'Vehicles', href: '/admin/fleet/vehicles', icon: Truck },
     { title: 'Drivers', href: '/admin/fleet/drivers', icon: Users },
     { title: 'Distances', href: '/admin/fleet/distances', icon: Route },
+    { title: 'Visit Report Categories', href: '/admin/fleet/visit-report-categories', icon: ListChecks },
   ]
 }

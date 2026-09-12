@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useState, type FormEvent } from 'react'
-import Link from 'next/link'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Plus, Trash2 } from 'lucide-react'
@@ -13,248 +12,47 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { observationCategoriesForReason } from '@/lib/fleet/reports'
 
-interface ReportDetails {
-  visitPurpose: string
-  visitLocation: string
-  visitDate: string
-  peopleMet: string
-  findings: string
-  outcomes: string
-  followUpActions: string
+type Details = { visitPurpose: string; visitLocation: string; visitDate: string; peopleMet: string; outcomes: string; followUpActions: string }
+type Task = { title: string; description: string; projectId: string; assigneeIds: string[]; priority: 'low' | 'medium' | 'high'; dueDate: string }
+type Observation = { id?: string; categoryId: string; finding: string; task: { kind: 'none' } | { kind: 'existing'; taskId: string } | { kind: 'new'; task: Task } }
+type Reason = { id: string; name: string; isActive: boolean }
+type Category = { id: string; primaryReasonId: string; name: string; isActive: boolean }
+type Data = {
+  report: { id: string; dueAt: string | null; submittedAt: string | null; summary: string | null; primaryReasonId: string | null; primaryReasonName: string | null; openComments: string | null; attachmentUrls: string[] | null; details: Partial<Details> | null; draft: { summary: string; primaryReasonId: string; observations: Observation[]; openComments?: string; details: Partial<Details>; attachmentUrls: string[]; linkedTaskIds: string[] } | null }
+  request: { purpose: string | null; destinationText: string | null; endDate: string; status: string }
+  taskOptions: { id: string; title: string; projectId: string }[]; projectOptions: { id: string; name: string }[]; people: { id: string; fullName: string }[]
+  observations: { id: string; categoryId: string; categoryName: string; finding: string; taskId: string | null; taskTitle: string | null }[]
+  reasons: Reason[]; observationCategories: Category[]; canEdit: boolean; canSubmit: boolean
 }
-interface FollowUpTask {
-  title: string
-  description: string
-  projectId: string
-  assigneeIds: string[]
-  priority: 'low' | 'medium' | 'high'
-  dueDate: string
-}
-interface ReportData {
-  report: {
-    id: string
-    requestId: string
-    taskId: string | null
-    reportingTaskId: string | null
-    dueAt: string | null
-    submittedAt: string | null
-    summary: string | null
-    attachmentUrls: string[] | null
-    details: Partial<ReportDetails> | null
-    draft: { summary: string; details: Partial<ReportDetails>; attachmentUrls: string[]; linkedTaskIds: string[]; newTasks: (Omit<FollowUpTask, 'dueDate'> & { dueDate: string | null })[] } | null
-  }
-  request: { purpose: string | null; destinationText: string | null; startDate: string; endDate: string; targetPropertyId: string | null; status: string }
-  linkedTasks: { id: string; title: string; projectId: string }[]
-  taskOptions: { id: string; title: string; projectId: string }[]
-  projectOptions: { id: string; name: string }[]
-  people: { id: string; fullName: string }[]
-  canSubmit: boolean
-  canEdit: boolean
-}
-
-const emptyDetails: ReportDetails = { visitPurpose: '', visitLocation: '', visitDate: '', peopleMet: '', findings: '', outcomes: '', followUpActions: '' }
-const detailFields = [
-  ['visitPurpose', 'Visit purpose', true, 2000],
-  ['visitLocation', 'Visit location', true, 1000],
-  ['peopleMet', 'People met', false, 3000],
-  ['findings', 'Findings and observations', false, 5000],
-  ['outcomes', 'Outcomes', true, 5000],
-  ['followUpActions', 'Follow-up actions', false, 5000],
-] as const
-
-function safeUrl(value: string): boolean {
-  try { return ['http:', 'https:'].includes(new URL(value).protocol) } catch { return false }
-}
-
-function colomboTime(value: string): string {
-  return new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Colombo' }).format(new Date(value))
-}
-
-function visitDateInput(value: string): string {
-  if (!value) return ''
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
-  const parts = new Intl.DateTimeFormat('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Colombo' }).formatToParts(new Date(value))
-  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? ''
-  return `${part('year')}-${part('month')}-${part('day')}`
-}
-
-async function readResponse(res: Response): Promise<ReportData> {
-  const body = await res.json().catch(() => null)
-  if (!res.ok) throw new Error(typeof body?.error === 'string' ? body.error : 'Unable to load visit report')
-  return body as ReportData
-}
+const emptyDetails: Details = { visitPurpose: '', visitLocation: '', visitDate: '', peopleMet: '', outcomes: '', followUpActions: '' }
+const emptyTask = (): Task => ({ title: '', description: '', projectId: '', assigneeIds: [], priority: 'medium', dueDate: '' })
+const emptyObservation = (): Observation => ({ categoryId: '', finding: '', task: { kind: 'none' } })
+const safeUrl = (value: string) => { try { return ['http:', 'https:'].includes(new URL(value).protocol) } catch { return false } }
+const dateValue = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : ''
 
 export function VisitReportClient({ requestId }: { requestId: string }) {
-  const router = useRouter()
-  const [data, setData] = useState<ReportData | null>(null)
-  const [error, setError] = useState('')
-  const [summary, setSummary] = useState('')
-  const [details, setDetails] = useState<ReportDetails>(emptyDetails)
-  const [urls, setUrls] = useState<string[]>([''])
-  const [linkedTaskIds, setLinkedTaskIds] = useState<string[]>([])
-  const [newTasks, setNewTasks] = useState<FollowUpTask[]>([])
-  const [pending, setPending] = useState(false)
-  const [savingDraft, setSavingDraft] = useState(false)
-  const [reload, setReload] = useState(0)
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [])
-  const windowClosed = !!data?.report.dueAt && now >= new Date(data.report.dueAt).getTime()
-
-  useEffect(() => {
-    const controller = new AbortController()
-    setError('')
-    setData(null)
-    fetch(`/api/fleet/reports/${requestId}`, { signal: controller.signal, cache: 'no-store' })
-      .then(readResponse)
-      .then((result) => {
-        if (controller.signal.aborted) return
-        setData(result)
-        const draft = result.report.submittedAt ? null : result.report.draft
-        const savedDetails = draft?.details ?? result.report.details
-        const savedUrls = draft?.attachmentUrls ?? result.report.attachmentUrls
-        setSummary(draft?.summary ?? result.report.summary ?? '')
-        setDetails({ ...emptyDetails, visitPurpose: result.request.purpose ?? '', visitLocation: result.request.destinationText ?? '', ...savedDetails, visitDate: visitDateInput(savedDetails?.visitDate ?? result.request.endDate) })
-        setUrls(savedUrls?.length ? savedUrls : [''])
-        setLinkedTaskIds(result.report.submittedAt ? [] : draft?.linkedTaskIds ?? result.linkedTasks.map((task) => task.id))
-        setNewTasks(draft?.newTasks.map((task) => ({ ...task, dueDate: task.dueDate ?? '' })) ?? [])
-      })
-      .catch((cause: unknown) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'Unable to load visit report') })
-    return () => controller.abort()
-  }, [requestId, reload])
-
-  function updateTask(index: number, patch: Partial<FollowUpTask>) {
-    setNewTasks((current) => current.map((task, i) => i === index ? { ...task, ...patch } : task))
-  }
-
-  async function saveDraft() {
-    if (!data?.canEdit || data.report.submittedAt || pending || windowClosed) return
-    const attachments = urls.map((url) => url.trim()).filter(Boolean)
-    if (attachments.length > 20 || attachments.some((url) => !safeUrl(url))) { toast.error('Use up to 20 valid HTTP or HTTPS supporting URLs.'); return }
-    setPending(true)
-    setSavingDraft(true)
-    try {
-      const res = await fetch(`/api/fleet/reports/${requestId}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ summary, details, attachmentUrls: attachments, linkedTaskIds, newTasks: newTasks.map((task) => ({ ...task, dueDate: task.dueDate || null })) }),
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => null)
-        throw new Error(typeof body?.error === 'string' ? body.error : 'Failed to save draft')
-      }
-      toast.success('Visit report draft saved')
-      router.refresh()
-    } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : 'Failed to save draft')
-    } finally { setPending(false); setSavingDraft(false) }
-  }
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!data?.canSubmit || pending || windowClosed) return
-    const attachments = urls.map((url) => url.trim()).filter(Boolean)
-    if (!summary.trim() || !details.visitPurpose.trim() || !details.visitLocation.trim() || !details.visitDate || !details.outcomes.trim()) {
-      toast.error('Complete the required visit details, work done and outcomes.'); return
-    }
-    if (attachments.length > 20 || attachments.some((url) => !safeUrl(url))) { toast.error('Use up to 20 valid HTTP or HTTPS supporting URLs.'); return }
-    if (linkedTaskIds.length > 20) { toast.error('Link up to 20 existing tasks.'); return }
-    if (newTasks.some((task) => !task.title.trim() || !task.projectId || task.assigneeIds.length === 0 || task.assigneeIds.length > 20)) {
-      toast.error('Every follow-up task needs a title, project and 1–20 assignees.'); return
-    }
-    setPending(true)
-    try {
-      const res = await fetch(`/api/fleet/reports/${requestId}`, {
-        method: data.report.submittedAt ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ summary: summary.trim(), attachmentUrls: attachments,
-          details,
-          linkedTaskIds,
-          newTasks: newTasks.map((task) => ({ ...task, title: task.title.trim(), dueDate: task.dueDate || null })),
-        }),
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => null)
-        throw new Error(typeof body?.error === 'string' ? body.error : 'Failed to submit visit report')
-      }
-      toast.success(data.report.submittedAt ? 'Visit report updated' : 'Visit report submitted')
-      setReload((value) => value + 1)
-      router.refresh()
-    } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : 'Failed to submit visit report')
-    } finally { setPending(false) }
-  }
-
-  if (error) return <div className="space-y-4"><h1 className="text-2xl font-semibold">Visit report</h1><p role="alert" className="text-destructive">{error}</p><Button variant="outline" onClick={() => setReload((value) => value + 1)}>Try again</Button></div>
-  if (!data) return <p role="status" className="text-muted-foreground">Loading visit report…</p>
-  const submitted = !!data.report.submittedAt
-  const cancelled = data.request.status === 'cancelled'
-  const readOnly = !data.canEdit || windowClosed || cancelled
-  const overdue = !submitted && !cancelled && !!data.report.dueAt && new Date(data.report.dueAt) < new Date()
-
-  return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Visit report</h1>
-        <Badge variant={overdue ? 'destructive' : 'secondary'}>{cancelled ? 'Cancelled' : submitted ? 'Submitted' : overdue ? 'Overdue' : 'Draft'}</Badge>
-        {!cancelled && <p className="text-sm text-muted-foreground">{data.report.dueAt ? `Due ${colomboTime(data.report.dueAt)} (Asia/Colombo)${data.report.reportingTaskId ? ' · 48 hours after trip completion' : ' · Original reporting deadline'}` : 'Deadline starts after trip completion — due within 48h'}</p>}
-        {cancelled && <p className="text-sm text-muted-foreground">This trip was cancelled. The report is read-only.</p>}
-        {submitted && <p className="text-sm text-muted-foreground">Submitted {colomboTime(data.report.submittedAt!)} (Asia/Colombo). Changes are allowed until the editing deadline.</p>}
-        {windowClosed && !cancelled && <p className="text-sm text-muted-foreground">The 48-hour editing window has closed. This report is read-only.</p>}
-        {!windowClosed && !cancelled && !data.canEdit && <p className="text-sm text-muted-foreground">Only the designated report owner can edit and submit this report.</p>}
-        {!submitted && !cancelled && data.canEdit && !data.canSubmit && <p className="text-sm text-muted-foreground">You can start drafting now. Submit the final report after the trip is completed.</p>}
-      </div>
-      <form onSubmit={submit} className="space-y-6">
-        <Card>
-          <CardHeader><CardTitle>Visit details</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2"><Label htmlFor="visitDate">Visit date *</Label><Input id="visitDate" type="date" required disabled={readOnly || pending} value={details.visitDate} onChange={(e) => setDetails({ ...details, visitDate: e.target.value })} /></div>
-            {detailFields.map(([key, label, required, maxLength]) => <div key={key} className="space-y-2">
-              <Label htmlFor={key}>{label}{required ? ' *' : ''}</Label>
-              {readOnly ? <p className="whitespace-pre-wrap break-words text-sm">{details[key] || '—'}</p> : <Textarea id={key} required={required} disabled={pending} maxLength={maxLength} value={details[key]} onChange={(e) => setDetails({ ...details, [key]: e.target.value })} />}
-            </div>)}
-            <div className="space-y-2"><Label htmlFor="report-summary">Work done *</Label>
-              {readOnly ? <p className="whitespace-pre-wrap break-words text-sm">{summary || '—'}</p> : <Textarea id="report-summary" required rows={5} maxLength={5000} disabled={pending} value={summary} onChange={(e) => setSummary(e.target.value)} />}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle>Supporting files</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            {readOnly ? (urls.filter((url) => safeUrl(url)).length ? urls.filter((url) => safeUrl(url)).map((url, index) => <a key={index} href={url} target="_blank" rel="noopener noreferrer" className="block break-all text-sm underline">{url}</a>) : <p className="text-sm text-muted-foreground">No supporting files.</p>) : <>
-              <p className="text-sm text-muted-foreground">Add up to 20 HTTP or HTTPS links to supporting files.</p>
-              {urls.map((url, index) => <div key={index} className="flex gap-2"><Input aria-label={`Supporting URL ${index + 1}`} type="url" placeholder="https://…" value={url} disabled={pending} onChange={(e) => setUrls((current) => current.map((value, i) => i === index ? e.target.value : value))} /><Button type="button" variant="ghost" size="icon" aria-label={`Remove URL ${index + 1}`} disabled={pending} onClick={() => setUrls((current) => current.filter((_, i) => i !== index))}><Trash2 className="size-4" /></Button></div>)}
-              <Button type="button" variant="outline" disabled={pending || urls.length >= 20} onClick={() => setUrls([...urls, ''])}><Plus className="size-4" />Add URL</Button>
-            </>}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle>Linked tasks</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">Link tasks supported by this visit. Linking a task does not complete it. Existing submitted links are retained. After submission, create additional tasks in Task Manager and link them here.</p>
-            {data.linkedTasks.map((task) => <Link key={task.id} href={`/tasks/${task.projectId}?task=${task.id}`} className="block text-sm underline">{task.title}</Link>)}
-            {!readOnly && <div className="max-h-64 space-y-3 overflow-y-auto rounded-md border p-3">{data.taskOptions.length ? data.taskOptions.map((task) => <label key={task.id} className="flex items-start gap-2 text-sm"><Checkbox checked={linkedTaskIds.includes(task.id) || (submitted && data.linkedTasks.some((link) => link.id === task.id))} disabled={pending || task.id === data.report.taskId || (submitted && data.linkedTasks.some((link) => link.id === task.id)) || (!linkedTaskIds.includes(task.id) && linkedTaskIds.length >= 20)} onCheckedChange={(checked) => setLinkedTaskIds((current) => checked ? [...new Set([...current, task.id])] : current.filter((id) => id !== task.id))} /><span>{task.title}</span></label>) : <p className="text-sm text-muted-foreground">No additional tasks available.</p>}</div>}
-            {readOnly && !data.linkedTasks.length && <p className="text-sm text-muted-foreground">No linked tasks.</p>}
-          </CardContent>
-        </Card>
-        {!readOnly && !submitted && <Card>
-          <CardHeader><CardTitle>Create follow-up tasks</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">These tasks will be created when you submit the report. Add up to 10.</p>
-            {newTasks.map((task, index) => <fieldset key={index} disabled={pending} className="space-y-3 rounded-lg border p-4">
-              <div className="flex items-center justify-between"><span className="font-medium">Follow-up task {index + 1}</span><Button type="button" variant="ghost" size="icon" aria-label={`Remove task ${index + 1}`} onClick={() => setNewTasks((current) => current.filter((_, i) => i !== index))}><Trash2 className="size-4" /></Button></div>
-              <div className="space-y-2"><Label htmlFor={`task-title-${index}`}>Title *</Label><Input id={`task-title-${index}`} required maxLength={500} value={task.title} onChange={(e) => updateTask(index, { title: e.target.value })} /></div>
-              <div className="space-y-2"><Label>Project *</Label><Select value={task.projectId} disabled={pending} onValueChange={(projectId) => updateTask(index, { projectId })}><SelectTrigger className="w-full"><SelectValue placeholder="Select project" /></SelectTrigger><SelectContent>{data.projectOptions.map((project) => <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-2"><Label>Assignees * (up to 20)</Label><div className="max-h-40 space-y-2 overflow-y-auto rounded-md border p-3">{data.people.map((person) => <label key={person.id} className="flex items-center gap-2 text-sm"><Checkbox checked={task.assigneeIds.includes(person.id)} disabled={pending || (!task.assigneeIds.includes(person.id) && task.assigneeIds.length >= 20)} onCheckedChange={(checked) => updateTask(index, { assigneeIds: checked ? [...task.assigneeIds, person.id] : task.assigneeIds.filter((id) => id !== person.id) })} />{person.fullName}</label>)}</div></div>
-              <div className="grid gap-3 sm:grid-cols-2"><div className="space-y-2"><Label>Priority</Label><Select value={task.priority} disabled={pending} onValueChange={(priority) => updateTask(index, { priority: priority as FollowUpTask['priority'] })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="low">Low</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="high">High</SelectItem></SelectContent></Select></div><div className="space-y-2"><Label htmlFor={`task-due-${index}`}>Due date (Asia/Colombo)</Label><Input id={`task-due-${index}`} type="date" value={task.dueDate} onChange={(e) => updateTask(index, { dueDate: e.target.value })} /></div></div>
-              <div className="space-y-2"><Label htmlFor={`task-description-${index}`}>Description</Label><Textarea id={`task-description-${index}`} maxLength={5000} value={task.description} onChange={(e) => updateTask(index, { description: e.target.value })} /></div>
-            </fieldset>)}
-            <Button type="button" variant="outline" disabled={pending || newTasks.length >= 10 || !data.projectOptions.length || !data.people.length} onClick={() => setNewTasks([...newTasks, { title: '', description: '', projectId: '', assigneeIds: [], priority: 'medium', dueDate: '' }])}><Plus className="size-4" />Add follow-up task</Button>
-          </CardContent>
-        </Card>}
-        {!readOnly && <div className="space-y-2"><p className="text-sm text-muted-foreground">You can edit until 48 hours after trip completion, including after submission.</p><div className="flex flex-wrap gap-2">{!submitted && <Button type="button" variant="outline" disabled={pending} onClick={saveDraft}>{savingDraft ? 'Saving…' : 'Save draft'}</Button>}<Button type="submit" disabled={pending || !data.canSubmit}>{pending && !savingDraft ? 'Saving…' : submitted ? 'Save changes' : 'Submit visit report'}</Button></div></div>}
-      </form>
-    </div>
-  )
+  const router = useRouter(); const [data, setData] = useState<Data | null>(null); const [error, setError] = useState('')
+  const [summary, setSummary] = useState(''); const [reasonId, setReasonId] = useState(''); const [details, setDetails] = useState<Details>(emptyDetails); const [observations, setObservations] = useState<Observation[]>([]); const [comments, setComments] = useState(''); const [urls, setUrls] = useState<string[]>(['']); const [pending, setPending] = useState(false); const [savingDraft, setSavingDraft] = useState(false); const [reload, setReload] = useState(0)
+  useEffect(() => { const controller = new AbortController(); setData(null); setError(''); fetch(`/api/fleet/reports/${requestId}`, { cache: 'no-store', signal: controller.signal }).then(async (res) => { const body = await res.json().catch(() => null); if (!res.ok) throw new Error(body?.error ?? 'Unable to load visit report'); return body as Data }).then((result) => { if (controller.signal.aborted) return; setData(result); const draft = result.report.submittedAt ? null : result.report.draft; const saved = draft?.details ?? result.report.details; setSummary(draft?.summary ?? result.report.summary ?? ''); setReasonId(draft?.primaryReasonId ?? result.report.primaryReasonId ?? ''); setDetails({ ...emptyDetails, visitPurpose: result.request.purpose ?? '', visitLocation: result.request.destinationText ?? '', ...saved, visitDate: dateValue(saved?.visitDate ?? result.request.endDate) }); setObservations(draft?.observations ?? result.observations.map((item) => ({ id: item.id, categoryId: item.categoryId, finding: item.finding, task: item.taskId ? { kind: 'existing' as const, taskId: item.taskId } : { kind: 'none' as const } }))); setComments(draft?.openComments ?? result.report.openComments ?? ''); setUrls((draft?.attachmentUrls ?? result.report.attachmentUrls)?.length ? (draft?.attachmentUrls ?? result.report.attachmentUrls)! : ['']) }).catch((cause) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'Unable to load visit report') }); return () => controller.abort() }, [requestId, reload])
+  const categories = useMemo(() => data ? observationCategoriesForReason(data.observationCategories, reasonId) : [], [data, reasonId])
+  const submitted = !!data?.report.submittedAt; const readOnly = !data?.canEdit || data.request.status === 'cancelled'
+  const updateObservation = (index: number, patch: Partial<Observation>) => setObservations((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item))
+  const updateTask = (index: number, patch: Partial<Task>) => setObservations((items) => items.map((item, itemIndex) => itemIndex === index && item.task.kind === 'new' ? { ...item, task: { kind: 'new', task: { ...item.task.task, ...patch } } } : item))
+  const payload = () => ({ summary, primaryReasonId: reasonId, details, observations, openComments: comments, attachmentUrls: urls.map((url) => url.trim()).filter(Boolean), linkedTaskIds: [], newTasks: [] })
+  function valid(final: boolean) { const body = payload(); if (body.attachmentUrls.some((url) => !safeUrl(url))) { toast.error('Use valid HTTP or HTTPS supporting URLs.'); return false }; if (!final) return true; if (!summary.trim() || !reasonId || !details.visitPurpose.trim() || !details.visitLocation.trim() || !details.visitDate || !details.outcomes.trim()) { toast.error('Complete the primary reason, visit details, work done and outcomes.'); return false }; if (observations.some((item) => !item.categoryId || !item.finding.trim())) { toast.error('Complete every observation or remove its empty card.'); return false }; if (observations.some((item) => item.task.kind === 'new' && (!item.task.task.title.trim() || !item.task.task.projectId || !item.task.task.assigneeIds.length))) { toast.error('Every new task needs a title, project and assignee.'); return false }; return true }
+  async function saveDraft() { if (!data || submitted || !valid(false)) return; setPending(true); setSavingDraft(true); try { const res = await fetch(`/api/fleet/reports/${requestId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload()) }); const body = await res.json().catch(() => null); if (!res.ok) throw new Error(body?.error ?? 'Failed to save draft'); toast.success('Visit report draft saved') } catch (cause) { toast.error(cause instanceof Error ? cause.message : 'Failed to save draft') } finally { setPending(false); setSavingDraft(false) } }
+  async function submit(event: FormEvent) { event.preventDefault(); if (!data || !data.canSubmit || !valid(true)) return; setPending(true); try { const res = await fetch(`/api/fleet/reports/${requestId}`, { method: submitted ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload()) }); const body = await res.json().catch(() => null); if (!res.ok) throw new Error(body?.error ?? 'Failed to submit report'); toast.success(submitted ? 'Visit report updated' : 'Visit report submitted'); setReload((value) => value + 1); router.refresh() } catch (cause) { toast.error(cause instanceof Error ? cause.message : 'Failed to submit report') } finally { setPending(false) } }
+  if (error) return <div className="space-y-4"><h1 className="text-2xl font-semibold">Visit report</h1><p className="text-destructive">{error}</p><Button onClick={() => setReload((value) => value + 1)}>Try again</Button></div>
+  if (!data) return <p className="text-muted-foreground">Loading visit report…</p>
+  const selectedReason = data.reasons.find((item) => item.id === reasonId)?.name ?? data.report.primaryReasonName ?? '—'
+  return <div className="mx-auto max-w-4xl space-y-6"><div className="space-y-2"><h1 className="text-2xl font-semibold tracking-tight">Visit report</h1><Badge variant="secondary">{submitted ? 'Submitted' : 'Draft'}</Badge><p className="text-sm text-muted-foreground">{data.report.dueAt ? `Due ${new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Colombo', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(data.report.dueAt))} (Asia/Colombo).` : 'Draft now; the deadline starts after trip completion.'}</p></div><form className="space-y-6" onSubmit={submit}>
+    <Card><CardHeader><CardTitle>Primary visit reason</CardTitle></CardHeader><CardContent>{readOnly ? <p>{selectedReason}</p> : <Select value={reasonId} onValueChange={(value) => { setReasonId(value); setObservations((items) => items.map((item) => ({ ...item, categoryId: '' }))) }}><SelectTrigger><SelectValue placeholder="Select primary visit reason" /></SelectTrigger><SelectContent>{data.reasons.filter((item) => item.isActive || item.id === reasonId).map((item) => <SelectItem key={item.id} value={item.id}>{item.name}{!item.isActive ? ' (inactive)' : ''}</SelectItem>)}</SelectContent></Select>}</CardContent></Card>
+    <Card><CardHeader><CardTitle>Visit details</CardTitle></CardHeader><CardContent className="space-y-4"><div className="space-y-2"><Label htmlFor="visit-date">Visit date *</Label><Input id="visit-date" type="date" disabled={readOnly || pending} value={details.visitDate} onChange={(event) => setDetails({ ...details, visitDate: event.target.value })} /></div>{([['visitPurpose', 'Visit purpose', true], ['visitLocation', 'Visit location', true], ['peopleMet', 'People met', false], ['outcomes', 'Outcomes', true], ['followUpActions', 'Follow-up actions', false]] as const).map(([key, label, required]) => <div key={key} className="space-y-2"><Label htmlFor={key}>{label}{required ? ' *' : ''}</Label>{readOnly ? <p className="whitespace-pre-wrap text-sm">{details[key] || '—'}</p> : <Textarea id={key} required={required} maxLength={5000} disabled={pending} value={details[key]} onChange={(event) => setDetails({ ...details, [key]: event.target.value })} />}</div>)}<div className="space-y-2"><Label htmlFor="summary">Work done *</Label>{readOnly ? <p className="whitespace-pre-wrap text-sm">{summary || '—'}</p> : <Textarea id="summary" required maxLength={5000} disabled={pending} value={summary} onChange={(event) => setSummary(event.target.value)} />}</div></CardContent></Card>
+    <Card><CardHeader><CardTitle>Findings and observations</CardTitle></CardHeader><CardContent className="space-y-4">{observations.map((item, index) => <fieldset key={item.id ?? index} className="space-y-3 rounded-lg border p-4" disabled={readOnly || pending}><div className="flex items-center justify-between"><span className="font-medium">Observation {index + 1}</span>{!readOnly && <Button type="button" variant="ghost" size="icon" onClick={() => setObservations((items) => items.filter((_, itemIndex) => itemIndex !== index))}><Trash2 className="size-4" /></Button>}</div><div className="space-y-2"><Label>Category *</Label>{readOnly ? <p className="text-sm">{data.observationCategories.find((category) => category.id === item.categoryId)?.name ?? data.observations.find((observation) => observation.id === item.id)?.categoryName ?? '—'}</p> : <Select value={item.categoryId} onValueChange={(categoryId) => updateObservation(index, { categoryId })} disabled={!reasonId}><SelectTrigger><SelectValue placeholder={reasonId ? 'Select category' : 'Choose primary reason first'} /></SelectTrigger><SelectContent>{categories.map((category) => <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>)}</SelectContent></Select>}</div><div className="space-y-2"><Label>Finding *</Label>{readOnly ? <p className="whitespace-pre-wrap text-sm">{item.finding}</p> : <Textarea maxLength={5000} value={item.finding} onChange={(event) => updateObservation(index, { finding: event.target.value })} />}</div>{!readOnly && <div className="space-y-2"><Label>Task association</Label><Select value={item.task.kind} onValueChange={(kind) => updateObservation(index, { task: kind === 'existing' ? { kind: 'existing', taskId: '' } : kind === 'new' ? { kind: 'new', task: { ...emptyTask(), title: item.finding.slice(0, 500), description: item.finding } } : { kind: 'none' } })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">No task</SelectItem><SelectItem value="existing">Link existing task</SelectItem>{!submitted && <SelectItem value="new">Create new task</SelectItem>}</SelectContent></Select></div>}{item.task.kind === 'existing' && !readOnly && <Select value={item.task.taskId} onValueChange={(taskId) => updateObservation(index, { task: { kind: 'existing', taskId } })}><SelectTrigger><SelectValue placeholder="Select task" /></SelectTrigger><SelectContent>{data.taskOptions.map((task) => <SelectItem key={task.id} value={task.id}>{task.title}</SelectItem>)}</SelectContent></Select>}{item.task.kind === 'new' && !readOnly && <div className="space-y-3 rounded-md bg-muted/40 p-3"><Input placeholder="Task title" value={item.task.task.title} onChange={(event) => updateTask(index, { title: event.target.value })} /><Select value={item.task.task.projectId} onValueChange={(projectId) => updateTask(index, { projectId })}><SelectTrigger><SelectValue placeholder="Project" /></SelectTrigger><SelectContent>{data.projectOptions.map((project) => <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>)}</SelectContent></Select><div className="max-h-36 space-y-2 overflow-y-auto rounded border bg-background p-2">{data.people.map((person) => <label key={person.id} className="flex items-center gap-2 text-sm"><Checkbox checked={item.task.kind === 'new' && item.task.task.assigneeIds.includes(person.id)} onCheckedChange={(checked) => item.task.kind === 'new' && updateTask(index, { assigneeIds: checked ? [...item.task.task.assigneeIds, person.id] : item.task.task.assigneeIds.filter((id) => id !== person.id) })} />{person.fullName}</label>)}</div><Textarea placeholder="Task description" value={item.task.task.description} onChange={(event) => updateTask(index, { description: event.target.value })} /></div>}</fieldset>)}{!readOnly && <Button type="button" variant="outline" disabled={pending || observations.length >= 20} onClick={() => setObservations((items) => [...items, emptyObservation()])}><Plus className="size-4" />Add observation</Button>}{readOnly && observations.length === 0 && <p className="text-sm text-muted-foreground">No findings recorded.</p>}</CardContent></Card>
+    <Card><CardHeader><CardTitle>Open comments</CardTitle></CardHeader><CardContent>{readOnly ? <p className="whitespace-pre-wrap text-sm">{comments || '—'}</p> : <Textarea placeholder="Comments on areas outside the primary visit reason" maxLength={5000} disabled={pending} value={comments} onChange={(event) => setComments(event.target.value)} />}</CardContent></Card>
+    <Card><CardHeader><CardTitle>Supporting files</CardTitle></CardHeader><CardContent className="space-y-2">{readOnly ? (urls.filter(safeUrl).map((url) => <a key={url} className="block text-sm underline" href={url} target="_blank" rel="noopener noreferrer">{url}</a>)) : <>{urls.map((url, index) => <div key={index} className="flex gap-2"><Input type="url" value={url} placeholder="https://…" onChange={(event) => setUrls((items) => items.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} /><Button type="button" variant="ghost" size="icon" onClick={() => setUrls((items) => items.filter((_, itemIndex) => itemIndex !== index))}><Trash2 className="size-4" /></Button></div>)}<Button type="button" variant="outline" onClick={() => setUrls((items) => [...items, ''])}><Plus className="size-4" />Add URL</Button></>}</CardContent></Card>
+    {!readOnly && <div className="flex gap-2">{!submitted && <Button type="button" variant="outline" disabled={pending} onClick={saveDraft}>{savingDraft ? 'Saving…' : 'Save draft'}</Button>}<Button type="submit" disabled={pending || !data.canSubmit}>{submitted ? 'Save changes' : 'Submit visit report'}</Button></div>}
+  </form></div>
 }

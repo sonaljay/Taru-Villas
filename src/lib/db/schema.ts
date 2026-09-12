@@ -1590,6 +1590,27 @@ export const fleetSettings = pgTable('fleet_settings', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
+export const visitReportReasons = pgTable('visit_report_reasons', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id),
+  name: varchar('name', { length: 255 }).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [unique('visit_report_reasons_org_name_unique').on(t.orgId, t.name)])
+
+export const visitReportObservationCategories = pgTable('visit_report_observation_categories', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id),
+  primaryReasonId: uuid('primary_reason_id').notNull().references(() => visitReportReasons.id, { onDelete: 'restrict' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [unique('visit_report_observation_categories_reason_name_unique').on(t.primaryReasonId, t.name)])
+
 export const fleetRequests = pgTable('fleet_requests', {
   id: uuid('id').defaultRandom().primaryKey(),
   orgId: uuid('org_id').notNull().references(() => organizations.id),
@@ -1648,13 +1669,28 @@ export const fleetTripReports = pgTable('fleet_trip_reports', {
   requestId: uuid('request_id').notNull().unique().references(() => fleetRequests.id, { onDelete: 'cascade' }),
   taskId: uuid('task_id').references(() => tasks.id, { onDelete: 'set null' }),
   reportingTaskId: uuid('reporting_task_id').unique().references(() => tasks.id, { onDelete: 'restrict' }),
+  primaryReasonId: uuid('primary_reason_id').references(() => visitReportReasons.id, { onDelete: 'restrict' }),
+  primaryReasonName: text('primary_reason_name'),
   details: jsonb('details').$type<Partial<import('../fleet/reports').VisitReportDetails>>().default({}).notNull(),
   draft: jsonb('draft').$type<import('../fleet/reports').VisitReportDraft>(),
   submittedBy: uuid('submitted_by').notNull().references(() => profiles.id),
   dueAt: timestamp('due_at', { withTimezone: true }),
   submittedAt: timestamp('submitted_at', { withTimezone: true }),
   summary: text('summary'),
+  openComments: text('open_comments'),
   attachmentUrls: text('attachment_urls').array().default(sql`'{}'::text[]`).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export const fleetTripReportObservations = pgTable('fleet_trip_report_observations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id),
+  reportId: uuid('report_id').notNull().references(() => fleetTripReports.id, { onDelete: 'cascade' }),
+  categoryId: uuid('category_id').notNull().references(() => visitReportObservationCategories.id, { onDelete: 'restrict' }),
+  categoryName: text('category_name').notNull(),
+  finding: text('finding').notNull(),
+  taskId: uuid('task_id').references(() => tasks.id, { onDelete: 'restrict' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
@@ -1735,7 +1771,28 @@ export const fleetTripReportsRelations = relations(fleetTripReports, ({ one, man
   task: one(tasks, { fields: [fleetTripReports.taskId], references: [tasks.id] }),
   reportingTask: one(tasks, { fields: [fleetTripReports.reportingTaskId], references: [tasks.id] }),
   submitter: one(profiles, { fields: [fleetTripReports.submittedBy], references: [profiles.id] }),
+  primaryReason: one(visitReportReasons, { fields: [fleetTripReports.primaryReasonId], references: [visitReportReasons.id] }),
   taskLinks: many(fleetReportTaskLinks),
+  observations: many(fleetTripReportObservations),
+}))
+
+export const visitReportReasonsRelations = relations(visitReportReasons, ({ one, many }) => ({
+  organization: one(organizations, { fields: [visitReportReasons.orgId], references: [organizations.id] }),
+  observationCategories: many(visitReportObservationCategories),
+  reports: many(fleetTripReports),
+}))
+
+export const visitReportObservationCategoriesRelations = relations(visitReportObservationCategories, ({ one, many }) => ({
+  organization: one(organizations, { fields: [visitReportObservationCategories.orgId], references: [organizations.id] }),
+  primaryReason: one(visitReportReasons, { fields: [visitReportObservationCategories.primaryReasonId], references: [visitReportReasons.id] }),
+  observations: many(fleetTripReportObservations),
+}))
+
+export const fleetTripReportObservationsRelations = relations(fleetTripReportObservations, ({ one }) => ({
+  organization: one(organizations, { fields: [fleetTripReportObservations.orgId], references: [organizations.id] }),
+  report: one(fleetTripReports, { fields: [fleetTripReportObservations.reportId], references: [fleetTripReports.id] }),
+  category: one(visitReportObservationCategories, { fields: [fleetTripReportObservations.categoryId], references: [visitReportObservationCategories.id] }),
+  task: one(tasks, { fields: [fleetTripReportObservations.taskId], references: [tasks.id] }),
 }))
 
 export const fleetReportTaskLinksRelations = relations(fleetReportTaskLinks, ({ one }) => ({
@@ -1772,6 +1829,9 @@ export type DispatchStop = typeof dispatchStops.$inferSelect
 export type NewDispatchStop = typeof dispatchStops.$inferInsert
 export type FleetTripReport = typeof fleetTripReports.$inferSelect
 export type NewFleetTripReport = typeof fleetTripReports.$inferInsert
+export type VisitReportReason = typeof visitReportReasons.$inferSelect
+export type VisitReportObservationCategory = typeof visitReportObservationCategories.$inferSelect
+export type FleetTripReportObservation = typeof fleetTripReportObservations.$inferSelect
 export type PushSubscription = typeof pushSubscriptions.$inferSelect
 export type Notification = typeof notifications.$inferSelect
 

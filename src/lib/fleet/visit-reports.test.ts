@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { reportDeadline, visitReportSubmissionSchema, getReportStatus, isReportEditingOpen } from './reports'
+import { observationCategoriesForReason, reportDeadline, visitReportSubmissionSchema, getReportStatus, isReportEditingOpen } from './reports'
 
 describe('visit report contract', () => {
   it('allows editing before completion and locks at the precise deadline', () => {
@@ -17,6 +17,9 @@ describe('visit report contract', () => {
   })
   const valid = { summary: 'Inspected equipment', details: { visitPurpose: 'Site visit', visitLocation: 'Property',
     visitDate: '2026-09-08', outcomes: 'Repairs needed' }, attachmentUrls: ['https://example.com/report?a=1'],
+    primaryReasonId: crypto.randomUUID(),
+    observations: [{ categoryId: crypto.randomUUID(), finding: 'The cold room temperature log was incomplete.' }],
+    openComments: 'The staff briefing was well attended.',
     linkedTaskIds: [], newTasks: [] }
   it('requires the core report fields and valid calendar dates', () => {
     expect(visitReportSubmissionSchema.safeParse(valid).success).toBe(true)
@@ -26,5 +29,18 @@ describe('visit report contract', () => {
   it('rejects executable attachment links and unassigned follow-up tasks', () => {
     expect(visitReportSubmissionSchema.safeParse({ ...valid, attachmentUrls: ['javascript:alert(1)'] }).success).toBe(false)
     expect(visitReportSubmissionSchema.safeParse({ ...valid, newTasks: [{ title: 'Repair', projectId: crypto.randomUUID(), assigneeIds: [], priority: 'high' }] }).success).toBe(false)
+  })
+  it('requires a primary reason and validates structured observations', () => {
+    expect(visitReportSubmissionSchema.safeParse(valid).success).toBe(true)
+    expect(visitReportSubmissionSchema.safeParse({ ...valid, primaryReasonId: undefined }).success).toBe(false)
+    expect(visitReportSubmissionSchema.safeParse({ ...valid, observations: [{ categoryId: crypto.randomUUID(), finding: ' ' }] }).success).toBe(false)
+    expect(visitReportSubmissionSchema.safeParse({ ...valid, observations: Array.from({ length: 21 }, () => ({ categoryId: crypto.randomUUID(), finding: 'Finding' })) }).success).toBe(false)
+  })
+  it('only offers active observation categories belonging to the selected reason', () => {
+    expect(observationCategoriesForReason([
+      { id: 'food-active', primaryReasonId: 'food', isActive: true },
+      { id: 'food-inactive', primaryReasonId: 'food', isActive: false },
+      { id: 'finance-active', primaryReasonId: 'finance', isActive: true },
+    ], 'food').map((category) => category.id)).toEqual(['food-active'])
   })
 })
