@@ -66,7 +66,9 @@ const moduleRoutes: readonly [string, ClientModule][] = [
   ['/admin/allowed-emails', 'allowed-emails'],
   ['/api/admin/allowed-emails', 'allowed-emails'],
   ['/api/auth/check-whitelist', 'allowed-emails'],
-  ['/api/auth/provision', 'allowed-emails'],
+  // Existing users call this during password sign-in. The handler still
+  // enforces authentication, invite-only policy, and onboarding eligibility.
+  ['/api/auth/provision', 'core'],
   ['/admin/users', 'core'],
   ['/api/users', 'core'],
   ['/admin/properties', 'core'],
@@ -166,6 +168,16 @@ export function moduleForPath(pathname: string): ClientModule | undefined {
 
 export function isPathEnabled(pathname: string, enabled: Set<ClientModule>): boolean {
   const clientModule = moduleForPath(pathname)
+
+  // Daily Records embeds utility recording without exposing the standalone
+  // Utilities module or its public QR routes.
+  const isPublicUtilityRoute = pathname === '/api/utilities/public'
+    || pathname.startsWith('/api/utilities/public/')
+  if (enabled.has('daily-records') && !isPublicUtilityRoute && (
+    pathname === '/api/utilities'
+    || pathname.startsWith('/api/utilities/')
+    || pathname === '/api/cron/electricity-autofill'
+  )) return true
 
   return enabled.size === 0 || !clientModule || clientModule === 'core' || enabled.has(clientModule)
 }

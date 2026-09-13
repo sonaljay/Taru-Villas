@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
+import deploymentProfile from "./deployment-profile.json";
+import { getBuildModuleEnvironment } from "./src/lib/client-release/build-policy";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Bake one policy into server, middleware, and client bundles.
+  env: getBuildModuleEnvironment(deploymentProfile.profile),
   async headers() {
     return [
       {

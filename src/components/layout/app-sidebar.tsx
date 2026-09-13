@@ -236,7 +236,7 @@ export function AppSidebar() {
         )}
 
         {/* ---- Properties Section (Property Manager + Admin) ---- */}
-        {showPropertySection && (
+        {showPropertySection && visiblePropertyNavItems.length > 0 && (
           <SidebarGroup>
             <SidebarGroupLabel>Property Content</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -353,13 +353,17 @@ export function AppSidebar() {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/settings" onClick={() => setOpenMobile(false)}>
-                    <Settings className="size-4" />
-                    Settings
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
+                {isPathEnabled('/settings', enabledSet) && (
+                  <>
+                    <DropdownMenuItem asChild>
+                      <Link href="/settings" onClick={() => setOpenMobile(false)}>
+                        <Settings className="size-4" />
+                        Settings
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem onClick={handleSignOut}>
                   <LogOut className="size-4" />
                   Sign out
