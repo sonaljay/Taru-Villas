@@ -379,7 +379,7 @@ export function RequestsTable({
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{personalView ? 'My Rides' : 'Fleet Requests'}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{personalView ? 'My Rides' : 'All Ride Requests'}</h1>
           <p className="text-sm text-muted-foreground">
             {personalView ? 'Your requests, assigned trips and visit reports in one place.' : 'Raise a trip request and track it through to dispatch'}
           </p>
