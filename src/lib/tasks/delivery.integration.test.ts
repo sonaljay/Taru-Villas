@@ -41,6 +41,17 @@ suite('durable task notifications', () => {
     expect(run.cancelled).toBeGreaterThan(0)
     await sql.end()
   })
+  it('leaves email jobs untouched when email is deferred', async () => {
+    vi.stubEnv('TASK_EMAIL_ENABLED', 'false')
+    const sql = postgres(url!, { max: 1 })
+    const [t] = await sql`select id from tasks where title='Workflow integration' limit 1`
+    const [job] = await sql`insert into task_notification_deliveries(task_id,profile_id,event_key,kind,channel) values(${t.id},'00000000-0000-4000-8000-000000000002','deferred-email','assignment','email') returning id`
+    const { deliverTaskNotifications } = await import('./notifications')
+    await deliverTaskNotifications(30)
+    const [after] = await sql`select state,attempts from task_notification_deliveries where id=${job.id}`
+    expect(after).toMatchObject({ state: 'pending', attempts: 0 })
+    await sql.end()
+  })
   it('drains more than 30 queued deliveries in one bounded sweep', async () => {
     const sql = postgres(url!, { max: 1 })
     const [t] =
@@ -64,7 +75,8 @@ suite('durable task notifications', () => {
     await sql`insert into task_notification_deliveries(task_id,profile_id,event_key,kind,channel,payload) values(${t.id},${user},'revocation-race','approval_request','email',${sql.json({ cycle: t.approval_cycle, committeeId: t.committee_id })})`
     const { sendTaskEmail } = await import('./email')
     const { deliverTaskNotifications } = await import('./notifications')
-    process.env.TASK_APP_ORIGIN = 'https://example.test'
+    vi.stubEnv('TASK_EMAIL_ENABLED', 'true')
+    vi.stubEnv('TASK_APP_ORIGIN', 'https://example.test')
     vi.mocked(sendTaskEmail).mockImplementationOnce(async () => {
       await sql`set lock_timeout='50ms'`
       await expect(

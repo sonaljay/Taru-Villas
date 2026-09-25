@@ -18,10 +18,11 @@ export async function enqueueReminders() {
 }
 export async function deliverTaskNotifications(limit = 30, budgetMs = 40000) {
   const result = { sent: 0, cancelled: 0, failed: 0 }
+  const emailEnabled = process.env.TASK_EMAIL_ENABLED === 'true'
   const deadline = Date.now() + budgetMs
   for (let i = 0; i < limit && Date.now() < deadline; i++) {
     const [job] =
-      await db.execute(sql`with pick as (select id from task_notification_deliveries where (state='pending' and available_at<=now()) or (state='sending' and lease_until<now()) order by created_at for update skip locked limit 1)
+      await db.execute(sql`with pick as (select id from task_notification_deliveries where (channel='in_app' or ${emailEnabled}) and ((state='pending' and available_at<=now()) or (state='sending' and lease_until<now())) order by created_at for update skip locked limit 1)
    update task_notification_deliveries d set state='sending',lease_until=now()+interval '2 minutes',attempts=attempts+1 from pick where d.id=pick.id returning d.*`)
     if (!job) break
     const payload = job.payload as Record<string, unknown>,

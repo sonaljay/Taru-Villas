@@ -2,7 +2,8 @@
 
 Implementation is on the development branch. Do not promote to taru-release or
 apply migration 0034 to the shared database until Sonal approves the finished
-release. The private file bucket and mail sender are deployment prerequisites;
+release. The private file bucket is a deployment prerequisite; email can remain deferred with
+`TASK_EMAIL_ENABLED` unset or false.
 no real-user mail or production migration is part of development testing.
 
 ## Local verification
@@ -43,8 +44,9 @@ opt-in database suites; report those separately from passing tests.
    manage membership. Existing team labels do not imply committee membership.
 6. Create private Supabase Storage bucket `task-attachments`. No public access or
    permissive client policies. Server-authorized signed downloads expire in 60s.
-7. Configure `RESEND_API_KEY`, a verified `TASK_EMAIL_FROM`, and HTTPS
-   `TASK_APP_ORIGIN`. Never expose these secrets as NEXT_PUBLIC variables.
+7. When email is approved, configure `RESEND_API_KEY`, a verified `TASK_EMAIL_FROM`, and HTTPS
+   `TASK_APP_ORIGIN`, then enable `TASK_EMAIL_ENABLED=true`. Before enabling, cancel
+   historical pending email jobs so activation does not replay old notices. Never expose these secrets as NEXT_PUBLIC variables.
 8. Configure `CRON_SECRET` and the `/api/cron/task-notifications` every-minute worker schedule,
    `* * * * *` UTC, preserving vehicle-renewal scheduling. Requires a hosting plan
    supporting per-minute cron. Daily reminders become eligible at 08:00 Asia/Colombo;
