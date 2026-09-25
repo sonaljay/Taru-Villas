@@ -1,4 +1,5 @@
-import { and, asc, eq, gt } from 'drizzle-orm'
+import { recordTaskActor } from '../../tasks/actor-context'
+import { and, asc, eq, gt, sql } from 'drizzle-orm'
 import { db } from '..'
 import { profiles, projects, properties, taskAssignees, tasks, vehicleRenewals, vehicles, type NewVehicle } from '../schema'
 import { addDays, colomboToday } from '../../fleet/dates'
@@ -28,8 +29,8 @@ export async function reconcileVehicle(tx: FleetTransaction, id: string, orgId: 
     // is a correction, not proof of renewal; keep the earlier obligation open.
     if (currentExpiry && currentExpiry > renewal.expiryDate) {
       await tx.update(tasks).set({ status: 'done', completedAt: new Date(), updatedAt: new Date(),
-        description: `${task.description ?? ''}\nRenewal recorded on vehicle; next expiry ${currentExpiry}.`,
       }).where(eq(tasks.id, task.id)).returning()
+      await tx.execute(sql`insert into task_events(org_id,task_id,actor_id,actor_name,kind,after_value) values(${orgId}::uuid,${task.id}::uuid,task_actor(),task_actor_name(),'renewal_recorded',jsonb_build_object('note',${`Renewal recorded on vehicle; next expiry ${currentExpiry}.`}::text))`)
       continue
     }
     if (currentExpiry && currentExpiry < renewal.expiryDate && !cycles.some(c => c.renewal.kind === renewal.kind && c.renewal.expiryDate === currentExpiry)) {
@@ -42,8 +43,11 @@ export async function reconcileVehicle(tx: FleetTransaction, id: string, orgId: 
     }).where(eq(tasks.id, task.id)).returning()
     // Only touch generated tasks. If a manager was removed/deactivated, clear
     // the stale assignment instead of silently assigning an inactive account.
-    await tx.delete(taskAssignees).where(eq(taskAssignees.taskId, task.id)).returning()
-    if (manager) await tx.insert(taskAssignees).values({ taskId: task.id, profileId: manager.id }).returning()
+    const assigned = await tx.select().from(taskAssignees).where(eq(taskAssignees.taskId, task.id))
+    for (const member of assigned) {
+      if (member.profileId !== manager?.id) await tx.delete(taskAssignees).where(and(eq(taskAssignees.taskId, task.id), eq(taskAssignees.profileId, member.profileId)))
+    }
+    if (manager && !assigned.some(member => member.profileId === manager.id)) await tx.insert(taskAssignees).values({ taskId: task.id, profileId: manager.id }).returning()
   }
 
   let created = 0
@@ -64,8 +68,8 @@ export async function reconcileVehicle(tx: FleetTransaction, id: string, orgId: 
   return { created }
 }
 
-export async function saveVehicle(orgId: string, data: Partial<NewVehicle>, id?: string) {
-  return db.transaction(async tx => saveVehicleInTransaction(tx, orgId, data, id))
+export async function saveVehicle(orgId: string, data: Partial<NewVehicle>, id?: string, actorId?: string) {
+  return db.transaction(async tx => { await recordTaskActor(tx, actorId ?? null, 'Vehicle update'); return saveVehicleInTransaction(tx, orgId, data, id) })
 }
 
 export async function saveVehicleInTransaction(tx: FleetTransaction, orgId: string, data: Partial<NewVehicle>, id?: string) {
@@ -100,7 +104,7 @@ export async function runVehicleRenewals(orgId?: string) {
     if (!batch.length) break
     for (const vehicle of batch) {
       try {
-        const result = await db.transaction(tx => reconcileVehicle(tx, vehicle.id, vehicle.orgId, today))
+        const result = await db.transaction(async tx => { await recordTaskActor(tx, null, 'Vehicle renewal scheduler'); return reconcileVehicle(tx, vehicle.id, vehicle.orgId, today) })
         created += result.created
       } catch (error) { failed++; console.error('Vehicle renewal check failed', vehicle.id, error instanceof Error ? error.name : 'Unknown error') }
       checked++

@@ -43,7 +43,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
 
     try {
-      const updated = await saveVehicle(profile.orgId, parsed.data, id)
+      const updated = await saveVehicle(profile.orgId, parsed.data, id, profile.id)
       if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 })
       return NextResponse.json(updated)
     } catch (e) {

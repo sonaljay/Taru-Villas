@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
         registrationNo: parsed.data.registrationNo ?? null,
         currentLocationPropertyId: parsed.data.currentLocationPropertyId ?? null,
         orgId: profile.orgId,
-      })
+      }, undefined, profile.id)
       return NextResponse.json(vehicle, { status: 201 })
     } catch (e) {
       if (e instanceof VehicleValidationError) return NextResponse.json({ error: e.message }, { status: 400 })

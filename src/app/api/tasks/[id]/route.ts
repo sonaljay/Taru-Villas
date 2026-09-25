@@ -1,88 +1,45 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getProfile } from '@/lib/auth/guards'
-import { getTaskById, updateTask, deleteTask, TaskReportConflict } from '@/lib/db/queries/tasks'
-
+import { requestActor, errorResponse, TaskError } from '@/lib/tasks/access'
+import { getWorkflowTask } from '@/lib/tasks/queries'
+import { executeTaskCommand, fields } from '@/lib/tasks/lifecycle'
 type Ctx = { params: Promise<{ id: string }> }
-
-const patchSchema = z.object({
-  title: z.string().min(1).optional(),
-  description: z.string().nullable().optional(),
-  status: z.enum(['todo', 'in_progress', 'stuck', 'done']).optional(),
-  priority: z.enum(['low', 'medium', 'high']).optional(),
-  projectId: z.string().uuid().optional(),
-  propertyId: z.string().uuid().nullable().optional(),
-  dueDate: z.string().nullable().optional(),
-  assigneeIds: z.array(z.string().uuid()).nullable().optional(),
-  teamIds: z.array(z.string().uuid()).nullable().optional(),
-})
-
-export async function GET(_request: NextRequest, context: Ctx) {
+export async function GET(_r: Request, c: Ctx) {
   try {
-    const profile = await getProfile()
-    if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    if (!profile.isActive) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    const { id } = await context.params
-    const task = await getTaskById(id)
-    if (!task || task.orgId !== profile.orgId) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    return NextResponse.json(task)
-  } catch (error) {
-    console.error('GET /api/tasks/[id] error:', error)
-    return NextResponse.json({ error: 'Failed to fetch' }, { status: 500 })
+    const a = await requestActor()
+    return Response.json(
+      await getWorkflowTask(
+        a,
+        z
+          .string()
+          .uuid()
+          .parse((await c.params).id),
+      ),
+    )
+  } catch (e) {
+    return errorResponse(e)
   }
 }
-
-export async function PATCH(request: NextRequest, context: Ctx) {
+export async function PATCH(r: Request, c: Ctx) {
   try {
-    const profile = await getProfile()
-    if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    if (!profile.isActive) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    const { id } = await context.params
-    const existing = await getTaskById(id)
-    if (!existing || existing.orgId !== profile.orgId) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    const parsed = patchSchema.safeParse(await request.json())
+    const a = await requestActor()
+    const parsed = z
+      .object({ version: z.number().int(), patch: fields.partial().strict() })
+      .safeParse(await r.json())
     if (!parsed.success)
-      return NextResponse.json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors }, { status: 400 })
-    const { assigneeIds, teamIds, dueDate, propertyId, ...rest } = parsed.data
-    if (existing.vehicleRenewal && (
-      (dueDate !== undefined && dueDate !== existing.dueDate) ||
-      (rest.projectId !== undefined && rest.projectId !== existing.projectId) ||
-      (assigneeIds !== undefined && JSON.stringify([...(assigneeIds ?? [])].sort()) !== JSON.stringify(existing.assignees.map(a => a.id).sort()))
-    )) return NextResponse.json({ error: 'Change the renewal dates and Administration Manager on the vehicle record.' }, { status: 400 })
-    const data = { ...rest,
-      ...(dueDate !== undefined ? { dueDate: dueDate ?? null } : {}),
-      ...(propertyId !== undefined ? { propertyId: propertyId ?? null } : {}) }
-    // Never write vehicle-owned fields from the task form: a concurrent vehicle
-    // update may already have changed them after the preflight read above.
-    if (existing.vehicleRenewal) { delete data.dueDate; delete data.projectId }
-    const task = await updateTask(id, data, existing.vehicleRenewal ? undefined : assigneeIds === null ? [] : assigneeIds, teamIds ?? undefined, profile.orgId)
-    return NextResponse.json(task)
-  } catch (error) {
-    if (error instanceof TaskReportConflict) return NextResponse.json({ error: error.message }, { status: 409 })
-    console.error('PATCH /api/tasks/[id] error:', error)
-    return NextResponse.json({ error: 'Failed to update' }, { status: 500 })
+      throw new TaskError('Refresh the task and submit a versioned edit.')
+    const id = (await c.params).id
+    await executeTaskCommand(a, id, parsed.data.version, {
+      type: 'edit',
+      patch: parsed.data.patch,
+    })
+    return Response.json(await getWorkflowTask(a, id))
+  } catch (e) {
+    return errorResponse(e)
   }
 }
-
-export async function DELETE(_request: NextRequest, context: Ctx) {
-  try {
-    const profile = await getProfile()
-    if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    if (!profile.isActive) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    const { id } = await context.params
-    const task = await getTaskById(id)
-    if (!task || task.orgId !== profile.orgId) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    if (task.vehicleRenewal) return NextResponse.json({ error: 'Renewal tasks are retained as vehicle history. Complete the task instead.' }, { status: 409 })
-    if (task.visitReport || task.fleetReports.length) return NextResponse.json({ error: 'Tasks linked to visit reports are retained as report history.' }, { status: 409 })
-    if (profile.role !== 'admin' && task.createdBy !== profile.id)
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    const deleted = await deleteTask(id, profile.orgId)
-    return NextResponse.json(deleted)
-  } catch (error) {
-    if (error instanceof TaskReportConflict) return NextResponse.json({ error: error.message }, { status: 409 })
-    const databaseError = error as { code?: string; cause?: { code?: string } }
-    if (databaseError?.code === '23503' || databaseError?.cause?.code === '23503') return NextResponse.json({ error: 'This task is retained by linked records and cannot be deleted.' }, { status: 409 })
-    console.error('DELETE /api/tasks/[id] error:', error)
-    return NextResponse.json({ error: 'Failed to delete' }, { status: 500 })
-  }
+export async function DELETE() {
+  return Response.json(
+    { error: 'Use the audited Archive action.' },
+    { status: 405 },
+  )
 }

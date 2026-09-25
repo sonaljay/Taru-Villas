@@ -1,4 +1,5 @@
 'use client'
+import { NotificationInbox } from './notification-inbox'
 
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
@@ -34,7 +35,9 @@ const segmentLabels: Record<string, string> = {
   'daily-records': 'Daily Records',
   'guest-profiles': 'Guest Profiles',
   tasks: 'Task Manager',
-  teams: 'Teams',
+  teams: 'Committees',
+  committees: 'Committees',
+  projects: 'Projects',
   fleet: 'Fleet',
   'my-rides': 'My Rides',
   reports: 'Visit Reports',
@@ -154,6 +157,7 @@ export function Header() {
       <div className="flex shrink-0 items-center gap-2">
         <PropertySwitcher />
       </div>
-    </header>
+    <NotificationInbox />
+</header>
   )
 }

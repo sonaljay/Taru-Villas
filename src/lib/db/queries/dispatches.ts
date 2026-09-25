@@ -1,4 +1,7 @@
-import { and, asc, desc, eq, gte, inArray, ne, not, notExists, or } from 'drizzle-orm'
+import { loadActor, taskVisibility } from '../../tasks/access'
+import { getWorkflowTask } from '../../tasks/queries'
+import { recordTaskActor } from '../../tasks/actor-context'
+import { and, asc, desc, sql, isNull, eq, gte, inArray, ne, not, notExists, or } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { db } from '..'
 import {
@@ -120,27 +123,18 @@ export type FleetTaskReasonOption = {
   title: string
   propertyId: string
   propertyName: string | null
-  projectId: string
-  projectName: string
+  projectId: string | null
+  projectName: string | null
 }
 
-/** Tasks which can explain a new fleet request: open, property-linked, and in an active project. */
-export async function listEligibleFleetTasks(orgId: string): Promise<FleetTaskReasonOption[]> {
-  return db
-    .select({
-      id: tasks.id,
-      title: tasks.title,
-      propertyId: tasks.propertyId,
-      propertyName: properties.name,
-      projectId: projects.id,
-      projectName: projects.name,
-    })
-    .from(tasks)
-    .innerJoin(projects, eq(tasks.projectId, projects.id))
-    .leftJoin(properties, eq(tasks.propertyId, properties.id))
-    .where(and(eq(tasks.orgId, orgId), ne(tasks.status, 'done'), eq(projects.status, 'active')))
-    .orderBy(asc(projects.name), asc(tasks.title))
-    .then((rows) => rows.filter((row): row is FleetTaskReasonOption => Boolean(row.propertyId)))
+/** Open property-linked tasks visible to the requester, with an optional project. */
+export async function listEligibleFleetTasks(orgId: string, profileId: string): Promise<FleetTaskReasonOption[]> {
+  const actor = await loadActor(profileId)
+  if (actor.orgId !== orgId) return []
+  return await db.execute(sql`select t.id,t.title,t.property_id "propertyId",p.name "propertyName",j.id "projectId",j.name "projectName"
+    from tasks t left join projects j on j.id=t.project_id left join properties p on p.id=t.property_id
+    where ${taskVisibility(actor)} and t.archived_at is null and t.status<>'done' and t.property_id is not null
+    and (j.id is null or j.status='active') order by j.name,t.title`) as unknown as FleetTaskReasonOption[]
 }
 
 export async function createRequestWithTaskReason(
@@ -150,6 +144,7 @@ export async function createRequestWithTaskReason(
     | { kind: 'new'; title: string; projectId: string; propertyId: string },
 ) {
   return db.transaction(async (tx) => {
+    await recordTaskActor(tx, request.requestedBy, 'Fleet request')
     const reportOwnerId = request.reportOwnerId ?? request.requestedBy
     const [owner] = await tx.select().from(profiles).where(and(eq(profiles.id, reportOwnerId), eq(profiles.orgId, request.orgId), eq(profiles.isActive, true))).for('share')
     if (!owner) throw new VisitReportError('Choose an active report owner in your organization')
@@ -163,16 +158,19 @@ export async function createRequestWithTaskReason(
     let taskId: string
 
     if (reason.kind === 'existing') {
+      await tx.execute(sql`select id from tasks where id=${reason.taskId}::uuid for share`)
+      await getWorkflowTask(await loadActor(request.requestedBy, tx), reason.taskId, false, tx)
       const [task] = await tx
         .select({ id: tasks.id })
         .from(tasks)
-        .innerJoin(projects, eq(tasks.projectId, projects.id))
+        .leftJoin(projects, eq(tasks.projectId, projects.id))
         .where(and(
           eq(tasks.id, reason.taskId),
           eq(tasks.orgId, request.orgId),
           eq(tasks.propertyId, reason.propertyId),
           ne(tasks.status, 'done'),
-          eq(projects.status, 'active'),
+          isNull(tasks.archivedAt),
+          or(isNull(projects.id), eq(projects.status, 'active')),
         ))
         .limit(1)
       if (!task) throw new Error('Choose an open task for the selected property')
@@ -1084,6 +1082,7 @@ export async function completeDispatch(id: string, driverId: string) {
 }
 
 export async function completeDispatchInTransaction(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], id: string, driverId: string, now = new Date()) {
+    await recordTaskActor(tx, null, `Driver ${driverId}`)
     const [updated] = await tx
       .update(dispatches)
       .set({ status: 'completed', completedAt: now, updatedAt: now })

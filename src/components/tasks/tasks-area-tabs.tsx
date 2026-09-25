@@ -20,16 +20,21 @@ export function TasksAreaTabs({ isAdmin }: TasksAreaTabsProps) {
 
   const tabs: Tab[] = [
     {
-      label: 'Projects',
+      label: 'Tasks',
       href: '/tasks',
       match: (p: string) => p === '/tasks',
+    },
+    {
+      label: 'Projects',
+      href: '/tasks/projects',
+      match: (p: string) => p === '/tasks/projects',
     },
     ...(isAdmin
       ? [
           {
-            label: 'Teams',
-            href: '/tasks/teams',
-            match: (p: string) => p.startsWith('/tasks/teams'),
+            label: 'Committees',
+            href: '/tasks/committees',
+            match: (p: string) => p.startsWith('/tasks/committees'),
           },
         ]
       : []),
@@ -52,7 +57,7 @@ export function TasksAreaTabs({ isAdmin }: TasksAreaTabsProps) {
               'inline-flex items-center justify-center rounded-md px-3 py-1 text-sm font-medium transition-colors',
               active
                 ? 'bg-background text-foreground shadow-sm'
-                : 'text-foreground/60 hover:text-foreground'
+                : 'text-foreground/60 hover:text-foreground',
             )}
           >
             {tab.label}

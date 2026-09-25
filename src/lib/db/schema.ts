@@ -1324,7 +1324,14 @@ export const taskTeams = pgTable('task_teams', {
 export const tasks = pgTable('tasks', {
   id: uuid('id').defaultRandom().primaryKey(),
   orgId: uuid('org_id').notNull().references(() => organizations.id),
-  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'restrict' }),
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'restrict' }),
+  committeeId: uuid('committee_id').default(sql`NULL`).notNull(),
+  approval: text('approval').$type<'not_required' | 'pending' | 'approved' | 'rejected'>().default('not_required').notNull(),
+  approvalCycle: integer('approval_cycle').default(0).notNull(),
+  version: integer('version').default(0).notNull(),
+  pausedStatus: taskStatusEnum('paused_status'),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
+  deadlineVersion: integer('deadline_version').default(0).notNull(),
   title: text('title').notNull(),
   description: text('description'),
   status: taskStatusEnum('status').default('todo').notNull(),
@@ -2496,3 +2503,40 @@ export const otaReviewAnalyses = pgTable('ota_review_analyses', {
 export const otaReviewAnalysesRelations = relations(otaReviewAnalyses, ({ one }) => ({
   review: one(otaReviews, { fields: [otaReviewAnalyses.reviewId], references: [otaReviews.id] }),
 }))
+
+// Task workflow schema. Constraints and audit triggers live in migration 0034.
+export const taskCommittees = pgTable('task_committees', {
+  id: uuid('id').defaultRandom().primaryKey(), orgId: uuid('org_id').notNull().references(() => organizations.id),
+  name: text('name').notNull(), isOperations: boolean('is_operations').default(false).notNull(),
+  archivedAt: timestamp('archived_at', { withTimezone: true }), createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, t => [unique('task_committees_org_id_name_key').on(t.orgId,t.name),unique('task_committees_id_org_id_key').on(t.id,t.orgId)])
+export const taskCommitteeMembers = pgTable('task_committee_members', {
+  committeeId: uuid('committee_id').notNull().references(() => taskCommittees.id), profileId: uuid('profile_id').notNull().references(() => profiles.id),
+}, t => [unique('task_committee_members_unique').on(t.committeeId,t.profileId)])
+export const taskEvents = pgTable('task_events', {
+  id: uuid('id').defaultRandom().primaryKey(),orgId:uuid('org_id').notNull().references(()=>organizations.id),
+  taskId:uuid('task_id').references(()=>tasks.id),committeeId:uuid('committee_id').references(()=>taskCommittees.id),
+  actorId:uuid('actor_id').references(()=>profiles.id,{onDelete:'set null'}),actorName:text('actor_name').notNull(),kind:text('kind').notNull(),
+  beforeValue:jsonb('before_value'),afterValue:jsonb('after_value'),createdAt:timestamp('created_at',{withTimezone:true}).defaultNow().notNull(),
+})
+export const taskApprovalDecisions=pgTable('task_approval_decisions',{
+ id:uuid('id').defaultRandom().primaryKey(),taskId:uuid('task_id').notNull().references(()=>tasks.id),cycle:integer('cycle').notNull(),
+ committeeId:uuid('committee_id').notNull().references(()=>taskCommittees.id),actorId:uuid('actor_id').notNull().references(()=>profiles.id),
+ decision:text('decision').notNull(),note:text('note').default('').notNull(),createdAt:timestamp('created_at',{withTimezone:true}).defaultNow().notNull(),
+},t=>[unique('task_approval_decisions_task_id_cycle_key').on(t.taskId,t.cycle)])
+export const taskComments=pgTable('task_comments',{
+ id:uuid('id').defaultRandom().primaryKey(),taskId:uuid('task_id').notNull().references(()=>tasks.id),actorId:uuid('actor_id').notNull().references(()=>profiles.id),
+ body:text('body').notNull(),createdAt:timestamp('created_at',{withTimezone:true}).defaultNow().notNull(),
+})
+export const taskAttachments=pgTable('task_attachments',{
+ id:uuid('id').defaultRandom().primaryKey(),taskId:uuid('task_id').notNull().references(()=>tasks.id),actorId:uuid('actor_id').notNull().references(()=>profiles.id),
+ name:text('name').notNull(),storagePath:text('storage_path').notNull().unique(),contentType:text('content_type').notNull(),size:integer('size').notNull(),
+ removedAt:timestamp('removed_at',{withTimezone:true}),createdAt:timestamp('created_at',{withTimezone:true}).defaultNow().notNull(),
+})
+export const taskNotificationDeliveries=pgTable('task_notification_deliveries',{
+ id:uuid('id').defaultRandom().primaryKey(),taskId:uuid('task_id').notNull().references(()=>tasks.id),profileId:uuid('profile_id').notNull().references(()=>profiles.id),
+ eventKey:text('event_key').notNull(),kind:text('kind').notNull(),channel:text('channel').notNull(),payload:jsonb('payload').default({}).notNull(),state:text('state').default('pending').notNull(),
+ attempts:integer('attempts').default(0).notNull(),availableAt:timestamp('available_at',{withTimezone:true}).defaultNow().notNull(),leaseUntil:timestamp('lease_until',{withTimezone:true}),
+ sentAt:timestamp('sent_at',{withTimezone:true}),providerId:text('provider_id'),error:text('error'),createdAt:timestamp('created_at',{withTimezone:true}).defaultNow().notNull(),
+},t=>[unique('task_delivery_key_unique').on(t.eventKey,t.profileId,t.channel)])
+export const taskFileCleanup=pgTable('task_file_cleanup',{storagePath:text('storage_path').primaryKey(),createdAt:timestamp('created_at',{withTimezone:true}).defaultNow().notNull()})
