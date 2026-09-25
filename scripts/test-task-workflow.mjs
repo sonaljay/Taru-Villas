@@ -19,7 +19,7 @@ const scratch = path.resolve(
 mkdirSync(scratch, { recursive: true })
 let schema = readFileSync('src/lib/db/schema.ts', 'utf8').split(
   '// Task workflow schema.',
-)[0]
+)[0].replace('  primaryKey,\n', '')
 const start = schema.indexOf('export const tasks ='),
   end = schema.indexOf('export const taskAssignees =', start)
 let task = schema.slice(start, end)
@@ -38,6 +38,7 @@ task = task.replace(
   "projectId: uuid('project_id').notNull().references",
 )
 schema = schema.slice(0, start) + task + schema.slice(end)
+for (const name of ['templateSnapshot','templateVersion','reportVersion','structuredContent','reportPropertyId']) schema = schema.replace(new RegExp('^  '+name+':.*\\n','m'),'')
 writeFileSync(path.join(scratch, 'baseline-schema.ts'), schema)
 const result = spawnSync(
   'npx',

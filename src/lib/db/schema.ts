@@ -1,5 +1,6 @@
 import {
   pgTable,
+  primaryKey,
   pgSchema,
   pgEnum,
   uuid,
@@ -1671,6 +1672,11 @@ export const dispatchStops = pgTable('dispatch_stops', {
 })
 
 export const fleetTripReports = pgTable('fleet_trip_reports', {
+  templateSnapshot: jsonb('template_snapshot'),
+  templateVersion: integer('template_version'),
+  reportVersion: integer('report_version').notNull().default(0),
+  structuredContent: jsonb('structured_content').notNull().default({}),
+  reportPropertyId: uuid('report_property_id').references(() => properties.id),
   id: uuid('id').defaultRandom().primaryKey(),
   orgId: uuid('org_id').notNull().references(() => organizations.id),
   requestId: uuid('request_id').notNull().unique().references(() => fleetRequests.id, { onDelete: 'cascade' }),
@@ -2540,3 +2546,29 @@ export const taskNotificationDeliveries=pgTable('task_notification_deliveries',{
  sentAt:timestamp('sent_at',{withTimezone:true}),providerId:text('provider_id'),error:text('error'),createdAt:timestamp('created_at',{withTimezone:true}).defaultNow().notNull(),
 },t=>[unique('task_delivery_key_unique').on(t.eventKey,t.profileId,t.channel)])
 export const taskFileCleanup=pgTable('task_file_cleanup',{storagePath:text('storage_path').primaryKey(),createdAt:timestamp('created_at',{withTimezone:true}).defaultNow().notNull()})
+
+// Versioned visit reports. Append-only, snapshot and RLS constraints: migration 0035.
+export const visitReportTemplates = pgTable('visit_report_templates', {
+ id: uuid('id').defaultRandom().primaryKey(),orgId: uuid('org_id').notNull().references(()=>organizations.id),
+ key: text('key').notNull(),version: integer('version').notNull().default(1),definition: jsonb('definition').notNull(),
+ createdBy: uuid('created_by').references(()=>profiles.id),createdAt: timestamp('created_at',{withTimezone:true}).notNull().defaultNow(),
+},t=>[unique().on(t.orgId,t.key,t.version)])
+export const visitReportAnswers = pgTable('visit_report_answers', {
+ id: uuid('id').primaryKey(),reportId: uuid('report_id').notNull().references(()=>fleetTripReports.id),questionId:text('question_id').notNull(),
+ instance:text('instance').notNull().default('default'),location:text('location').notNull().default('Property-wide'),notes:text('notes').notNull().default(''),
+ rating:integer('rating'),notApplicable:boolean('not_applicable').notNull().default(false),taskId:uuid('task_id').references(()=>tasks.id),taskPlan:jsonb('task_plan').notNull().default({kind:'none'}),
+ removedAt:timestamp('removed_at',{withTimezone:true}),updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow(),
+})
+export const visitReportPhotos = pgTable('visit_report_photos', {
+ id:uuid('id').defaultRandom().primaryKey(),answerId:uuid('answer_id').notNull().references(()=>visitReportAnswers.id),storagePath:text('storage_path').notNull().unique(),
+ name:text('name').notNull(),contentType:text('content_type').notNull(),size:integer('size').notNull(),state:text('state').notNull().default('uploading'),
+ actorId:uuid('actor_id').notNull().references(()=>profiles.id),createdAt:timestamp('created_at',{withTimezone:true}).notNull().defaultNow(),
+})
+export const visitReportEvents = pgTable('visit_report_events', {
+ id:uuid('id').defaultRandom().primaryKey(),reportId:uuid('report_id').notNull().references(()=>fleetTripReports.id),actorId:uuid('actor_id').notNull().references(()=>profiles.id),
+ kind:text('kind').notNull(),beforeValue:jsonb('before_value'),afterValue:jsonb('after_value'),createdAt:timestamp('created_at',{withTimezone:true}).notNull().defaultNow(),
+})
+export const visitReportAcknowledgements = pgTable('visit_report_acknowledgements', {
+ reportId:uuid('report_id').notNull().references(()=>fleetTripReports.id),profileId:uuid('profile_id').notNull().references(()=>profiles.id),reportVersion:integer('report_version').notNull(),
+ acknowledgedAt:timestamp('acknowledged_at',{withTimezone:true}),assignedAt:timestamp('assigned_at',{withTimezone:true}).notNull().defaultNow(),
+},t=>[primaryKey({columns:[t.reportId,t.profileId]})])
