@@ -43,7 +43,7 @@ Partial failures return 500. Monitor the job in Vercel → project → Cron Jobs
 runtime logs. Vercel Hobby schedules may run within the scheduled hour rather than
 at the exact minute. Preview deployments do not execute native cron jobs.
 
-Deploy production from `codex/taru-release`, never from unrestricted main.
+Deploy production from `taru-release`, never from unrestricted main.
 No Supabase Cron/HTTP extensions are needed for production. The schedule runs
 across organizations in this deployment's configured database; do not point it at
 an unrelated client database. Repeated production/dev checks are idempotent.
