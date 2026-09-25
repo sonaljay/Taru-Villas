@@ -76,5 +76,6 @@ rolls them back. It requires two active profiles in one organization and checks
 pooled requests, owner assignment, cancellation, precise deadlines, task linking,
 follow-up creation, authorization and duplicate prevention. It sends no pushes.
 
-Ship the same feature changes on `main` and `codex/taru-release`; preserve the
+Test feature changes on `main`, then promote to `taru-release` only after
+Sonal explicitly approves them as final; preserve the
 Taru release's existing module restrictions and deployment configuration.

@@ -1,6 +1,6 @@
 # Taru Villas Vercel release
 
-Development branch: `main`. Client release branch: `codex/taru-release`.
+Development branch: `main`. Client release branch: `taru-release`.
 Both branches contain the same feature code. `deployment-profile.json` is the
 only intentional difference: `development` on main, `taru-release` on release.
 Vercel team/project: `taru-vi-llas/taru-villas`.
@@ -14,18 +14,20 @@ require an explicit valid module list).
 
 ## Branch workflow
 
-Develop features on main (or merge feature branches into main), then merge main
-into release when ready for the client. Keep the release profile when resolving
-any profile conflict. If a fix starts on release, merge it back into main and
+Use `main` for development and feature testing (or merge feature branches into
+`main`). Promote changes to `taru-release` only after Sonal explicitly approves
+them as final. Never automatically sync development changes into release.
+Keep the release profile when resolving any profile conflict. If a fix starts on release, merge it back into main and
 restore the development profile before committing. Do not squash or rebase the
 shared reconciliation history. Verify the profile on both branches before push.
 Never remove a feature to hide it from the client; update the release policy.
 
 The September 2026 reconciliation preserves both original histories with a merge.
-Recovery refs: `codex/backup-main-20260913` (`9954175`) and
-`codex/backup-taru-release-20260913` (`795c81f`). It combines structured fleet visit
-reports from main with consolidated Google/Tripadvisor dashboards from release.
-Existing feature branches and untracked files are retained.
+The original tips (`9954175` and `795c81f`) remain in the shared history. It
+combines structured fleet visit reports from main with consolidated
+Google/Tripadvisor dashboards from release. During the September 25 cleanup,
+merged branch labels were removed; unmerged email-auth and OTA-review work was
+preserved on GitHub feature branches. Uncommitted work was retained locally.
 
 Both `0032_google_review_analyses.sql` and
 `0032_visit_report_categories_and_observations.sql` are retained under their
@@ -53,6 +55,11 @@ Vercel release do not isolate database records or user accounts. This release
 does not change shared Supabase settings or migrate data.
 
 ## Deployment
+
+The release branch was renamed from `codex/taru-release` to `taru-release`.
+Check external deployment branch selectors and branch-scoped environment
+settings for the new name before the next deployment. GitHub branch renaming
+does not verify those external settings.
 
 From this branch's checkout, link to the existing new-team project and run
 `vercel deploy --yes`. Keep this as Preview until production is explicitly
