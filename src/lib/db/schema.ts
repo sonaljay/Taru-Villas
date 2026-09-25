@@ -1672,6 +1672,7 @@ export const dispatchStops = pgTable('dispatch_stops', {
 })
 
 export const fleetTripReports = pgTable('fleet_trip_reports', {
+  privateVersion: integer('private_version').notNull().default(0),
   templateSnapshot: jsonb('template_snapshot'),
   templateVersion: integer('template_version'),
   reportVersion: integer('report_version').notNull().default(0),
@@ -2513,7 +2514,7 @@ export const otaReviewAnalysesRelations = relations(otaReviewAnalyses, ({ one })
 // Task workflow schema. Constraints and audit triggers live in migration 0034.
 export const taskCommittees = pgTable('task_committees', {
   id: uuid('id').defaultRandom().primaryKey(), orgId: uuid('org_id').notNull().references(() => organizations.id),
-  name: text('name').notNull(), isOperations: boolean('is_operations').default(false).notNull(),
+  name: text('name').notNull(), isHr: boolean('is_hr').default(false).notNull(), isOperations: boolean('is_operations').default(false).notNull(),
   archivedAt: timestamp('archived_at', { withTimezone: true }), createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, t => [unique('task_committees_org_id_name_key').on(t.orgId,t.name),unique('task_committees_id_org_id_key').on(t.id,t.orgId)])
 export const taskCommitteeMembers = pgTable('task_committee_members', {
@@ -2556,7 +2557,7 @@ export const visitReportTemplates = pgTable('visit_report_templates', {
 export const visitReportAnswers = pgTable('visit_report_answers', {
  id: uuid('id').primaryKey(),reportId: uuid('report_id').notNull().references(()=>fleetTripReports.id),questionId:text('question_id').notNull(),
  instance:text('instance').notNull().default('default'),location:text('location').notNull().default('Property-wide'),notes:text('notes').notNull().default(''),
- rating:integer('rating'),notApplicable:boolean('not_applicable').notNull().default(false),taskId:uuid('task_id').references(()=>tasks.id),taskPlan:jsonb('task_plan').notNull().default({kind:'none'}),
+ evaluation:jsonb('evaluation').notNull().default({department:'',feedback:''}),isConfidential:boolean('is_confidential').notNull().default(false),rating:integer('rating'),notApplicable:boolean('not_applicable').notNull().default(false),taskId:uuid('task_id').references(()=>tasks.id),taskPlan:jsonb('task_plan').notNull().default({kind:'none'}),
  removedAt:timestamp('removed_at',{withTimezone:true}),updatedAt:timestamp('updated_at',{withTimezone:true}).notNull().defaultNow(),
 })
 export const visitReportPhotos = pgTable('visit_report_photos', {
@@ -2566,7 +2567,7 @@ export const visitReportPhotos = pgTable('visit_report_photos', {
 })
 export const visitReportEvents = pgTable('visit_report_events', {
  id:uuid('id').defaultRandom().primaryKey(),reportId:uuid('report_id').notNull().references(()=>fleetTripReports.id),actorId:uuid('actor_id').notNull().references(()=>profiles.id),
- kind:text('kind').notNull(),beforeValue:jsonb('before_value'),afterValue:jsonb('after_value'),createdAt:timestamp('created_at',{withTimezone:true}).notNull().defaultNow(),
+ kind:text('kind').notNull(),visibility:text('visibility').notNull().default('shared'),beforeValue:jsonb('before_value'),afterValue:jsonb('after_value'),createdAt:timestamp('created_at',{withTimezone:true}).notNull().defaultNow(),
 })
 export const visitReportAcknowledgements = pgTable('visit_report_acknowledgements', {
  reportId:uuid('report_id').notNull().references(()=>fleetTripReports.id),profileId:uuid('profile_id').notNull().references(()=>profiles.id),reportVersion:integer('report_version').notNull(),

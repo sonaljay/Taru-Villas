@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { HrConfidentialFeedback } from "./hr-confidential-feedback";
 import { VisitReportClient } from "./visit-report-client";
 import {
   scoreSummary,
@@ -230,7 +231,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
           <p className="mt-1 text-sm text-muted-foreground">{q.guidance}</p>
         </div>
         <fieldset disabled={disabled} className="space-y-3">
-          {q.kind === "score" ? (
+          {q.kind !== "inspection" ? (
             <label className="block space-y-1">
               <span className="text-sm">Rating</span>
               <select
@@ -255,7 +256,9 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
                     {n} / 5
                   </option>
                 ))}
-                <option value="na">Not applicable</option>
+                {q.kind === "score" && (
+                  <option value="na">Not applicable</option>
+                )}
               </select>
             </label>
           ) : (
@@ -272,7 +275,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
           )}
           <label className="block space-y-1">
             <span className="text-sm">
-              {q.kind === "score" ? "Score notes (optional)" : "Findings"}
+              {q.kind !== "inspection" ? "Score notes (optional)" : "Findings"}
             </span>
             <Textarea
               aria-label={`${q.label} findings`}
@@ -593,6 +596,22 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
                 />
               </label>
             ))}
+            {template.key === "hr" && (
+              <>
+                <p className="text-sm sm:col-span-2">
+                  Visiting HQ HR representative: {String(data.authorName)}
+                </p>
+                <label className="space-y-1 sm:col-span-2">
+                  <span className="text-sm">
+                    Co-evaluated with (Property Head / 2nd IC)
+                  </span>
+                  <Input
+                    value={content?.coEvaluator || ""}
+                    onChange={(e) => details({ coEvaluator: e.target.value })}
+                  />
+                </label>
+              </>
+            )}
             {template.key === "security" && (
               <label className="space-y-1 sm:col-span-2">
                 <span className="text-sm">Third-party security firm</span>
@@ -613,98 +632,189 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
           </fieldset>
         </CardContent>
       </Card>
-      {template.sections.map((section) => {
-        const qs = template.questions.filter((q) => q.sectionId === section.id),
-          instances = [
-            ...new Set(
-              answers
-                .filter((a) => qs.some((q) => q.id === a.questionId))
-                .map((a) => a.instance),
+      {template.sections
+        .filter((s) => s.id !== "confidential-feedback")
+        .map((section) => {
+          const employee = section.id === "employee-evaluations";
+          const qs = template.questions.filter(
+              (q) => q.sectionId === section.id,
             ),
-          ];
-        return (
-          <section key={section.id} className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-xl font-semibold">{section.title}</h2>
-              {!disabled && (
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    const instance = crypto.randomUUID();
-                    setAnswers((items) => [
-                      ...items,
-                      ...qs.map((q) =>
-                        answerSchema.parse({
-                          id: crypto.randomUUID(),
-                          questionId: q.id,
-                          instance,
-                          location: "",
-                        }),
-                      ),
-                    ]);
-                    setDirty(true);
-                  }}
-                >
-                  Add another area
-                </Button>
-              )}
-            </div>
-            {instances.map((instance) => {
-              const group = answers.filter(
-                (a) =>
-                  a.instance === instance &&
-                  qs.some((q) => q.id === a.questionId),
-              );
-              return (
-                <div
-                  key={instance}
-                  className="space-y-3 rounded-xl bg-muted/40 p-3"
-                >
-                  <div className="flex items-end gap-3">
-                    <label className="flex-1 space-y-1">
-                      <span className="text-sm font-medium">Room or area</span>
-                      <Input
+            instances = [
+              ...new Set(
+                answers
+                  .filter((a) => qs.some((q) => q.id === a.questionId))
+                  .map((a) => a.instance),
+              ),
+            ];
+          return (
+            <section key={section.id} className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-xl font-semibold">{section.title}</h2>
+                {!disabled && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const instance = crypto.randomUUID();
+                      setAnswers((items) => [
+                        ...items,
+                        ...qs.map((q) =>
+                          answerSchema.parse({
+                            id: crypto.randomUUID(),
+                            questionId: q.id,
+                            instance,
+                            location: "",
+                          }),
+                        ),
+                      ]);
+                      setDirty(true);
+                    }}
+                  >
+                    {employee ? "Add employee" : "Add another area"}
+                  </Button>
+                )}
+              </div>
+              {instances.map((instance) => {
+                const group = answers.filter(
+                  (a) =>
+                    a.instance === instance &&
+                    qs.some((q) => q.id === a.questionId),
+                );
+                return (
+                  <div
+                    key={instance}
+                    className="space-y-3 rounded-xl bg-muted/40 p-3"
+                  >
+                    <div className="flex items-end gap-3">
+                      <label className="flex-1 space-y-1">
+                        <span className="text-sm font-medium">
+                          {employee ? "Employee name" : "Room or area"}
+                        </span>
+                        <Input
+                          disabled={disabled}
+                          placeholder={
+                            employee
+                              ? "Employee name"
+                              : "e.g. Room 3, east garden"
+                          }
+                          value={group[0]?.location || ""}
+                          onChange={(e) => {
+                            setAnswers((items) =>
+                              items.map((a) =>
+                                group.some((g) => g.id === a.id)
+                                  ? { ...a, location: e.target.value }
+                                  : a,
+                              ),
+                            );
+                            setDirty(true);
+                          }}
+                        />
+                      </label>
+                      {instance !== "default" && !disabled && (
+                        <Button
+                          variant="ghost"
+                          onClick={() => {
+                            setAnswers((items) =>
+                              items.filter(
+                                (a) => !group.some((g) => g.id === a.id),
+                              ),
+                            );
+                            setDirty(true);
+                          }}
+                        >
+                          {employee ? "Remove employee" : "Remove area"}
+                        </Button>
+                      )}
+                    </div>
+                    {employee && (
+                      <fieldset
                         disabled={disabled}
-                        placeholder="e.g. Room 3, east garden"
-                        value={group[0]?.location || ""}
-                        onChange={(e) => {
-                          setAnswers((items) =>
-                            items.map((a) =>
-                              group.some((g) => g.id === a.id)
-                                ? { ...a, location: e.target.value }
-                                : a,
-                            ),
-                          );
-                          setDirty(true);
-                        }}
-                      />
-                    </label>
-                    {instance !== "default" && !disabled && (
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          setAnswers((items) =>
-                            items.filter(
-                              (a) => !group.some((g) => g.id === a.id),
-                            ),
-                          );
-                          setDirty(true);
-                        }}
+                        className="grid gap-3 sm:grid-cols-2"
                       >
-                        Remove area
-                      </Button>
+                        <label className="space-y-1">
+                          <span className="text-sm font-medium">
+                            Department
+                          </span>
+                          <select
+                            className={selectClass}
+                            value={group[0]?.evaluation.department || ""}
+                            onChange={(e) => {
+                              setAnswers((items) =>
+                                items.map((a) =>
+                                  group.some((g) => g.id === a.id)
+                                    ? {
+                                        ...a,
+                                        evaluation: {
+                                          ...a.evaluation,
+                                          department: e.target
+                                            .value as Answer["evaluation"]["department"],
+                                        },
+                                      }
+                                    : a,
+                                ),
+                              );
+                              setDirty(true);
+                            }}
+                          >
+                            <option value="">Choose department</option>
+                            {[
+                              ["HK", "Housekeeping"],
+                              ["KIT", "Kitchen"],
+                              ["SRV", "Service"],
+                              ["G&M", "Gardens & Maintenance"],
+                              ["ADM", "Administration"],
+                            ].map(([id, name]) => (
+                              <option key={id} value={id}>
+                                {name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <div className="rounded border p-3 text-sm">
+                          <strong>
+                            {group.every((a) => typeof a.rating === "number")
+                              ? group.reduce(
+                                  (sum, a) => sum + Number(a.rating),
+                                  0,
+                                ) + " / 25"
+                              : "Evaluation incomplete"}
+                          </strong>
+                        </div>
+                        <label className="space-y-1 sm:col-span-2">
+                          <span className="text-sm font-medium">
+                            Key feedback / agreed action plan
+                          </span>
+                          <Textarea
+                            value={group[0]?.evaluation.feedback || ""}
+                            onChange={(e) => {
+                              setAnswers((items) =>
+                                items.map((a) =>
+                                  group.some((g) => g.id === a.id)
+                                    ? {
+                                        ...a,
+                                        evaluation: {
+                                          ...a.evaluation,
+                                          feedback: e.target.value,
+                                        },
+                                      }
+                                    : a,
+                                ),
+                              );
+                              setDirty(true);
+                            }}
+                          />
+                        </label>
+                      </fieldset>
                     )}
+                    {qs.map((q) => {
+                      const a = group.find((a) => a.questionId === q.id);
+                      return a ? question(q, a) : null;
+                    })}
                   </div>
-                  {qs.map((q) => {
-                    const a = group.find((a) => a.questionId === q.id);
-                    return a ? question(q, a) : null;
-                  })}
-                </div>
-              );
-            })}
-          </section>
-        );
-      })}
+                );
+              })}
+            </section>
+          );
+        })}
       <section className="space-y-4">
         <h2 className="text-xl font-semibold">Property scorecard</h2>
         <p className="text-sm text-muted-foreground">
@@ -788,6 +898,15 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
           )}
         </CardContent>
       </Card>
+      {data.canViewConfidential && (
+        <HrConfidentialFeedback
+          requestId={requestId}
+          questions={template.questions.filter(
+            (q) => q.kind === "confidential",
+          )}
+          canEdit={data.canEdit}
+        />
+      )}
       <details className="rounded-xl border p-4">
         <summary className="cursor-pointer font-medium">Report history</summary>
         <ol className="mt-3 space-y-2 text-sm">
@@ -810,7 +929,9 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
                 ? "Saving…"
                 : dirty
                   ? "Unsaved changes"
-                  : "All changes saved"}
+                  : template.key === "hr"
+                    ? "Shared report saved"
+                    : "All changes saved"}
             </span>
             <Button
               variant="outline"

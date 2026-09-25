@@ -1,6 +1,6 @@
 import { beforeAll, afterAll, describe, it, expect, vi } from "vitest";
 import postgres from "postgres";
-import { readFileSync } from "node:fs";
+import { bootstrapReportTests } from "./test-bootstrap";
 vi.mock("@/lib/auth/guards", () => ({
   getProfile: async () => ({
     id: "00000000-0000-4000-8000-000000000002",
@@ -35,12 +35,7 @@ suite("structured visit report workflow", () => {
       throw Error("Disposable DB only");
     vi.stubEnv("POSTGRES_URL", url);
     vi.stubEnv("DATABASE_URL", url);
-    const [present] =
-      await db`select to_regclass('visit_report_templates') present`;
-    if (!present.present)
-      await db.unsafe(
-        readFileSync("drizzle/0035_visit_report_templates.sql", "utf8"),
-      );
+    await bootstrapReportTests(db);
     await db`insert into auth.users(id) values(${manager}) on conflict do nothing`;
     await db`insert into profiles(id,org_id,email,full_name,role) values(${manager},${org},'manager@example.test','QA Manager','property_manager') on conflict do nothing`;
     const [property] =
@@ -302,12 +297,14 @@ suite("structured visit report workflow", () => {
     ).toBe(true);
     await db`update fleet_trip_reports set submitted_by=${admin} where request_id=${requestId}`;
   });
-  it('scopes legacy task and project choices even before category selection',async()=>{
-    const [hidden]=await db`insert into tasks(org_id,title) values(${org},'Private unrelated fixture') returning id`
-    const {getVisitReportPage}=await import('@/lib/db/queries/fleet-trip-reports')
-    const page=await getVisitReportPage(requestId,org,manager)
-    expect(page?.taskOptions.some(t=>t.id===hidden.id)).toBe(false)
-  })
+  it("scopes legacy task and project choices even before category selection", async () => {
+    const [hidden] =
+      await db`insert into tasks(org_id,title) values(${org},'Private unrelated fixture') returning id`;
+    const { getVisitReportPage } =
+      await import("@/lib/db/queries/fleet-trip-reports");
+    const page = await getVisitReportPage(requestId, org, manager);
+    expect(page?.taskOptions.some((t) => t.id === hidden.id)).toBe(false);
+  });
   it("blocks edits at expiry but preserves read access", async () => {
     const { readReport, saveReport } = await import("./service");
     await db`update fleet_trip_reports set due_at=now()-interval '1 second' where request_id=${requestId}`;

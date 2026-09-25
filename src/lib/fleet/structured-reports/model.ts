@@ -20,7 +20,12 @@ export const templateSchema = z
           sectionId: key,
           label: z.string().trim().min(1).max(300),
           guidance: z.string().max(3000),
-          kind: z.enum(["inspection", "score"]),
+          kind: z.enum([
+            "inspection",
+            "score",
+            "employee_score",
+            "confidential",
+          ]),
         }),
       )
       .min(1)
@@ -37,11 +42,48 @@ export const templateSchema = z
       });
     for (const q of t.questions)
       if (
-        (q.kind === "inspection" &&
-          !t.sections.some((s) => s.id === q.sectionId)) ||
+        (q.kind === "employee_score" &&
+          q.sectionId !== "employee-evaluations") ||
+        (q.kind === "confidential" &&
+          q.sectionId !== "confidential-feedback") ||
+        (q.kind !== "score" && !t.sections.some((s) => s.id === q.sectionId)) ||
         (q.kind === "score" && q.sectionId !== "scorecard")
       )
         ctx.addIssue({ code: "custom", message: "Invalid question section" });
+    if (
+      t.questions.some(
+        (q) =>
+          (q.kind === "employee_score" || q.kind === "confidential") &&
+          t.key !== "hr",
+      )
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "HR sections require the HR category",
+      });
+    if (
+      t.key === "hr" &&
+      (t.questions.filter((q) => q.kind === "employee_score").length !== 5 ||
+        ["private-feedback", "private-assessment"].some(
+          (id) =>
+            !t.questions.some(
+              (q) =>
+                q.id === id &&
+                q.kind === "confidential" &&
+                q.sectionId === "confidential-feedback",
+            ),
+        ) ||
+        t.questions.some(
+          (q) =>
+            q.sectionId === "confidential-feedback" &&
+            q.kind !== "confidential",
+        ))
+    )
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "Keep five employee criteria and the protected confidential section",
+      });
   });
 export type ReportTemplate = z.infer<typeof templateSchema>;
 export const reportTemplates = seeds.map((t) => templateSchema.parse(t));
@@ -69,6 +111,12 @@ export const answerSchema = z.object({
     .default(null),
   notApplicable: z.boolean().default(false),
   task: taskChoiceSchema.default({ kind: "none" }),
+  evaluation: z
+    .object({
+      department: z.enum(["", "HK", "KIT", "SRV", "G&M", "ADM"]),
+      feedback: z.string().trim().max(5000),
+    })
+    .default({ department: "", feedback: "" }),
 });
 export type Answer = z.infer<typeof answerSchema>;
 export const contentSchema = z.object({
@@ -77,6 +125,7 @@ export const contentSchema = z.object({
   visitDate: z.union([z.iso.date(), z.literal("")]).default(""),
   timeIn: z.string().max(20).default(""),
   timeOut: z.string().max(20).default(""),
+  coEvaluator: z.string().trim().max(200).default(""),
   thirdPartyFirm: z.string().max(200).default(""),
   openComments: z.string().max(5000).default(""),
 });
@@ -108,20 +157,37 @@ export function validateAnswers(
   for (const a of answers) {
     const q = template.questions.find((q) => q.id === a.questionId);
     if (!q) throw Error("Unknown report question");
+    if (q.kind === "confidential")
+      throw Error("Confidential answers must use the HR-only form");
     const k = a.questionId + ":" + a.instance;
     if (seen.has(k) || ids.has(a.id)) throw Error("Duplicate answer");
     seen.add(k);
     ids.add(a.id);
     if (q.kind === "inspection" && a.rating !== null)
       throw Error("Inspection answers cannot have ratings");
-    if (q.kind === "score" && a.notApplicable !== (a.rating === "na"))
+    if (
+      (q.kind === "score" || q.kind === "employee_score") &&
+      a.notApplicable !== (a.rating === "na")
+    )
       throw Error("Score not-applicable state must match its rating");
     if (complete && !a.location)
       throw Error("Enter a room or area for every inspection");
     if (q.kind === "score" && a.instance !== "default")
       throw Error("Scorecard questions cannot repeat");
+    if (q.kind === "employee_score" && (a.rating === "na" || a.notApplicable))
+      throw Error("Employee criteria need a score from 1 to 5");
     if (complete) {
-      if (q.kind === "score" && a.rating === null)
+      if (
+        q.kind === "employee_score" &&
+        (!a.evaluation.department ||
+          !a.evaluation.feedback ||
+          a.location === "Property-wide")
+      )
+        throw Error("Enter employee name, department and agreed feedback");
+      if (
+        (q.kind === "score" || q.kind === "employee_score") &&
+        a.rating === null
+      )
         throw Error(`Answer the score for ${q.label}`);
       if (q.kind === "inspection" && !a.notApplicable && !a.notes)
         throw Error(`Answer ${q.label} or mark it not applicable`);
@@ -137,7 +203,23 @@ export function validateAnswers(
           .filter((a) => qs.some((q) => q.id === a.questionId))
           .map((a) => a.instance),
       );
-      for (const instance of groups)
+      for (const instance of groups) {
+        const rows = answers.filter(
+          (a) =>
+            a.instance === instance && qs.some((q) => q.id === a.questionId),
+        );
+        if (
+          qs.some((q) => q.kind === "employee_score") &&
+          rows.some(
+            (a) =>
+              a.location !== rows[0].location ||
+              JSON.stringify(a.evaluation) !==
+                JSON.stringify(rows[0].evaluation),
+          )
+        )
+          throw Error(
+            "Keep employee identity and feedback consistent across the five scores",
+          );
         if (
           qs.some(
             (q) =>
@@ -147,11 +229,16 @@ export function validateAnswers(
           )
         )
           throw Error("Complete every question in each repeated area");
+      }
     }
   }
   if (
     complete &&
-    template.questions.some((q) => !answers.some((a) => a.questionId === q.id))
+    template.questions.some(
+      (q) =>
+        q.kind !== "confidential" &&
+        !answers.some((a) => a.questionId === q.id),
+    )
   )
     throw Error("Answer every report question");
 }
