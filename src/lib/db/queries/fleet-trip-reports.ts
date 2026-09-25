@@ -1,5 +1,6 @@
+import { loadActor, taskVisibility } from '@/lib/tasks/access'
 import { recordTaskActor } from '../../tasks/actor-context'
-import { and, asc, eq, inArray, ne } from 'drizzle-orm'
+import { sql, and, asc, eq, inArray, ne } from 'drizzle-orm'
 import { db } from '..'
 import { dispatches, dispatchStops, fleetRequests, fleetTripReportObservations, fleetTripReports, fleetReportTaskLinks, profiles, projects, properties, taskAssignees, tasks, visitReportObservationCategories, visitReportReasons } from '../schema'
 import { reportDeadline, isReportEditingOpen, visitReportSubmissionSchema, visitReportDraftSchema, type VisitReportSubmission, type VisitReportDraft } from '../../fleet/reports'
@@ -73,14 +74,16 @@ export async function getVisitReportPage(requestId: string, orgId: string, userI
   if (!report) return null
   const [request] = await db.select().from(fleetRequests).where(and(eq(fleetRequests.id, requestId), eq(fleetRequests.orgId, orgId)))
   if (!request) return null
+  const actor = await loadActor(userId)
+  const visibleTask = sql`exists(select 1 from tasks t where t.id=${tasks.id} and ${taskVisibility(actor)})`
   const [links, taskOptions, projectOptions, people, observations, taxonomy] = await Promise.all([
     db.select({ id: tasks.id, title: tasks.title, projectId: tasks.projectId }).from(fleetReportTaskLinks)
-      .innerJoin(tasks, eq(tasks.id, fleetReportTaskLinks.taskId)).where(and(eq(fleetReportTaskLinks.reportId, report.id), eq(tasks.orgId, orgId))),
-    db.select({ id: tasks.id, title: tasks.title, projectId: tasks.projectId }).from(tasks).where(and(eq(tasks.orgId, orgId), report.reportingTaskId ? ne(tasks.id, report.reportingTaskId) : undefined)).orderBy(asc(tasks.title)),
-    db.select({ id: projects.id, name: projects.name }).from(projects).where(and(eq(projects.orgId, orgId), eq(projects.status, 'active'))).orderBy(asc(projects.name)),
+      .innerJoin(tasks, eq(tasks.id, fleetReportTaskLinks.taskId)).where(and(eq(fleetReportTaskLinks.reportId, report.id), eq(tasks.orgId, orgId), visibleTask)),
+    db.select({ id: tasks.id, title: tasks.title, projectId: tasks.projectId }).from(tasks).where(and(eq(tasks.orgId, orgId), report.reportingTaskId ? ne(tasks.id, report.reportingTaskId) : undefined, visibleTask, sql`${tasks.archivedAt} is null`)).orderBy(asc(tasks.title)),
+    db.select({ id: projects.id, name: projects.name }).from(projects).where(and(eq(projects.orgId, orgId), eq(projects.status, 'active'), sql`(${actor.isAdmin} or ${projects.createdBy}=${userId}::uuid or exists(select 1 from tasks t where t.project_id=${projects.id} and ${taskVisibility(actor)}))`)).orderBy(asc(projects.name)),
     db.select({ id: profiles.id, fullName: profiles.fullName }).from(profiles).where(and(eq(profiles.orgId, orgId), eq(profiles.isActive, true))).orderBy(asc(profiles.fullName)),
     db.select({ id: fleetTripReportObservations.id, categoryId: fleetTripReportObservations.categoryId, categoryName: fleetTripReportObservations.categoryName, finding: fleetTripReportObservations.finding, taskId: fleetTripReportObservations.taskId, taskTitle: tasks.title, taskProjectId: tasks.projectId })
-      .from(fleetTripReportObservations).leftJoin(tasks, eq(tasks.id, fleetTripReportObservations.taskId))
+      .from(fleetTripReportObservations).leftJoin(tasks, and(eq(tasks.id, fleetTripReportObservations.taskId), visibleTask))
       .where(eq(fleetTripReportObservations.reportId, report.id)).orderBy(asc(fleetTripReportObservations.createdAt)),
     getVisitReportTaxonomy(orgId),
   ])
@@ -148,6 +151,8 @@ export async function saveVisitReportDraftInTransaction(tx: Transaction, request
   if (!request || request.status === 'cancelled') throw new VisitReportError('The trip is unavailable or cancelled')
   const [report] = await tx.select().from(fleetTripReports).where(and(eq(fleetTripReports.requestId, requestId), eq(fleetTripReports.orgId, orgId))).for('update')
   if (!report) throw new VisitReportError('Report not found')
+  const [structured] = await tx.execute(sql`select template_snapshot from fleet_trip_reports where id=${report.id}::uuid`)
+  if (structured?.template_snapshot) throw new VisitReportError('Use the category report form for this report')
   if (report.submittedBy !== ownerId) throw new VisitReportError('Only the report owner can save a draft')
   if (!isReportEditingOpen(report.dueAt)) throw new VisitReportError('The 48-hour editing window has closed. This report is read-only.')
   if (report.submittedAt) {
@@ -189,6 +194,8 @@ export async function submitVisitReportInTransaction(tx: Transaction, requestId:
   if (!request) throw new VisitReportError('Report not found')
   const [report] = await tx.select().from(fleetTripReports).where(and(eq(fleetTripReports.requestId, requestId), eq(fleetTripReports.orgId, orgId))).for('update')
   if (!report) throw new VisitReportError('Report not found')
+  const [structured] = await tx.execute(sql`select template_snapshot from fleet_trip_reports where id=${report.id}::uuid`)
+  if (structured?.template_snapshot) throw new VisitReportError('Use the category report form for this report')
   if (report.submittedBy !== ownerId) throw new VisitReportError('Only the report owner can submit this report')
   // Row lock serializes submissions and retries, including new task creation.
   if (report.submittedAt) return report

@@ -1,0 +1,705 @@
+[
+  {
+    "key": "styling",
+    "name": "Stylist & Interior Design",
+    "visitTypes": [
+      "Routine Styling Audit",
+      "Pre-season Setup",
+      "Special Project"
+    ],
+    "sections": [
+      {
+        "id": "section-1",
+        "title": "Public & Main Areas"
+      },
+      {
+        "id": "section-2",
+        "title": "Guest Rooms & Suites"
+      },
+      {
+        "id": "section-3",
+        "title": "Tea, Coffee & Minibar Stations"
+      },
+      {
+        "id": "section-4",
+        "title": "Bathroom Aesthetics"
+      },
+      {
+        "id": "section-5",
+        "title": "Outdoor & Pool Areas"
+      }
+    ],
+    "questions": [
+      {
+        "id": "q1",
+        "sectionId": "section-1",
+        "label": "Lighting & Ambience",
+        "guidance": "Warm light only/no bright lights, lampshades straight with seams to the back",
+        "kind": "inspection"
+      },
+      {
+        "id": "q2",
+        "sectionId": "section-1",
+        "label": "Soft Furnishings & Rugs",
+        "guidance": "Scatter cushions with zippers down, rugs laid flat with fringes removed",
+        "kind": "inspection"
+      },
+      {
+        "id": "q3",
+        "sectionId": "section-1",
+        "label": "Decor & Shelving",
+        "guidance": "Books arranged large to small, clutter-free surfaces, candles cut down and bug-free",
+        "kind": "inspection"
+      },
+      {
+        "id": "q4",
+        "sectionId": "section-1",
+        "label": "Floral & Greenery",
+        "guidance": "Freshness of floral arrangements, water replaced daily",
+        "kind": "inspection"
+      },
+      {
+        "id": "q5",
+        "sectionId": "section-2",
+        "label": "Room Ambience & Signature Touches",
+        "guidance": "Presence of Taru Villas signature fragrance, leatherbound coffee table books",
+        "kind": "inspection"
+      },
+      {
+        "id": "q6",
+        "sectionId": "section-2",
+        "label": "Bed Styling",
+        "guidance": "Crisp 350 TC white linen, exactly 4 pillows [2 firm, 2 soft], 2 throw cushions centered, bed throws placed for arrival",
+        "kind": "inspection"
+      },
+      {
+        "id": "q7",
+        "sectionId": "section-2",
+        "label": "Wardrobe & Accessories",
+        "guidance": "Flip-flops and hairdryers presented neatly in designated fabric pouches",
+        "kind": "inspection"
+      },
+      {
+        "id": "q8",
+        "sectionId": "section-2",
+        "label": "Lighting",
+        "guidance": "Appropriate warm lighting, bedside lamps straight with seams facing the back",
+        "kind": "inspection"
+      },
+      {
+        "id": "q9",
+        "sectionId": "section-3",
+        "label": "Beverage Presentation",
+        "guidance": "Loose-leaf Peekoh branded teas presented properly, coffee and sugar stored in glass jars",
+        "kind": "inspection"
+      },
+      {
+        "id": "q10",
+        "sectionId": "section-3",
+        "label": "Water & Minibar",
+        "guidance": "2 clip bottles for drinking water, minibar labels all facing forward for easy visibility",
+        "kind": "inspection"
+      },
+      {
+        "id": "q11",
+        "sectionId": "section-4",
+        "label": "Amenity Presentation",
+        "guidance": "Bottles polished with labels facing front, upright toothbrush holders, cane cover on tissue boxes",
+        "kind": "inspection"
+      },
+      {
+        "id": "q12",
+        "sectionId": "section-4",
+        "label": "Towel Styling",
+        "guidance": "Fluffy towels neatly folded with all seams facing inwards",
+        "kind": "inspection"
+      },
+      {
+        "id": "q13",
+        "sectionId": "section-5",
+        "label": "Pool Towel Compliance",
+        "guidance": "Adherence to property-specific colors: Yellow/White Striped, Grey/White Striped, or Full Brick Red",
+        "kind": "inspection"
+      },
+      {
+        "id": "q14",
+        "sectionId": "section-5",
+        "label": "Outdoor Furniture & Styling",
+        "guidance": "Condition of loungers, outdoor cushions with zippers down, ambient evening setup",
+        "kind": "inspection"
+      },
+      {
+        "id": "score-1",
+        "sectionId": "scorecard",
+        "label": "Furniture & Decor Layout",
+        "guidance": "Logical placement, book arrangements, rug styling, clutter-free spaces",
+        "kind": "score"
+      },
+      {
+        "id": "score-2",
+        "sectionId": "scorecard",
+        "label": "Soft Furnishings & Bedding",
+        "guidance": "Pillow counts, cushion zipper placement, linen crispness, towel folding",
+        "kind": "score"
+      },
+      {
+        "id": "score-3",
+        "sectionId": "scorecard",
+        "label": "Signature Elements & Amenities",
+        "guidance": "Fragrance, fabric pouches for accessories, cane tissue covers, glass jars",
+        "kind": "score"
+      },
+      {
+        "id": "score-4",
+        "sectionId": "scorecard",
+        "label": "Lighting & Ambience",
+        "guidance": "Warm light strictly used, lampshade seam placement, evening transition",
+        "kind": "score"
+      },
+      {
+        "id": "score-5",
+        "sectionId": "scorecard",
+        "label": "Property-Specific Styling Compliance",
+        "guidance": "Correct pool towel colors, property-specific floral styling, brand consistency",
+        "kind": "score"
+      }
+    ]
+  },
+  {
+    "key": "landscaping",
+    "name": "Landscaping & Grounds",
+    "visitTypes": [
+      "Routine Audit",
+      "Pre-season Preparation",
+      "Special Project"
+    ],
+    "sections": [
+      {
+        "id": "section-1",
+        "title": "Entrance & Pathways"
+      },
+      {
+        "id": "section-2",
+        "title": "Lawns & Groundcover"
+      },
+      {
+        "id": "section-3",
+        "title": "Trees, Shrubs & Hedges"
+      },
+      {
+        "id": "section-4",
+        "title": "Potted Plants & Indoor/Veranda Greenery"
+      },
+      {
+        "id": "section-5",
+        "title": "Boundary Walls, Pool & Water Features"
+      }
+    ],
+    "questions": [
+      {
+        "id": "q1",
+        "sectionId": "section-1",
+        "label": "Pathway Clearance",
+        "guidance": "Branches cut back from entryways, landscaping not obstructing guest pathways, area swept and litter-free",
+        "kind": "inspection"
+      },
+      {
+        "id": "q2",
+        "sectionId": "section-1",
+        "label": "Hardscaping & Drainage",
+        "guidance": "Pathways level and safe, foot cleaning bowls free of debris, drainage areas flowing freely without standing water",
+        "kind": "inspection"
+      },
+      {
+        "id": "q3",
+        "sectionId": "section-2",
+        "label": "Turf Health",
+        "guidance": "Color, density, presence of dry patches or disease, watering routines maintained",
+        "kind": "inspection"
+      },
+      {
+        "id": "q4",
+        "sectionId": "section-2",
+        "label": "Weed Control & Edging",
+        "guidance": "Borders clearly defined, beds free of weeds and unwanted debris",
+        "kind": "inspection"
+      },
+      {
+        "id": "q5",
+        "sectionId": "section-3",
+        "label": "Pruning & Maintenance",
+        "guidance": "Trees pruned away from roofs and buildings, no vegetation growing on external AC units",
+        "kind": "inspection"
+      },
+      {
+        "id": "q6",
+        "sectionId": "section-3",
+        "label": "Plant Health",
+        "guidance": "Signs of pests, fungal infections, nutrient deficiencies, or dead foliage requiring removal",
+        "kind": "inspection"
+      },
+      {
+        "id": "q7",
+        "sectionId": "section-4",
+        "label": "Plant Vigor",
+        "guidance": "Health of potted plants, appropriate watering, dusting of large indoor leaves",
+        "kind": "inspection"
+      },
+      {
+        "id": "q8",
+        "sectionId": "section-4",
+        "label": "Pot & Planter Condition",
+        "guidance": "Cleanliness of pots, no old leaves or cigarette butts left in planters",
+        "kind": "inspection"
+      },
+      {
+        "id": "q9",
+        "sectionId": "section-5",
+        "label": "Pool Surroundings",
+        "guidance": "Debris-free lawns near pool, overhanging plants managed",
+        "kind": "inspection"
+      },
+      {
+        "id": "q10",
+        "sectionId": "section-5",
+        "label": "Boundaries & Fences",
+        "guidance": "Perimeter vegetation controlled, fences secure and free from damage",
+        "kind": "inspection"
+      },
+      {
+        "id": "score-1",
+        "sectionId": "scorecard",
+        "label": "Lawns & Groundcover",
+        "guidance": "Health, color, mowing height, weed control, edging",
+        "kind": "score"
+      },
+      {
+        "id": "score-2",
+        "sectionId": "scorecard",
+        "label": "Trees, Shrubs & Hedges",
+        "guidance": "Correct pruning, clearance from structures/ACs/paths, overall health",
+        "kind": "score"
+      },
+      {
+        "id": "score-3",
+        "sectionId": "scorecard",
+        "label": "Pathways, Hardscaping & Drainage",
+        "guidance": "Swept, safe, level, litter-free, no standing water",
+        "kind": "score"
+      },
+      {
+        "id": "score-4",
+        "sectionId": "scorecard",
+        "label": "Potted Plants & Indoor Greenery",
+        "guidance": "Watering, leaf health, clean pots/planters",
+        "kind": "score"
+      },
+      {
+        "id": "score-5",
+        "sectionId": "scorecard",
+        "label": "Pest & Disease Management",
+        "guidance": "Absence of noticeable infestations, fungal issues, or nutrient deficiency",
+        "kind": "score"
+      },
+      {
+        "id": "score-6",
+        "sectionId": "scorecard",
+        "label": "Overall Garden Aesthetics & Brand Standard",
+        "guidance": "Does the garden reflect the Taru Villas tropical luxury feel? Cleanliness",
+        "kind": "score"
+      }
+    ]
+  },
+  {
+    "key": "security",
+    "name": "Security & Safety",
+    "visitTypes": [
+      "Routine Audit",
+      "Unannounced / Night Audit",
+      "Special Investigation"
+    ],
+    "sections": [
+      {
+        "id": "section-1",
+        "title": "Guard Deployment & Professionalism (3rd Party Team)"
+      },
+      {
+        "id": "section-2",
+        "title": "Perimeter, Access Control & Gate Management"
+      },
+      {
+        "id": "section-3",
+        "title": "Safety Equipment & Systems Functionality"
+      },
+      {
+        "id": "section-4",
+        "title": "Documentation, Logs & Key Control"
+      }
+    ],
+    "questions": [
+      {
+        "id": "q1",
+        "sectionId": "section-1",
+        "label": "Turnout & Grooming",
+        "guidance": "Guards in full, clean uniform, displaying ID badges, professional posture",
+        "kind": "inspection"
+      },
+      {
+        "id": "q2",
+        "sectionId": "section-1",
+        "label": "Alertness & Knowledge",
+        "guidance": "Guards alert, not distracted by phones, knowledgeable about Taru Villas SOPs and emergency protocols",
+        "kind": "inspection"
+      },
+      {
+        "id": "q3",
+        "sectionId": "section-1",
+        "label": "Shift Management",
+        "guidance": "Proper handover/takeover procedures observed, required guard strength present on site",
+        "kind": "inspection"
+      },
+      {
+        "id": "q4",
+        "sectionId": "section-2",
+        "label": "Main Gate Operations",
+        "guidance": "Strict verification of guests, staff, and contractors before granting access",
+        "kind": "inspection"
+      },
+      {
+        "id": "q5",
+        "sectionId": "section-2",
+        "label": "Perimeter Vulnerability",
+        "guidance": "Boundary walls and fences secure and free from damage, no blind spots or easy access points",
+        "kind": "inspection"
+      },
+      {
+        "id": "q6",
+        "sectionId": "section-2",
+        "label": "Lighting",
+        "guidance": "Adequate security lighting around the perimeter, entrance, and dark zones during night hours",
+        "kind": "inspection"
+      },
+      {
+        "id": "q7",
+        "sectionId": "section-3",
+        "label": "Fire Safety",
+        "guidance": "Fire extinguishers clean, dusted, and checked for expiry; electronic fire alarm batteries tested/replaced annually",
+        "kind": "inspection"
+      },
+      {
+        "id": "q8",
+        "sectionId": "section-3",
+        "label": "CCTV Systems",
+        "guidance": "Cameras operational, clean lenses, covering critical areas, DVR/NVR recording correctly and securely stored",
+        "kind": "inspection"
+      },
+      {
+        "id": "q9",
+        "sectionId": "section-3",
+        "label": "In-Room Safes",
+        "guidance": "Safes operational, instruction notes framed neatly, and batteries serviced on a quarterly basis",
+        "kind": "inspection"
+      },
+      {
+        "id": "q10",
+        "sectionId": "section-4",
+        "label": "Record Keeping",
+        "guidance": "Visitor log, vehicle log, and incident registers maintained accurately and up to date",
+        "kind": "inspection"
+      },
+      {
+        "id": "q11",
+        "sectionId": "section-4",
+        "label": "Key Management",
+        "guidance": "Strict control over master keys, key register updated upon issue and return",
+        "kind": "inspection"
+      },
+      {
+        "id": "score-1",
+        "sectionId": "scorecard",
+        "label": "Guard Alertness & Professionalism",
+        "guidance": "Turnout, attentiveness, compliance with Taru Villas standards",
+        "kind": "score"
+      },
+      {
+        "id": "score-2",
+        "sectionId": "scorecard",
+        "label": "Access Control & Perimeter Security",
+        "guidance": "Visitor screening, gate management, boundary integrity, lighting",
+        "kind": "score"
+      },
+      {
+        "id": "score-3",
+        "sectionId": "scorecard",
+        "label": "Safety & Emergency Equipment",
+        "guidance": "Fire extinguishers checked, alarms functional, safe batteries serviced",
+        "kind": "score"
+      },
+      {
+        "id": "score-4",
+        "sectionId": "scorecard",
+        "label": "Surveillance (CCTV) Functionality",
+        "guidance": "Camera coverage, recording status, equipment security",
+        "kind": "score"
+      },
+      {
+        "id": "score-5",
+        "sectionId": "scorecard",
+        "label": "Documentation & Key Management",
+        "guidance": "Accuracy of visitor/vehicle logs, strict key register adherence",
+        "kind": "score"
+      }
+    ]
+  },
+  {
+    "key": "facilities",
+    "name": "Facilities & Maintenance",
+    "visitTypes": [
+      "Routine Audit",
+      "Preventative Maintenance",
+      "Breakdown / Ad-hoc"
+    ],
+    "sections": [
+      {
+        "id": "section-1",
+        "title": "Exterior, Structural & Pool Maintenance"
+      },
+      {
+        "id": "section-2",
+        "title": "Guest Rooms & Living Areas"
+      },
+      {
+        "id": "section-3",
+        "title": "Bathroom & Plumbing Systems"
+      },
+      {
+        "id": "section-4",
+        "title": "Commercial Kitchen & F&B Infrastructure"
+      },
+      {
+        "id": "section-5",
+        "title": "Laundry Operations"
+      },
+      {
+        "id": "section-6",
+        "title": "Backend Infrastructure (Water, Sewerage, Power, Solar)"
+      },
+      {
+        "id": "section-7",
+        "title": "Electrical, Safety & General Backend"
+      }
+    ],
+    "questions": [
+      {
+        "id": "q1",
+        "sectionId": "section-1",
+        "label": "Structural Integrity",
+        "guidance": "Exterior walls, windows, and doors are checked for cracks, damage, weathering, leaks, or deterioration.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q2",
+        "sectionId": "section-1",
+        "label": "Roofing & Drainage",
+        "guidance": "The roof and gutters show no visible damage, blockages, leaks, or loose sections; drainage areas are flowing freely without standing water.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q3",
+        "sectionId": "section-1",
+        "label": "Decking & Pathways",
+        "guidance": "Decking and pathways are safe, level, and free from loose boards or trip hazards.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q4",
+        "sectionId": "section-1",
+        "label": "Pool Health",
+        "guidance": "Swimming pool water is clean, equipment (pumps, filters) is functioning smoothly without excessive noise, and chemical levels are balanced.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q5",
+        "sectionId": "section-2",
+        "label": "Air Conditioning",
+        "guidance": "Units cool efficiently to the required temperature without unusual noise or vibration. AC filters are clean and free from dust, with no water leakage from the indoor unit. The outdoor condenser is clean and unobstructed, and the drain line is flowing correctly.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q6",
+        "sectionId": "section-2",
+        "label": "Fixtures & Fittings",
+        "guidance": "Sliding doors open and close smoothly, and locks function correctly. The ceiling fan is balanced, clean, and operating quietly. Bed bases are structurally sound, clean, and free from damage or squeaks.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q7",
+        "sectionId": "section-2",
+        "label": "Electrical Interfaces",
+        "guidance": "DND/Service switches are working correctly and clearly illuminated. Plug bases are operational, secure, and undamaged.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q8",
+        "sectionId": "section-3",
+        "label": "Water Pressure & Leaks",
+        "guidance": "The shower holder, hose, and shower head exhibit no leaks, blockages, corrosion, or low water pressure. The sink, sink table, and bottle trap show no leaks, damage, or corrosion.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q9",
+        "sectionId": "section-3",
+        "label": "Fittings & Hardware",
+        "guidance": "Door hinges and screws are tight, rust-free, and operating quietly. The bathtub has no stains, chips, cracks, or drainage issues.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q10",
+        "sectionId": "section-3",
+        "label": "Seals & Finishes",
+        "guidance": "Grouting and silicone are clean, mould-free, and intact.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q11",
+        "sectionId": "section-4",
+        "label": "Equipment Functionality",
+        "guidance": "All heavy kitchen equipment (ovens, fryers, stoves, grills) are fully operational. Refrigerators and freezers are maintaining correct temperatures with intact door seals.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q12",
+        "sectionId": "section-4",
+        "label": "Ventilation & Exhaust",
+        "guidance": "Extractor hoods and ventilation systems are functioning properly, with filters clean and free of heavy grease build-up.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q13",
+        "sectionId": "section-4",
+        "label": "Gas Safety",
+        "guidance": "Gas lines, manifolds, and cylinder storage areas are secure, leak-free, and comply with safety standards.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q14",
+        "sectionId": "section-4",
+        "label": "Drainage & Hygiene",
+        "guidance": "Floor drains and grease traps are clean, unblocked, and functioning without foul odors.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q15",
+        "sectionId": "section-5",
+        "label": "Machinery Health",
+        "guidance": "Washing machines and tumble dryers are operating smoothly without unusual vibrations, noise, or leaks. Lint traps are clean.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q16",
+        "sectionId": "section-5",
+        "label": "Chemical Dosing & Water Supply",
+        "guidance": "Chemical dosing systems (if applicable) are functioning correctly. Water supply lines are secure and pressure is adequate for industrial cycles.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q17",
+        "sectionId": "section-5",
+        "label": "Ventilation & Safety",
+        "guidance": "The laundry area is well-ventilated, and electrical connections for heavy machinery are secure and safe.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q18",
+        "sectionId": "section-6",
+        "label": "Water Treatment (RO Plants)",
+        "guidance": "Reverse Osmosis (RO) plants are functioning efficiently. Filter replacement logs are up to date, and water quality testing results are within acceptable parameters.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q19",
+        "sectionId": "section-6",
+        "label": "Sewerage Treatment Plants (STP)",
+        "guidance": "The STP is operating correctly without blockages, overflows, or excessive odors. Aeration pumps and transfer systems are functional.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q20",
+        "sectionId": "section-6",
+        "label": "Solar Systems (Hot Water & PV)",
+        "guidance": "Solar hot water panels/tubes are clean and intact, providing adequate hot water. Solar PV systems (if installed) are generating power, inverters are error-free, and panels are free of debris.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q21",
+        "sectionId": "section-6",
+        "label": "Backup Power (Generators)",
+        "guidance": "The standby generator starts smoothly, fuel levels are adequate, battery health is good, and the changeover switch (ATS) functions correctly.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q22",
+        "sectionId": "section-7",
+        "label": "Power Distribution",
+        "guidance": "The Electrical Distribution Board (DB) is accessible, labelled correctly, clean, and secure.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q23",
+        "sectionId": "section-7",
+        "label": "Fire & Safety",
+        "guidance": "Smoke detectors are tested and functioning correctly. Electronic fire alarm batteries are replaced annually. Fire extinguishers are serviced and accessible.",
+        "kind": "inspection"
+      },
+      {
+        "id": "q24",
+        "sectionId": "section-7",
+        "label": "Security Hardware",
+        "guidance": "Electronic safe servicing is up to date, ensuring batteries are replaced on a quarterly basis.",
+        "kind": "inspection"
+      },
+      {
+        "id": "score-1",
+        "sectionId": "scorecard",
+        "label": "Structural, Roofs & Exteriors",
+        "guidance": "Walls, weather-proofing, decking, boundary",
+        "kind": "score"
+      },
+      {
+        "id": "score-2",
+        "sectionId": "scorecard",
+        "label": "HVAC & Air Conditioning",
+        "guidance": "Cooling efficiency, filter cleanliness, drainage",
+        "kind": "score"
+      },
+      {
+        "id": "score-3",
+        "sectionId": "scorecard",
+        "label": "Rooms, Bathrooms & Plumbing",
+        "guidance": "Water pressure, leaks, fixtures, hardware",
+        "kind": "score"
+      },
+      {
+        "id": "score-4",
+        "sectionId": "scorecard",
+        "label": "Kitchen & Laundry Equipment",
+        "guidance": "Appliances, exhaust, gas lines, grease traps",
+        "kind": "score"
+      },
+      {
+        "id": "score-5",
+        "sectionId": "scorecard",
+        "label": "Backend Infrastructure",
+        "guidance": "RO Plant, Sewerage, Solar, Generator",
+        "kind": "score"
+      },
+      {
+        "id": "score-6",
+        "sectionId": "scorecard",
+        "label": "Electrical, Lighting & Safety",
+        "guidance": "Distribution Boards, alarms, fire extinguishers",
+        "kind": "score"
+      }
+    ]
+  }
+]

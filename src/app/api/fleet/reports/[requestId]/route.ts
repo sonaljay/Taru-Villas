@@ -1,3 +1,6 @@
+import { db } from '@/lib/db'
+import { context as reportContext } from '@/lib/fleet/structured-reports/service'
+import { errorResponse } from '@/lib/tasks/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod/v4'
 import { getProfile } from '@/lib/auth/guards'
@@ -41,10 +44,12 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     if (!profile.isActive) return NextResponse.json({ error: 'Account is inactive' }, { status: 403 })
     const { requestId } = await context.params
     if (!z.uuid().safeParse(requestId).success) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    const access = await db.transaction(tx => reportContext(tx, profile.id, requestId))
+    if (access.r.template_snapshot) return NextResponse.json({ error: 'Use the category report endpoint' }, { status: 409 })
     const result = await getVisitReportPage(requestId, profile.orgId, profile.id)
     return result ? NextResponse.json(result) : NextResponse.json({ error: 'Not found' }, { status: 404 })
-  } catch {
-    return NextResponse.json({ error: 'Failed to load visit report' }, { status: 500 })
+  } catch (e) {
+    return errorResponse(e)
   }
 }
 
