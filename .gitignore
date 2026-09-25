@@ -53,3 +53,6 @@ next-env.d.ts
 
 # Wrangler local runtime state
 .wrangler/
+
+# Local implementation ledger and test fixtures
+.superpowers/sdd/

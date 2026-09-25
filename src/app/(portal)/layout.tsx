@@ -28,9 +28,9 @@ export default async function PortalLayout({
       <PwaProvider>
         <SidebarProvider>
           <AppSidebar />
-          <SidebarInset>
+          <SidebarInset className="min-w-0">
             <Header />
-            <main className="relative flex-1 p-4 sm:p-6">
+            <main className="relative min-w-0 flex-1 p-4 sm:p-6">
               <div
                 aria-hidden
                 className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(120%_120%_at_50%_-10%,color-mix(in_oklch,var(--primary)_7%,transparent),transparent_55%)]"

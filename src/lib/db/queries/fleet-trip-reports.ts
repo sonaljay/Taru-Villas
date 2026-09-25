@@ -1,3 +1,4 @@
+import { recordTaskActor } from '../../tasks/actor-context'
 import { and, asc, eq, inArray, ne } from 'drizzle-orm'
 import { db } from '..'
 import { dispatches, dispatchStops, fleetRequests, fleetTripReportObservations, fleetTripReports, fleetReportTaskLinks, profiles, projects, properties, taskAssignees, tasks, visitReportObservationCategories, visitReportReasons } from '../schema'
@@ -141,6 +142,7 @@ async function replaceReportObservations(
 }
 
 export async function saveVisitReportDraftInTransaction(tx: Transaction, requestId: string, orgId: string, ownerId: string, input: unknown) {
+  await recordTaskActor(tx, ownerId, 'Visit report')
   // Same request-first lock order as assignment/completion/cancellation.
   const [request] = await tx.select().from(fleetRequests).where(and(eq(fleetRequests.id, requestId), eq(fleetRequests.orgId, orgId))).for('update')
   if (!request || request.status === 'cancelled') throw new VisitReportError('The trip is unavailable or cancelled')
@@ -182,6 +184,7 @@ export async function saveVisitReportDraft(requestId: string, orgId: string, own
 }
 
 export async function submitVisitReportInTransaction(tx: Transaction, requestId: string, orgId: string, ownerId: string, input: unknown) {
+  await recordTaskActor(tx, ownerId, 'Visit report')
   const [request] = await tx.select().from(fleetRequests).where(and(eq(fleetRequests.id, requestId), eq(fleetRequests.orgId, orgId))).for('update')
   if (!request) throw new VisitReportError('Report not found')
   const [report] = await tx.select().from(fleetTripReports).where(and(eq(fleetTripReports.requestId, requestId), eq(fleetTripReports.orgId, orgId))).for('update')

@@ -1,3 +1,4 @@
+import { recordTaskActor } from '../../tasks/actor-context'
 import { and, asc, desc, eq, gte, inArray, ne, not, notExists, or } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { db } from '..'
@@ -150,6 +151,7 @@ export async function createRequestWithTaskReason(
     | { kind: 'new'; title: string; projectId: string; propertyId: string },
 ) {
   return db.transaction(async (tx) => {
+    await recordTaskActor(tx, request.requestedBy, 'Fleet request')
     const reportOwnerId = request.reportOwnerId ?? request.requestedBy
     const [owner] = await tx.select().from(profiles).where(and(eq(profiles.id, reportOwnerId), eq(profiles.orgId, request.orgId), eq(profiles.isActive, true))).for('share')
     if (!owner) throw new VisitReportError('Choose an active report owner in your organization')
@@ -1084,6 +1086,7 @@ export async function completeDispatch(id: string, driverId: string) {
 }
 
 export async function completeDispatchInTransaction(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], id: string, driverId: string, now = new Date()) {
+    await recordTaskActor(tx, null, `Driver ${driverId}`)
     const [updated] = await tx
       .update(dispatches)
       .set({ status: 'completed', completedAt: now, updatedAt: now })

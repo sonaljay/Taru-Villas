@@ -1,3 +1,4 @@
+import { recordTaskActor } from '../../tasks/actor-context'
 import { and, asc, eq, gt } from 'drizzle-orm'
 import { db } from '..'
 import { profiles, projects, properties, taskAssignees, tasks, vehicleRenewals, vehicles, type NewVehicle } from '../schema'
@@ -64,8 +65,8 @@ export async function reconcileVehicle(tx: FleetTransaction, id: string, orgId: 
   return { created }
 }
 
-export async function saveVehicle(orgId: string, data: Partial<NewVehicle>, id?: string) {
-  return db.transaction(async tx => saveVehicleInTransaction(tx, orgId, data, id))
+export async function saveVehicle(orgId: string, data: Partial<NewVehicle>, id?: string, actorId?: string) {
+  return db.transaction(async tx => { await recordTaskActor(tx, actorId ?? null, 'Vehicle update'); return saveVehicleInTransaction(tx, orgId, data, id) })
 }
 
 export async function saveVehicleInTransaction(tx: FleetTransaction, orgId: string, data: Partial<NewVehicle>, id?: string) {
@@ -100,7 +101,7 @@ export async function runVehicleRenewals(orgId?: string) {
     if (!batch.length) break
     for (const vehicle of batch) {
       try {
-        const result = await db.transaction(tx => reconcileVehicle(tx, vehicle.id, vehicle.orgId, today))
+        const result = await db.transaction(async tx => { await recordTaskActor(tx, null, 'Vehicle renewal scheduler'); return reconcileVehicle(tx, vehicle.id, vehicle.orgId, today) })
         created += result.created
       } catch (error) { failed++; console.error('Vehicle renewal check failed', vehicle.id, error instanceof Error ? error.name : 'Unknown error') }
       checked++

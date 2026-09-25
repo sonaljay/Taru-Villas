@@ -1,3 +1,4 @@
+import { recordTaskActor } from '../../tasks/actor-context'
 import { eq, and, desc, inArray } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { db } from '..'
@@ -46,6 +47,7 @@ export async function createIssuesFromSubmission(
   if (lowScoreResponses.length === 0) return []
 
   return db.transaction(async (tx) => {
+    await recordTaskActor(tx, null, 'Survey issue generation')
     // Look up question texts
     const questionIds = lowScoreResponses.map((r) => r.questionId)
     const questionRows = await tx
