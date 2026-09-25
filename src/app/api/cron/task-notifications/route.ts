@@ -13,8 +13,15 @@ export async function GET(r: Request) {
   if (!secret || got.length !== want.length || !timingSafeEqual(got, want))
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   try {
-    await enqueueReminders()
-    const result = await deliverTaskNotifications()
+    const hour = Number(
+      new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Colombo',
+        hour: '2-digit',
+        hourCycle: 'h23',
+      }).format(new Date()),
+    )
+    if (hour >= 8) await enqueueReminders()
+    const result = await deliverTaskNotifications(1000, 35000)
     await cleanupTaskFiles()
     return Response.json(result, { status: result.failed ? 503 : 200 })
   } catch {

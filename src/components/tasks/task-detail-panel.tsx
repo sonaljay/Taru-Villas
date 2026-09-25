@@ -93,7 +93,8 @@ export function TaskDetailPanel({
         assigneeIds: task.assignee_ids,
       }
     : null
-  const editable = !!scope && canEditTask(options.actor, scope),
+  const editable =
+      !!scope && !task?.archived_at && canEditTask(options.actor, scope),
     transfer = !!scope && canTransferTask(options.actor, scope),
     decide = !!scope && canDecideTask(options.actor, scope)
   async function action(command: unknown) {
@@ -433,6 +434,15 @@ export function TaskDetailPanel({
                         Send for review
                       </Button>
                     </form>
+                  )}
+                  {editable && (
+                    <Button
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => action({ type: 'archive' })}
+                    >
+                      Archive task
+                    </Button>
                   )}
                   {editable && task.status === 'done' && (
                     <form

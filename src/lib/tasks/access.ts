@@ -21,10 +21,10 @@ export async function loadActor(
   if (!p || !p.is_active)
     throw new TaskError('Sign in with an active account', 401)
   const memberships = await connection.execute(
-    sql`select m.committee_id from task_committee_members m join task_committees c on c.id=m.committee_id where m.profile_id=${profileId}::uuid and c.org_id=${p.org_id}::uuid and c.archived_at is null for share of m`,
+    sql`select m.committee_id from task_committee_members m join task_committees c on c.id=m.committee_id where m.profile_id=${profileId}::uuid and c.org_id=${p.org_id}::uuid and c.archived_at is null for share of m,c`,
   )
   const props = await connection.execute(
-    sql`select property_id from property_assignments where user_id=${profileId}::uuid`,
+    sql`select property_id from property_assignments where user_id=${profileId}::uuid for share`,
   )
   const [ops] = await connection.execute(
     sql`select id from task_committees where org_id=${p.org_id}::uuid and is_operations`,
@@ -49,7 +49,8 @@ export function taskVisibility(a: Actor): SQL {
   return sql`t.org_id=${a.orgId}::uuid and ( ${a.isAdmin} or exists(select 1 from task_assignees a where a.task_id=t.id and a.profile_id=${a.profileId}::uuid) or exists(select 1 from task_committee_members m where m.committee_id=t.committee_id and m.profile_id=${a.profileId}::uuid) or exists(select 1 from property_assignments p where p.property_id=t.property_id and p.user_id=${a.profileId}::uuid))`
 }
 export function errorResponse(error: unknown) {
-  if(error instanceof ZodError)return Response.json({error:'Invalid request values'},{status:400})
+  if (error instanceof ZodError)
+    return Response.json({ error: 'Invalid request values' }, { status: 400 })
   if (error instanceof TaskError)
     return Response.json({ error: error.message }, { status: error.status })
   const e = error as {

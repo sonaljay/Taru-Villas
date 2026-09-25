@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/task-notifications",
-      "schedule": "30 2 * * *"
+      "schedule": "* * * * *"
     }
   ]
 }

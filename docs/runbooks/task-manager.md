@@ -45,8 +45,10 @@ opt-in database suites; report those separately from passing tests.
    permissive client policies. Server-authorized signed downloads expire in 60s.
 7. Configure `RESEND_API_KEY`, a verified `TASK_EMAIL_FROM`, and HTTPS
    `TASK_APP_ORIGIN`. Never expose these secrets as NEXT_PUBLIC variables.
-8. Configure `CRON_SECRET` and the `/api/cron/task-notifications` daily schedule,
-   `30 2 * * *` UTC (08:00 Asia/Colombo), preserving vehicle-renewal scheduling.
+8. Configure `CRON_SECRET` and the `/api/cron/task-notifications` every-minute worker schedule,
+   `* * * * *` UTC, preserving vehicle-renewal scheduling. Requires a hosting plan
+   supporting per-minute cron. Daily reminders become eligible at 08:00 Asia/Colombo;
+   deduplication prevents repeated sends. Each sweep drains jobs for up to 35 seconds.
    Hosting plan scheduling guarantees may allow delay; do not promise exact-minute
    execution. Task actions attempt delivery after commit; cron retries durable jobs.
 9. Validate one test recipient in-app and by email before enabling real-user
@@ -85,3 +87,16 @@ legacy Teams data; do not drop it during rollback. Prefer rolling forward for UI
 mailer issues. A full rollback requires a reviewed database recovery plan because
 old code can attempt task deletes now blocked by history guards. Stop delivery
 workers before replay/recovery so restored jobs do not duplicate emails.
+
+## Development verification record (2026-09-25)
+
+333 unit tests passed. The disposable workflow suites passed 12 migration,
+transaction/concurrency, visibility and delivery tests; the renewal integration
+regression passed. Type checking and production build passed; lint had no errors.
+Desktop/mobile browser checks covered projectless creation, approval blocking and
+explicit resume, and timestamped comments. Independent review findings were fixed.
+
+The existing visit-report integration test has a stale draft expectation (missing
+`primaryReasonId` and `observations` defaults); the same failure was reproduced on
+unchanged main. Live private-storage and email-provider verification remains part
+of the approved deployment sequence above.

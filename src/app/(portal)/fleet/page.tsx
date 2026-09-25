@@ -3,7 +3,8 @@ import { requireAuth } from '@/lib/auth/guards'
 import { listEligibleFleetTasks, listRequests } from '@/lib/db/queries/dispatches'
 import { listVehicles } from '@/lib/db/queries/fleet'
 import { getProperties } from '@/lib/db/queries/properties'
-import { getProjects } from '@/lib/db/queries/projects'
+import { scopedProjects } from '@/lib/tasks/queries'
+import { loadActor } from '@/lib/tasks/access'
 import { getProfiles } from '@/lib/db/queries/profiles'
 import { RequestsTable } from '@/components/fleet/requests-table'
 
@@ -21,8 +22,8 @@ export default async function FleetPage() {
     listRequests(profile.orgId, isFleetAdmin ? {} : { requestedBy: profile.id }),
     listVehicles(profile.orgId),
     getProperties(profile.orgId),
-    getProjects(profile.orgId),
-    listEligibleFleetTasks(profile.orgId),
+    loadActor(profile.id).then(scopedProjects),
+    listEligibleFleetTasks(profile.orgId, profile.id),
     getProfiles(profile.orgId),
   ])
 

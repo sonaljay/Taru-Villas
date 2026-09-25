@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { loadActor } from '@/lib/tasks/access'
+import { scopedProjects } from '@/lib/tasks/queries'
 import { z } from 'zod'
 import { getProfile } from '@/lib/auth/guards'
 import {
@@ -25,7 +27,9 @@ export async function GET(_request: NextRequest, context: Ctx) {
     if (!profile.isActive)
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const { id } = await context.params
-    const project = await getProjectById(id)
+    const project = (await scopedProjects(await loadActor(profile.id))).find(
+      (project) => project.id === id,
+    )
     if (!project || project.orgId !== profile.orgId)
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     return NextResponse.json(project)

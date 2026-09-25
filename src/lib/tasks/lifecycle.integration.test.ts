@@ -15,7 +15,7 @@ suite('task lifecycle transactions', () => {
     const sql = postgres(url, { max: 1 })
     await sql`insert into auth.users(id) values(${user}) on conflict do nothing`
     await sql`insert into profiles(id,org_id,email,full_name,role) values(${user},${org},'task@example.test','Task Admin','admin') on conflict do nothing`
-    const second='00000000-0000-4000-8000-000000000003'
+    const second = '00000000-0000-4000-8000-000000000003'
     await sql`insert into auth.users(id) values(${second}) on conflict do nothing`
     await sql`insert into profiles(id,org_id,email,full_name,role) values(${second},${org},'staff@example.test','Task Staff','staff') on conflict do nothing`
     const [ops] =
@@ -71,6 +71,13 @@ suite('task lifecycle transactions', () => {
     expect(outcomes.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
     t = await getWorkflowTask(actor, taskId)
     expect(t.status).toBe('stuck')
+    const sql = postgres(url!, { max: 1 })
+    const events =
+      await sql`select after_value from task_events where task_id=${taskId} and kind='task_approval_decisions_insert'`
+    expect(events).toHaveLength(1)
+    expect(events[0].after_value.note).toBe('Decision')
+    expect(events[0].after_value.cycle).toBe(t.approval_cycle)
+    await sql.end()
   })
   it('rejects stale edits without changing task title', async () => {
     const { executeTaskCommand } = await import('./lifecycle')
@@ -84,5 +91,25 @@ suite('task lifecycle transactions', () => {
     expect((await getWorkflowTask(actor, taskId)).title).toBe(
       'Workflow integration',
     )
+  })
+  it('scopes projects and includes visible projectless tasks in Fleet options', async () => {
+    const sql = postgres(url!, { max: 1 })
+    const staff = await (
+      await import('./access')
+    ).loadActor('00000000-0000-4000-8000-000000000003')
+    const { scopedProjects } = await import('./queries')
+    expect(await scopedProjects(staff)).toEqual([])
+    const [property] =
+      await sql`insert into properties(org_id,name,slug,code) values(${org},'Task test property','task-test-property','TASK-QA') returning id`
+    const [task] =
+      await sql`insert into tasks(org_id,title,property_id) values(${org},'Projectless Fleet reason',${property.id}) returning id`
+    const { listEligibleFleetTasks } = await import('../db/queries/dispatches')
+    expect(
+      (await listEligibleFleetTasks(org, user)).some(
+        (t) => t.id === task.id && t.projectId === null,
+      ),
+    ).toBe(true)
+    expect(await listEligibleFleetTasks(org, staff.profileId)).toEqual([])
+    await sql.end()
   })
 })

@@ -89,6 +89,7 @@ BEGIN
    NEW.approval:='pending'; NEW.approval_cycle:=OLD.approval_cycle+1;
   END IF;
   IF NEW.approval IN ('pending','rejected') AND OLD.approval IS DISTINCT FROM NEW.approval AND OLD.status='in_progress' THEN
+   IF NEW.status='done' THEN RAISE EXCEPTION 'Task approval required before completing'; END IF;
    NEW.paused_status:=OLD.status; NEW.status:='stuck';
   END IF;
  END IF;
@@ -140,6 +141,7 @@ BEGIN
  RETURN CASE WHEN TG_OP='DELETE' THEN OLD ELSE NEW END;
 END $$;
 CREATE TRIGGER task_assignee_audit AFTER INSERT OR DELETE ON task_assignees FOR EACH ROW EXECUTE FUNCTION task_related_audit();
+CREATE TRIGGER task_decision_audit AFTER INSERT ON task_approval_decisions FOR EACH ROW EXECUTE FUNCTION task_related_audit();
 CREATE TRIGGER task_comment_audit AFTER INSERT ON task_comments FOR EACH ROW EXECUTE FUNCTION task_related_audit();
 CREATE TRIGGER task_attachment_audit AFTER INSERT OR UPDATE ON task_attachments FOR EACH ROW EXECUTE FUNCTION task_related_audit();
 CREATE FUNCTION task_org_default() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN

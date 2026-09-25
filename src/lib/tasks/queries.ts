@@ -40,8 +40,9 @@ export async function getWorkflowTask(
   a: Actor,
   id: string,
   transferOnly = false,
+  connection: Pick<typeof db, 'execute'> = db,
 ) {
-  const [row] = await db.execute(
+  const [row] = await connection.execute(
     sql`${selectTask} where t.id=${id}::uuid and t.org_id=${a.orgId}::uuid`,
   )
   if (!row) throw new TaskError('Task not found', 404)
