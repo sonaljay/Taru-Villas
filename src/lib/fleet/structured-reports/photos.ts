@@ -10,7 +10,23 @@ async function changed(
   user: string,
   kind: string,
   photo: unknown,
+  privatePhoto = false,
 ) {
+  if (privatePhoto) {
+    await tx.execute(
+      sql`update fleet_trip_reports set private_version=private_version+1 where id=${c.r.id}::uuid`,
+    );
+    await event(
+      tx,
+      c.r,
+      user,
+      kind,
+      null,
+      { photo, version: c.r.private_version + 1 },
+      "hr",
+    );
+    return;
+  }
   const version = c.r.report_version + 1;
   await tx.execute(
     sql`update fleet_trip_reports set report_version=${version},updated_at=now() where id=${c.r.id}::uuid`,
@@ -29,10 +45,12 @@ export async function reservePhoto(
   return db.transaction(async (tx) => {
     const c = await context(tx, user, requestId, true);
     const [answer] = await tx.execute(
-      sql`select id from visit_report_answers where id=${answerId}::uuid and report_id=${c.r.id}::uuid and removed_at is null`,
+      sql`select id,is_confidential from visit_report_answers where id=${answerId}::uuid and report_id=${c.r.id}::uuid and removed_at is null`,
     );
     if (!answer)
       throw new TaskError("Save this question before adding photos", 409);
+    if (answer.is_confidential && !c.hr)
+      throw new TaskError("HQ HR membership required", 403);
     // Abandoned uploads already have durable cleanup intents; stop reserving their slots.
     await tx.execute(
       sql`update visit_report_photos set state='removed' where answer_id=${answerId}::uuid and state='uploading' and created_at<now()-interval '15 minutes'`,
@@ -87,8 +105,10 @@ export async function uploadPhoto(
     await db.transaction(async (tx) => {
       const c = await context(tx, user, requestId, true);
       const [ready] = await tx.execute(
-        sql`update visit_report_photos p set state='ready' from visit_report_answers a where p.id=${photo.id}::uuid and p.state='uploading' and a.id=p.answer_id and a.removed_at is null and a.report_id=${c.r.id}::uuid returning p.id,p.name`,
+        sql`update visit_report_photos p set state='ready' from visit_report_answers a where p.id=${photo.id}::uuid and p.state='uploading' and a.id=p.answer_id and a.removed_at is null and a.report_id=${c.r.id}::uuid returning p.id,p.name,a.is_confidential`,
       );
+      if (ready?.is_confidential && !c.hr)
+        throw new TaskError("HQ HR membership required", 403);
       if (!ready)
         throw new TaskError(
           "This question changed during upload. Reload the report.",
@@ -97,7 +117,14 @@ export async function uploadPhoto(
       await tx.execute(
         sql`delete from task_file_cleanup where storage_path=${photo.path}`,
       );
-      await changed(tx, c, user, "photo_added", ready);
+      await changed(
+        tx,
+        c,
+        user,
+        "photo_added",
+        ready,
+        Boolean(ready.is_confidential),
+      );
     });
   } catch (e) {
     await db.execute(
@@ -118,8 +145,10 @@ export async function photoAction(
   const result = await db.transaction(async (tx) => {
     const c = await context(tx, user, requestId, remove);
     const [p] = await tx.execute(
-      sql`select p.* from visit_report_photos p join visit_report_answers a on a.id=p.answer_id where p.id=${photoId}::uuid and a.report_id=${c.r.id}::uuid and a.removed_at is null and p.state='ready'`,
+      sql`select p.*,a.is_confidential from visit_report_photos p join visit_report_answers a on a.id=p.answer_id where p.id=${photoId}::uuid and a.report_id=${c.r.id}::uuid and a.removed_at is null and p.state='ready'`,
     );
+    if (p?.is_confidential && !c.hr)
+      throw new TaskError("HQ HR membership required", 403);
     if (!p) throw new TaskError("Photo not found", 404);
     if (remove) {
       await tx.execute(
@@ -128,7 +157,14 @@ export async function photoAction(
       await tx.execute(
         sql`update visit_report_photos set state='removed' where id=${photoId}::uuid`,
       );
-      await changed(tx, c, user, "photo_removed", { id: p.id, name: p.name });
+      await changed(
+        tx,
+        c,
+        user,
+        "photo_removed",
+        { id: p.id, name: p.name },
+        Boolean(p.is_confidential),
+      );
     }
     return String(p.storage_path);
   });

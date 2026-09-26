@@ -24,6 +24,7 @@ export async function saveCommittee(
         )[0]
       : null
     if (id && !before) throw new TaskError('Committee not found', 404)
+    if(before?.is_hr && input.archived)throw new TaskError('HQ HR cannot be archived; manage its members instead.')
     if (before?.is_operations && input.archived)
       throw new TaskError('Operations cannot be archived.')
     if (input.archived && id) {

@@ -6,7 +6,7 @@ import {
   validateAnswers,
 } from "./model";
 describe("category report templates", () => {
-  it("preserves all four source prompt and scorecard counts", () => {
+  it("preserves all source prompt and scorecard counts", () => {
     expect(
       reportTemplates.map((t) => [
         t.sections.length,
@@ -18,6 +18,7 @@ describe("category report templates", () => {
       [5, 10, 6],
       [4, 11, 5],
       [7, 24, 6],
+      [6, 17, 5],
     ]);
     for (const template of reportTemplates)
       expect(templateSchema.safeParse(template).success).toBe(true);
