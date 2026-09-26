@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,6 +78,16 @@ export function ReportTemplateEditor() {
             </option>
           ))}
         </select>
+        {selected === "hr" && (
+          <p className="text-sm text-muted-foreground">
+            Manage HQ HR membership in{" "}
+            <Link className="underline" href="/tasks/committees">
+              Committees
+            </Link>
+            . Members and admins can read confidential feedback. Property
+            managers receive the shared report and employee evaluations.
+          </p>
+        )}
         {item && (
           <fieldset disabled={pending} className="space-y-4">
             <label className="block space-y-1">
@@ -168,6 +179,11 @@ export function ReportTemplateEditor() {
                         </label>
                         <Button
                           variant="ghost"
+                          disabled={
+                            q.kind === "employee_score" ||
+                            q.id === "private-feedback" ||
+                            q.id === "private-assessment"
+                          }
                           onClick={() =>
                             update({
                               ...item.definition,
@@ -183,6 +199,7 @@ export function ReportTemplateEditor() {
                     ))}
                   <Button
                     variant="outline"
+                    disabled={section.id === "employee-evaluations"}
                     onClick={() =>
                       update({
                         ...item.definition,
@@ -196,7 +213,9 @@ export function ReportTemplateEditor() {
                             kind:
                               section.id === "scorecard"
                                 ? "score"
-                                : "inspection",
+                                : section.id === "confidential-feedback"
+                                  ? "confidential"
+                                  : "inspection",
                           },
                         ],
                       })

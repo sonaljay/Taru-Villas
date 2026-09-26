@@ -27,6 +27,7 @@ type Row = {
   template_snapshot: ReportTemplate | null;
   template_version: number | null;
   report_version: number;
+  private_version: number;
   structured_content: ReportContent;
   report_property_id: string | null;
   draft: unknown;
@@ -42,6 +43,7 @@ type Context = {
   };
   actor: Awaited<ReturnType<typeof loadActor>>;
   manager: boolean;
+  hr: boolean;
 };
 export async function context(
   tx: Tx,
@@ -69,7 +71,16 @@ export async function context(
         sql`select 1 from properties p where p.id=${property}::uuid and p.org_id=${actor.orgId}::uuid and (p.primary_pm_id=${user}::uuid or (${profile.role === "property_manager"} and exists(select 1 from property_assignments a where a.property_id=p.id and a.user_id=${user}::uuid)))`,
       )
     : [];
+  const [hrCommittee] = await tx.execute(
+    sql`select id from task_committees where org_id=${actor.orgId}::uuid and is_hr and archived_at is null for share`,
+  );
+  const hr =
+    actor.isAdmin ||
+    (!!hrCommittee && actor.committeeIds.includes(String(hrCommittee.id)));
+  if (r.template_snapshot?.key === "hr" && !hr && !m)
+    throw new TaskError("Report not found", 404);
   if (!(
+    (hr && r.template_snapshot?.key === "hr") ||
     actor.isAdmin ||
     profile.is_fleet_admin ||
     r.submitted_by === user ||
@@ -78,6 +89,8 @@ export async function context(
   ))
     throw new TaskError("Report not found", 404);
   if (edit) {
+    if (r.template_snapshot?.key === "hr" && !hr)
+      throw new TaskError("HQ HR membership required", 403);
     if (r.submitted_by !== user)
       throw new TaskError("Only the report owner can edit", 403);
     if (request.status === "cancelled")
@@ -85,7 +98,7 @@ export async function context(
     if (!isReportEditingOpen(r.due_at ? new Date(r.due_at) : null))
       throw new TaskError("The 48-hour editing window has closed", 409);
   }
-  return { r, request: request as Context["request"], actor, manager: !!m };
+  return { r, request: request as Context["request"], actor, manager: !!m, hr };
 }
 export async function event(
   tx: Tx,
@@ -94,13 +107,17 @@ export async function event(
   kind: string,
   before: unknown,
   after: unknown,
+  visibility: "shared" | "hr" = "shared",
 ) {
   await tx.execute(
-    sql`insert into visit_report_events(report_id,actor_id,kind,before_value,after_value) values(${r.id}::uuid,${user}::uuid,${kind},${JSON.stringify(before)}::jsonb,${JSON.stringify(after)}::jsonb)`,
+    sql`insert into visit_report_events(report_id,actor_id,kind,before_value,after_value,visibility) values(${r.id}::uuid,${user}::uuid,${kind},${JSON.stringify(before)}::jsonb,${JSON.stringify(after)}::jsonb,${visibility})`,
   );
 }
 export async function templates(tx: Tx, org: string) {
   // Lazy initialization also supports organizations created after the migration.
+  await tx.execute(
+    sql`insert into task_committees(org_id,name,is_hr) select ${org}::uuid,case when exists(select 1 from task_committees where org_id=${org}::uuid and name='HQ HR') then 'HQ HR (Visit Reports ' || gen_random_uuid()::text || ')' else 'HQ HR' end,true where not exists(select 1 from task_committees where org_id=${org}::uuid and is_hr) on conflict do nothing`,
+  );
   for (const t of reportTemplates)
     await tx.execute(
       sql`insert into visit_report_templates(org_id,key,definition) values(${org}::uuid,${t.key},${JSON.stringify(t)}::jsonb) on conflict(org_id,key,version) do nothing`,
@@ -114,7 +131,7 @@ export async function readReport(user: string, requestId: string) {
     const c = await context(tx, user, requestId),
       { r, actor } = c;
     const rows = await tx.execute(
-      sql`select * from visit_report_answers where report_id=${r.id}::uuid and removed_at is null order by question_id,instance`,
+      sql`select * from visit_report_answers where report_id=${r.id}::uuid and removed_at is null and not is_confidential order by question_id,instance`,
     );
     const answers: Answer[] = rows.map((a) => ({
       id: String(a.id),
@@ -129,12 +146,13 @@ export async function readReport(user: string, requestId: string) {
           ? "na"
           : (a.rating as number | null),
       notApplicable: Boolean(a.not_applicable),
+      evaluation: a.evaluation as Answer["evaluation"],
       task: a.task_id
         ? { kind: "existing", taskId: String(a.task_id) }
         : (a.task_plan as Answer["task"]),
     }));
     const photoRows = await tx.execute(
-      sql`select p.id,p.answer_id "answerId",p.name,p.state from visit_report_photos p join visit_report_answers a on a.id=p.answer_id where a.report_id=${r.id}::uuid and a.removed_at is null and p.state='ready' order by p.created_at`,
+      sql`select p.id,p.answer_id "answerId",p.name,p.state from visit_report_photos p join visit_report_answers a on a.id=p.answer_id where a.report_id=${r.id}::uuid and a.removed_at is null and not a.is_confidential and p.state='ready' order by p.created_at`,
     );
     const acks = await tx.execute(
       sql`select a.profile_id "profileId",p.full_name name,a.report_version version,a.acknowledged_at "acknowledgedAt",a.assigned_at "assignedAt" from visit_report_acknowledgements a join profiles p on p.id=a.profile_id where a.report_id=${r.id}::uuid and a.report_version=${r.report_version} order by p.full_name`,
@@ -152,7 +170,7 @@ export async function readReport(user: string, requestId: string) {
       sql`select id,name from properties where org_id=${actor.orgId}::uuid and is_active order by name`,
     );
     const history = await tx.execute(
-      sql`select e.id,e.kind,e.created_at,p.full_name actor from visit_report_events e join profiles p on p.id=e.actor_id where e.report_id=${r.id}::uuid order by e.created_at desc limit 100`,
+      sql`select e.id,e.kind,e.created_at,p.full_name actor from visit_report_events e join profiles p on p.id=e.actor_id where e.report_id=${r.id}::uuid and e.visibility='shared' order by e.created_at desc limit 100`,
     );
     return {
       report: {
@@ -163,6 +181,7 @@ export async function readReport(user: string, requestId: string) {
         propertyId: r.report_property_id ?? c.request.target_property_id,
       },
       template: r.template_snapshot,
+      canViewConfidential: r.template_snapshot?.key === "hr" && c.hr,
       content: contentSchema.parse({
         ...r.structured_content,
         visitDate: r.structured_content.visitDate ?? c.request.end_date,
@@ -182,16 +201,19 @@ export async function readReport(user: string, requestId: string) {
         assignedAt: string;
       }[],
       history,
-      templates: (await templates(tx, actor.orgId)).map((t) => ({
-        key: String(t.key),
-        version: Number(t.version),
-        name: (t.definition as ReportTemplate).name,
-      })),
+      templates: (await templates(tx, actor.orgId))
+        .filter((t) => t.key !== "hr" || c.hr)
+        .map((t) => ({
+          key: String(t.key),
+          version: Number(t.version),
+          name: (t.definition as ReportTemplate).name,
+        })),
       taskOptions: options as unknown as { id: string; title: string }[],
       projects: projects as unknown as { id: string; name: string }[],
       people: people as unknown as { id: string; name: string }[],
       properties: properties as unknown as { id: string; name: string }[],
       canEdit:
+        (r.template_snapshot?.key !== "hr" || c.hr) &&
         r.submitted_by === user &&
         c.request.status !== "cancelled" &&
         isReportEditingOpen(r.due_at ? new Date(r.due_at) : null),
@@ -202,6 +224,8 @@ export async function readReport(user: string, requestId: string) {
         acks.some((a) => a.profileId === user && !a.acknowledgedAt),
       hasLegacyContent: !!r.draft || !!r.summary,
       userId: user,
+      authorName:
+        people.find((p) => p.id === r.submitted_by)?.name ?? "Report owner",
     };
   });
 }
@@ -211,7 +235,9 @@ export async function startReport(
   input: { key: string; propertyId: string },
 ) {
   return db.transaction(async (tx) => {
-    const { r, actor, request } = await context(tx, user, requestId, true);
+    const { r, actor, request, hr } = await context(tx, user, requestId, true);
+    if (input.key === "hr" && !hr)
+      throw new TaskError("HQ HR membership required", 403);
     if (r.template_snapshot)
       throw new TaskError("A template is already selected", 409);
     if (r.submitted_at || r.draft || r.summary)
@@ -236,9 +262,11 @@ export async function startReport(
     await tx.execute(
       sql`update fleet_trip_reports set template_snapshot=${JSON.stringify(definition)}::jsonb,template_version=${t.version},report_property_id=${input.propertyId}::uuid,report_version=report_version+1,updated_at=now() where id=${r.id}::uuid`,
     );
-    for (const q of definition.questions)
+    for (const q of definition.questions.filter(
+      (q) => q.kind !== "confidential",
+    ))
       await tx.execute(
-        sql`insert into visit_report_answers(id,report_id,question_id) values(${crypto.randomUUID()}::uuid,${r.id}::uuid,${q.id})`,
+        sql`insert into visit_report_answers(id,report_id,question_id,location) values(${crypto.randomUUID()}::uuid,${r.id}::uuid,${q.id},${q.kind === "employee_score" ? "" : "Property-wide"})`,
       );
     await event(tx, r, user, "template_selected", null, {
       template: definition,
@@ -270,7 +298,7 @@ async function resolveTask(tx: Tx, c: Context, a: Answer, create: boolean) {
     if (!p) throw new TaskError("Choose an accessible active project");
   }
   const [t] = await tx.execute(
-    sql`insert into tasks(org_id,project_id,property_id,title,description,priority,due_date,created_by) values(${c.actor.orgId}::uuid,${f.projectId}::uuid,${c.r.report_property_id}::uuid,${f.title},${`${f.description}\nVisit report: /fleet/reports/${c.r.request_id}\nQuestion: ${a.questionId}; location: ${a.location}`},${f.priority}::task_priority,${f.dueDate}::date,${c.actor.profileId}::uuid) returning id`,
+    sql`insert into tasks(org_id,project_id,property_id,title,description,priority,due_date,created_by) values(${c.actor.orgId}::uuid,${f.projectId}::uuid,${c.r.report_property_id}::uuid,${f.title},${`${f.description}\nVisit report: /fleet/reports/${c.r.request_id}\nQuestion: ${a.questionId}${c.r.template_snapshot?.key === "hr" ? "" : "; location: " + a.location}`},${f.priority}::task_priority,${f.dueDate}::date,${c.actor.profileId}::uuid) returning id`,
   );
   // Keep travelling authors able to follow up even when they do not belong to
   // this property's Operations team.
@@ -337,9 +365,17 @@ export async function saveReport(
         !r.template_snapshot.visitTypes.includes(data.content.visitType))
     )
       throw new TaskError("Complete the summary, visit date and visit type");
+    if (
+      complete &&
+      r.template_snapshot.key === "hr" &&
+      !data.content.coEvaluator
+    )
+      throw new TaskError(
+        "Enter the Property Head / 2nd IC who co-evaluated staff",
+      );
     await recordTaskActor(tx, user, "Structured visit report");
     const old = await tx.execute(
-      sql`select * from visit_report_answers where report_id=${r.id}::uuid and removed_at is null`,
+      sql`select * from visit_report_answers where report_id=${r.id}::uuid and removed_at is null and not is_confidential`,
     );
     const ids = data.answers.map((a) => a.id);
     for (const a of data.answers) {
@@ -355,7 +391,7 @@ export async function saveReport(
         throw new TaskError("Answer identity cannot be changed", 409);
       const taskId = await resolveTask(tx, c, a, complete);
       await tx.execute(
-        sql`insert into visit_report_answers(id,report_id,question_id,instance,location,notes,rating,not_applicable,task_id,task_plan) values(${a.id}::uuid,${r.id}::uuid,${a.questionId},${a.instance},${a.location},${a.notes},${typeof a.rating === "number" ? a.rating : null},${a.notApplicable || a.rating === "na"},${taskId}::uuid,${JSON.stringify(taskId ? { kind: "existing", taskId } : a.task)}::jsonb) on conflict(id) do update set location=excluded.location,notes=excluded.notes,rating=excluded.rating,not_applicable=excluded.not_applicable,task_id=excluded.task_id,task_plan=excluded.task_plan,updated_at=now(),removed_at=null`,
+        sql`insert into visit_report_answers(id,report_id,question_id,instance,location,notes,rating,not_applicable,task_id,task_plan,evaluation) values(${a.id}::uuid,${r.id}::uuid,${a.questionId},${a.instance},${a.location},${a.notes},${typeof a.rating === "number" ? a.rating : null},${a.notApplicable || a.rating === "na"},${taskId}::uuid,${JSON.stringify(taskId ? { kind: "existing", taskId } : a.task)}::jsonb,${JSON.stringify(a.evaluation)}::jsonb) on conflict(id) do update set location=excluded.location,notes=excluded.notes,rating=excluded.rating,not_applicable=excluded.not_applicable,task_id=excluded.task_id,task_plan=excluded.task_plan,evaluation=excluded.evaluation,updated_at=now(),removed_at=null`,
       );
       if (taskId)
         await tx.execute(
@@ -383,7 +419,7 @@ export async function saveReport(
         sql`update tasks set status='done' where id=${r.reporting_task_id}::uuid and org_id=${r.org_id}::uuid`,
       );
     const stored = await tx.execute(
-      sql`select * from visit_report_answers where report_id=${r.id}::uuid and removed_at is null`,
+      sql`select * from visit_report_answers where report_id=${r.id}::uuid and removed_at is null and not is_confidential`,
     );
     await event(
       tx,

@@ -38,7 +38,7 @@ task = task.replace(
   "projectId: uuid('project_id').notNull().references",
 )
 schema = schema.slice(0, start) + task + schema.slice(end)
-for (const name of ['templateSnapshot','templateVersion','reportVersion','structuredContent','reportPropertyId']) schema = schema.replace(new RegExp('^  '+name+':.*\\n','m'),'')
+for (const name of ['privateVersion','templateSnapshot','templateVersion','reportVersion','structuredContent','reportPropertyId']) schema = schema.replace(new RegExp('^  '+name+':.*\\n','m'),'')
 writeFileSync(path.join(scratch, 'baseline-schema.ts'), schema)
 const result = spawnSync(
   'npx',
