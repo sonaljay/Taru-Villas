@@ -45,13 +45,29 @@ export function mapSurveyCategory(name: string) {
   return key ? { key, label: CATEGORY_LABELS[key] } : { key:`survey:${normalized}`, label: name.trim() }
 }
 
-export function googleAspects(metadata: Record<string, unknown> | null, inferred: InferredAspect[]): FeedbackAspect[] {
+/** Calibrate text-only praise against the review's overall rating, once at read time.
+ * Stored hospitality-v1 scores remain the evidence assessment: <=6 is mixed/critical
+ * and must not be lifted by an otherwise happy stay. Missing categories stay absent.
+ */
+function overallAwareInference(aspect: InferredAspect, overallRating?: number): number {
+  const overall = overallRating === undefined ? null : normalizeRating(overallRating, 1, 5)
+  if (overall === null || aspect.score < 8) return aspect.score
+  if (overallRating === 5) {
+    // Strong wording refines already-positive AI evidence; it never overrides criticism.
+    const strongPraise = /\b(delicious|exceptional|excellent|outstanding|superb|perfect|amazing|stunning|incredible|impeccable)\b/i.test(aspect.evidence)
+    return aspect.score >= 9 || strongPraise ? 9.5 : 9
+  }
+  // Equal context/evidence weight, bounded so praise cannot become a negative rating.
+  return Math.round(Math.max(6, Math.min(9.5, (aspect.score + overall) / 2)) * 10) / 10
+}
+
+export function googleAspects(metadata: Record<string, unknown> | null, inferred: InferredAspect[], overallRating?: number): FeedbackAspect[] {
   const text = typeof metadata?.text === 'string' ? metadata.text : ''
   const byKey = new Map<string, FeedbackAspect>()
   for (const aspect of inferred) {
     if (!CATEGORY_LABELS[aspect.key] || !Number.isFinite(aspect.score) || aspect.score < 0 || aspect.score > 10 ||
       !aspect.evidence?.trim() || !text.includes(aspect.evidence) || !['high','medium'].includes(aspect.confidence)) continue
-    byKey.set(aspect.key, { ...aspect, label: CATEGORY_LABELS[aspect.key], kind: 'inferred' })
+    byKey.set(aspect.key, { ...aspect, score: overallAwareInference(aspect, overallRating), label: CATEGORY_LABELS[aspect.key], kind: 'inferred' })
   }
   const details = typeof metadata?.details === 'string' ? metadata.details : ''
   // Only the metadata suffix, never a quoted rating inside the review's prose.
@@ -64,8 +80,8 @@ export function googleAspects(metadata: Record<string, unknown> | null, inferred
 }
 
 /** Direct Tripadvisor subratings override text inference; two comfort ratings form one assessment. */
-export function tripadvisorAspects(metadata: Record<string, unknown> | null, inferred: InferredAspect[]): FeedbackAspect[] {
-  const byKey = new Map(googleAspects({text: metadata?.text}, inferred).map(aspect => [aspect.key, aspect]))
+export function tripadvisorAspects(metadata: Record<string, unknown> | null, inferred: InferredAspect[], overallRating?: number): FeedbackAspect[] {
+  const byKey = new Map(googleAspects({text: metadata?.text}, inferred, overallRating).map(aspect => [aspect.key, aspect]))
   const ratings = metadata?.subratings
   if (!ratings || typeof ratings !== 'object' || Array.isArray(ratings)) return [...byKey.values()]
   const mapping: Record<string, string> = {Value:'value',Rooms:'comfort','Sleep Quality':'comfort',Location:'location',Cleanliness:'cleanliness',Service:'staff'}
