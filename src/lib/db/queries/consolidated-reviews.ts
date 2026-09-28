@@ -36,7 +36,7 @@ export async function getConsolidatedFeedback(orgId: string, propertyId?: string
     id:row.id,propertyId:row.propertyId,propertyName:row.propertyName,source:row.source as 'google' | 'tripadvisor',author:row.author || `${row.source === 'tripadvisor' ? 'Tripadvisor' : 'Google'} reviewer`,
     text:row.text || '',score:normalizeRating(row.rating,1,5),originalRating:row.rating,
     date:row.reviewedAt.toISOString().slice(0,10),dateLabel:reviewDateLabel(row.reviewedAt,row.metadata),
-    chronologyEligible:googleChronologyEligible(row.metadata),aspects:(row.source === 'tripadvisor' ? tripadvisorAspects : googleAspects)({...row.metadata,text:row.text || ''}, row.aspects ?? []),
+    chronologyEligible:googleChronologyEligible(row.metadata),aspects:(row.source === 'tripadvisor' ? tripadvisorAspects : googleAspects)({...row.metadata,text:row.text || ''}, row.aspects ?? [], row.rating),
     sourceUrl:reviewListingUrl({...row.metadata,source:row.source}),collectedAt:row.fetchedAt.toISOString(),analyzed:row.analysisId !== null,
   }))
   const groups = new Map<string, typeof surveyRows>()

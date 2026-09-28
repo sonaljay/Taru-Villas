@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { INTERNAL_TEST_IDS, dashboardSource, categoryScoreColors, consolidateFeedback, normalizeRating, googleAspects, googleChronologyEligible, mapSurveyCategory, filterFeedback } from './consolidated'
+import { INTERNAL_TEST_IDS, dashboardSource, categoryScoreColors, consolidateFeedback, normalizeRating, tripadvisorAspects, googleAspects, googleChronologyEligible, mapSurveyCategory, filterFeedback } from './consolidated'
 import type { FeedbackEntry } from './consolidated'
 const entry = (id: string, source: FeedbackEntry['source'], score: number, extra: Partial<FeedbackEntry> = {}): FeedbackEntry => ({
   id, source, score, propertyId: 'p', propertyName: 'Villa', author: 'Reviewer', text: '', date: '2026-08-01', dateLabel: '1 Aug 2026', chronologyEligible: true, aspects: [], ...extra,
@@ -92,5 +92,43 @@ describe('dashboard source groups', () => {
     expect(dashboardSource('google')).toBe('reviews')
     expect(dashboardSource('tripadvisor')).toBe('reviews')
     expect(filterFeedback(entries,'google','all')).toHaveLength(11)
+  })
+})
+
+describe('overall-aware inferred scores', () => {
+  it('uses five stars and praise strength for the Susan review without changing direct scores', () => {
+    const text = 'The pool area was lovely. Restaurant setting was stunning and delicious meals.'
+    const aspects = tripadvisorAspects({text,subratings:{Service:5}}, [
+      {key:'facilities',score:8,evidence:'The pool area was lovely.',confidence:'high'},
+      {key:'food',score:8,evidence:'delicious meals',confidence:'high'},
+      {key:'staff',score:8,evidence:'lovely',confidence:'high'},
+    ], 5)
+    expect(aspects.map(a => [a.key,a.score,a.kind])).toEqual([
+      ['facilities',9,'inferred'],['food',9.5,'inferred'],['staff',10,'rated'],
+    ])
+    expect(consolidateFeedback([entry('susan','tripadvisor',10,{aspects})]).categories.find(a=>a.key==='food')?.score).toBe(9.5)
+  })
+  it('preserves mixed or critical category assessments even with five overall stars', () => {
+    const text = 'Pool was dirty. Food was good but slow.'
+    expect(googleAspects({text},[
+      {key:'facilities',score:2,evidence:'Pool was dirty.',confidence:'high'},
+      {key:'food',score:6,evidence:'Food was good but slow.',confidence:'high'},
+    ],5).map(a=>a.score)).toEqual([2,6])
+  })
+  it('uses other overall ratings as context but keeps positive category evidence positive', () => {
+    const input = [{key:'food',score:8,evidence:'Good food',confidence:'high'}]
+    expect(googleAspects({text:'Good food'},input,4)[0].score).toBe(7.8)
+    expect(googleAspects({text:'Good food'},input,1)[0].score).toBe(6)
+    expect(input[0].score).toBe(8)
+  })
+  it('does not invent categories or calibrate without a valid overall rating', () => {
+    const input = [{key:'food',score:8,evidence:'Good food',confidence:'high'}]
+    for (const rating of [undefined,0,6,NaN]) expect(googleAspects({text:'Good food'},input,rating)[0].score).toBe(8)
+    expect(googleAspects({text:'Great stay'},[],5)).toEqual([])
+  })
+  it('preserves Google direct scores over calibrated inference', () => {
+    expect(googleAspects({text:'Lovely room',details:'Lovely room\nRooms: 3'},[
+      {key:'comfort',score:8,evidence:'Lovely room',confidence:'high'},
+    ],5)[0]).toMatchObject({score:5,kind:'rated'})
   })
 })
