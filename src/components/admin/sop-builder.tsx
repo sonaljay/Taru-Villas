@@ -1,7 +1,9 @@
 'use client'
 
+import { useSaveProtection, usePortalRouter, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+
 import {
   useForm,
   useFieldArray,
@@ -84,8 +86,12 @@ interface SopBuilderProps {
 }
 
 export function SopBuilder({ initialData }: SopBuilderProps) {
-  const router = useRouter()
+  const [submitError, setSubmitError] = useState('')
+
+  const router = usePortalRouter()
   const [saving, setSaving] = useState(false)
+  const releaseSaveProtection = useSaveProtection(saving)
+
   const [collapsedSections, setCollapsedSections] = useState<Set<number>>(
     new Set()
   )
@@ -161,9 +167,12 @@ export function SopBuilder({ initialData }: SopBuilderProps) {
     register,
     control,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isDirty },
     watch,
   } = form
+
+  const [categoryBaseline, setCategoryBaseline] = useState(initialData?.categoryId ?? null)
+  const { markSaved } = useUnsavedChanges(isDirty || categoryId !== categoryBaseline)
 
   const {
     fields: sectionFields,
@@ -234,6 +243,7 @@ export function SopBuilder({ initialData }: SopBuilderProps) {
       }
 
       const result = await res.json()
+      form.reset(form.getValues()); setCategoryBaseline(categoryId); releaseSaveProtection(); markSaved(); setSubmitError('')
 
       if (isEditing) {
         router.refresh()
@@ -242,14 +252,15 @@ export function SopBuilder({ initialData }: SopBuilderProps) {
       }
     } catch (error) {
       console.error('Save error:', error)
-      alert(error instanceof Error ? error.message : 'Failed to save')
+      setSubmitError(error instanceof Error ? error.message : 'Failed to save')
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit(onSubmit, () => setSubmitError('Check the highlighted details before saving.'))} className="space-y-6"><fieldset disabled={saving} className="contents">
+      {submitError && <p role="alert" className="rounded-xl border border-destructive/40 p-4">{submitError}</p>}
       {/* Template metadata */}
       <Card>
         <CardHeader>
@@ -260,7 +271,7 @@ export function SopBuilder({ initialData }: SopBuilderProps) {
             <label className="text-sm font-medium">Category <span className="text-destructive">*</span></label>
             <Popover open={categoryPopoverOpen} onOpenChange={setCategoryPopoverOpen}>
               <PopoverTrigger asChild>
-                <Button variant="outline" role="combobox" className="w-full justify-between">
+                <Button disabled={saving} variant="outline" role="combobox" className="w-full justify-between">
                   {categoryId
                     ? categories.find((c) => c.id === categoryId)?.name ?? 'Select category…'
                     : 'Select category…'}
@@ -290,7 +301,7 @@ export function SopBuilder({ initialData }: SopBuilderProps) {
                     <div className="border-t p-2">
                       {creatingCategory ? (
                         <div className="flex items-center gap-2">
-                          <Input
+                          <Input disabled={saving}
                             placeholder="New category name"
                             value={newCategoryName}
                             onChange={(e) => setNewCategoryName(e.target.value)}
@@ -307,10 +318,10 @@ export function SopBuilder({ initialData }: SopBuilderProps) {
                             autoFocus
                             className="flex-1"
                           />
-                          <Button size="sm" onClick={handleCreateCategory}>Create</Button>
+                          <Button disabled={saving} size="sm" onClick={handleCreateCategory}>Create</Button>
                         </div>
                       ) : (
-                        <Button
+                        <Button disabled={saving}
                           size="sm"
                           variant="ghost"
                           className="w-full justify-start"
@@ -327,7 +338,7 @@ export function SopBuilder({ initialData }: SopBuilderProps) {
           </div>
           <div className="space-y-2">
             <Label htmlFor="name">Name</Label>
-            <Input
+            <Input disabled={saving}
               id="name"
               {...register('name')}
               placeholder="e.g., Morning Checks"
@@ -338,7 +349,7 @@ export function SopBuilder({ initialData }: SopBuilderProps) {
           </div>
           <div className="space-y-2">
             <Label htmlFor="description">Description (optional)</Label>
-            <Textarea
+            <Textarea disabled={saving}
               id="description"
               {...register('description')}
               placeholder="Brief description of this SOP..."
@@ -347,7 +358,7 @@ export function SopBuilder({ initialData }: SopBuilderProps) {
           </div>
           {isEditing && (
             <div className="flex items-center gap-2">
-              <Switch
+              <Switch disabled={saving}
                 id="isActive"
                 checked={watch('isActive')}
                 onCheckedChange={(checked) => form.setValue('isActive', checked)}
@@ -367,7 +378,7 @@ export function SopBuilder({ initialData }: SopBuilderProps) {
           {ungroupedFields.map((field, index) => (
             <div key={field.id} className="flex items-center gap-2">
               <GripVertical className="size-4 shrink-0 text-muted-foreground" />
-              <Input
+              <Input disabled={saving}
                 {...register(`ungroupedItems.${index}.content`)}
                 placeholder="Checklist item..."
                 className="flex-1"
@@ -390,7 +401,7 @@ export function SopBuilder({ initialData }: SopBuilderProps) {
                 : ''}
             </p>
           )}
-          <Button
+          <Button disabled={saving}
             type="button"
             variant="outline"
             size="sm"
@@ -422,7 +433,7 @@ export function SopBuilder({ initialData }: SopBuilderProps) {
       ))}
 
       {/* Add section button */}
-      <Button
+      <Button disabled={saving}
         type="button"
         variant="outline"
         onClick={() =>
@@ -444,7 +455,7 @@ export function SopBuilder({ initialData }: SopBuilderProps) {
           {saving ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Template'}
         </Button>
       </div>
-    </form>
+    </fieldset></form>
   )
 }
 

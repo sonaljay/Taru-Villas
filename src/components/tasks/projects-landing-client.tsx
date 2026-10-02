@@ -1,7 +1,9 @@
 'use client'
 
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { useQueryState } from 'nuqs'
 import { FolderOpen, Plus } from 'lucide-react'
 
@@ -20,7 +22,7 @@ export function ProjectsLandingClient({
   projects,
   isAdmin,
 }: ProjectsLandingClientProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [archived, setArchived] = useQueryState('archived', { shallow: false })
 

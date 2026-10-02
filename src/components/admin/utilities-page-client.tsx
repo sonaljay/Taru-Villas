@@ -1,7 +1,9 @@
 'use client'
 
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { ArrowLeft, Droplets, Zap, Link2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -101,7 +103,7 @@ export function UtilitiesPageClient({
   showUtilityTabs = true,
   embedded = false,
 }: UtilitiesPageClientProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [utilityType, setUtilityType] = useState<'water' | 'electricity'>(initialUtilityType)
   const [range, setRange] = useState<{ from: string; to: string; isThisMonth: boolean } | null>(null)
   const [summary, setSummary] = useState<SummaryData | null>(null)
@@ -256,7 +258,7 @@ export function UtilitiesPageClient({
   ) : tabContent
 
   return (
-    <div className={embedded ? 'space-y-6' : 'space-y-6 p-6'}>
+    <div className={embedded ? 'space-y-6' : 'space-y-6'}>
       {/* Header */}
       {showHeader && (
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

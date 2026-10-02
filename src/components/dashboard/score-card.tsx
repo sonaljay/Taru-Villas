@@ -46,6 +46,9 @@ export function ScoreCard({
         onClick && 'cursor-pointer hover:shadow-md hover:border-primary/20',
         className
       )}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={event => { if (onClick && ['Enter', ' '].includes(event.key)) { event.preventDefault(); onClick() } }}
       onClick={onClick}
     >
       <CardContent className="pt-0">

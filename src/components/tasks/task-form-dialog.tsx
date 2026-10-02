@@ -1,7 +1,13 @@
 'use client'
 
+import { useSaveProtection, usePortalRouter, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
+import { DiscardButton } from '@/components/ui/discard-button'
+
+import { Field } from '@/components/ui/field'
+
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+
 import Link from 'next/link'
 import { useForm, Controller } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -121,20 +127,22 @@ export function TaskFormDialog({
   canDelete,
   onSaved,
 }: TaskFormDialogProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const isEditing = !!task
 
   const [isPending, setIsPending] = useState(false)
+  const releaseSaveProtection = useSaveProtection(isPending)
+
   const [showDelete, setShowDelete] = useState(false)
   const [assigneeIds, setAssigneeIds] = useState<string[]>([])
   const [teamIds, setTeamIds] = useState<string[]>([])
 
-  const {
+  const { getValues,
     register,
     handleSubmit,
     control,
     reset,
-    formState: { errors },
+    formState: { errors , isDirty },
   } = useForm<FormValues>({
     defaultValues: {
       title: '',
@@ -146,6 +154,9 @@ export function TaskFormDialog({
       dueDate: '',
     },
   })
+  const [submitError, setSubmitError] = useState('')
+  const [extraBaseline, setExtraBaseline] = useState(JSON.stringify([[], []]))
+  const { markSaved } = useUnsavedChanges(open && (isDirty || JSON.stringify([assigneeIds, teamIds]) !== extraBaseline))
 
   // Prefill / clear when the dialog opens or the target task changes
   useEffect(() => {
@@ -160,6 +171,7 @@ export function TaskFormDialog({
     })
     setAssigneeIds(task?.assignees.map((a) => a.id) ?? [])
     setTeamIds(task?.teams.map((t) => t.id) ?? [])
+    setExtraBaseline(JSON.stringify([task?.assignees.map(a => a.id) ?? [], task?.teams.map(t => t.id) ?? []]))
   }, [open, task?.id, defaultProjectId, reset])
 
   // -------------------------------------------------------------------------
@@ -168,6 +180,7 @@ export function TaskFormDialog({
 
   async function onSubmit(values: FormValues) {
     if (!values.projectId) {
+      setSubmitError('Project is required')
       toast.error('Project is required')
       return
     }
@@ -199,11 +212,13 @@ export function TaskFormDialog({
         throw new Error(errBody.error ?? 'Failed to save task')
       }
 
+      reset(getValues()); setExtraBaseline(JSON.stringify([assigneeIds, teamIds])); releaseSaveProtection(); markSaved(); setSubmitError('')
       toast.success(isEditing ? 'Task updated' : 'Task created')
       onSaved()
       router.refresh()
       onOpenChange(false)
     } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Something went wrong')
       toast.error(error instanceof Error ? error.message : 'Something went wrong')
     } finally {
       setIsPending(false)
@@ -221,12 +236,14 @@ export function TaskFormDialog({
         throw new Error(errBody.error ?? 'Failed to delete task')
       }
 
+      reset(getValues()); setExtraBaseline(JSON.stringify([assigneeIds, teamIds])); releaseSaveProtection(); markSaved(); setSubmitError('')
       toast.success('Task deleted')
       onSaved()
       router.refresh()
       setShowDelete(false)
       onOpenChange(false)
     } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Failed to delete task')
       toast.error(error instanceof Error ? error.message : 'Failed to delete task')
     } finally {
       setIsPending(false)
@@ -245,7 +262,8 @@ export function TaskFormDialog({
             <DialogTitle>{isEditing ? 'Edit Task' : 'Create Task'}</DialogTitle>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit, () => setSubmitError('Check the highlighted details before saving.'))} className="space-y-4"><fieldset disabled={isPending} className="contents">
+      {submitError && <p role="alert" className="portal-form-errors rounded-xl border border-destructive/40 p-4">{submitError}</p>}
             {task?.vehicleRenewal && <div className="rounded-md border p-3 text-sm">
               <Link className="font-medium underline underline-offset-2" href={`/fleet/vehicles/${task.vehicleRenewal.vehicleId}`}>View vehicle renewal details</Link>
               <p className="mt-1 text-muted-foreground">Expiry: {task.vehicleRenewal.expiryDate}. Dates and the Administration Manager are managed on the vehicle record.</p>
@@ -259,7 +277,7 @@ export function TaskFormDialog({
               <Label htmlFor="task-title">
                 Title <span className="text-destructive">*</span>
               </Label>
-              <Input
+              <Input disabled={isPending} aria-invalid={!!errors.title}
                 id="task-title"
                 placeholder="Task title"
                 {...register('title', { required: 'Title is required' })}
@@ -272,7 +290,7 @@ export function TaskFormDialog({
             {/* Description */}
             <div className="space-y-1.5">
               <Label htmlFor="task-description">Description</Label>
-              <Textarea
+              <Textarea disabled={isPending} aria-invalid={!!errors.description}
                 id="task-description"
                 placeholder="Optional description"
                 rows={3}
@@ -282,13 +300,13 @@ export function TaskFormDialog({
 
             {/* Status + Priority */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
+              <Field className="space-y-1.5">
                 <Label>Status</Label>
                 <Controller
                   control={control}
                   name="status"
                   render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange} disabled={!!task?.visitReport?.submittedAt || task?.visitReport?.requestStatus === 'cancelled'}>
+                    <Select value={field.value} onValueChange={field.onChange} disabled={isPending || (!!task?.visitReport?.submittedAt || task?.visitReport?.requestStatus === 'cancelled')}>
                       <SelectTrigger className="w-full">
                         <SelectValue />
                       </SelectTrigger>
@@ -302,15 +320,15 @@ export function TaskFormDialog({
                     </Select>
                   )}
                 />
-              </div>
+              </Field>
 
-              <div className="space-y-1.5">
+              <Field className="space-y-1.5">
                 <Label>Priority</Label>
                 <Controller
                   control={control}
                   name="priority"
                   render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select disabled={isPending} value={field.value} onValueChange={field.onChange}>
                       <SelectTrigger className="w-full">
                         <SelectValue />
                       </SelectTrigger>
@@ -324,11 +342,11 @@ export function TaskFormDialog({
                     </Select>
                   )}
                 />
-              </div>
+              </Field>
             </div>
 
             {/* Project */}
-            <div className="space-y-1.5">
+            <Field className="space-y-1.5">
               <Label>
                 Project <span className="text-destructive">*</span>
               </Label>
@@ -336,7 +354,7 @@ export function TaskFormDialog({
                 control={control}
                 name="projectId"
                 render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange} disabled={!!task?.vehicleRenewal || !!task?.visitReport}>
+                  <Select value={field.value} onValueChange={field.onChange} disabled={isPending || (!!task?.vehicleRenewal || !!task?.visitReport)}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select project" />
                     </SelectTrigger>
@@ -350,16 +368,16 @@ export function TaskFormDialog({
                   </Select>
                 )}
               />
-            </div>
+            </Field>
 
             {/* Property */}
-            <div className="space-y-1.5">
+            <Field className="space-y-1.5">
               <Label>Property</Label>
               <Controller
                 control={control}
                 name="propertyId"
                 render={({ field }) => (
-                  <Select
+                  <Select disabled={isPending}
                     value={field.value || NONE}
                     onValueChange={(v) => field.onChange(v === NONE ? '' : v)}
                   >
@@ -377,12 +395,12 @@ export function TaskFormDialog({
                   </Select>
                 )}
               />
-            </div>
+            </Field>
 
             {/* Due Date */}
             <div className="space-y-1.5">
               <Label htmlFor="task-due-date">Due Date</Label>
-              <Input
+              <Input disabled={isPending} aria-invalid={!!errors.dueDate}
                 id="task-due-date"
                 type="date"
                 readOnly={!!task?.vehicleRenewal || !!task?.visitReport}
@@ -502,7 +520,7 @@ export function TaskFormDialog({
               <Label>Teams</Label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button
+                  <Button disabled={isPending}
                     type="button"
                     variant="outline"
                     className="w-full justify-start font-normal"
@@ -550,14 +568,14 @@ export function TaskFormDialog({
                 </Button>
               )}
               <div className="flex-1" />
-              <Button
+              <DiscardButton
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
                 disabled={isPending}
               >
                 Cancel
-              </Button>
+              </DiscardButton>
               <Button type="submit" disabled={isPending}>
                 {isPending
                   ? isEditing
@@ -568,7 +586,7 @@ export function TaskFormDialog({
                     : 'Create Task'}
               </Button>
             </div>
-          </form>
+          </fieldset></form>
         </DialogContent>
       </Dialog>
 

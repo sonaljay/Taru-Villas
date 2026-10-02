@@ -1,5 +1,10 @@
 'use client'
 
+import { DiscardButton } from '@/components/ui/discard-button'
+import { useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
+import { Field } from '@/components/ui/field'
+
 import { useEffect, useMemo, useState } from 'react'
 import {
   Dialog,
@@ -87,6 +92,12 @@ export function SopMultiAssignDialog({
   const [rows, setRows] = useState<RowState[]>([])
   const [existingPairs, setExistingPairs] = useState<Set<string>>(new Set())
   const [submitting, setSubmitting] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const { markSaved } = useUnsavedChanges(open && (
+    selectedUserIds.length > 0 || selectedPropertyIds.length > 0 ||
+    defaultFrequency !== 'daily' || defaultTime !== '09:00' ||
+    defaultDay !== null || defaultMonth !== null || notifyOnOverdue
+  ), submitting)
 
   // Reset on open
   useEffect(() => {
@@ -99,6 +110,7 @@ export function SopMultiAssignDialog({
       setDefaultMonth(null)
       setNotifyOnOverdue(false)
       setRows([])
+      setSaveError('')
       // Fetch existing pairs
       fetch(`/api/sops/assignments/existing?templateId=${templateId}`)
         .then((r) => r.ok ? r.json() : [])
@@ -173,6 +185,7 @@ export function SopMultiAssignDialog({
     const newRows = rows.filter((r) => !r.exists)
     if (newRows.length === 0) return
     setSubmitting(true)
+    setSaveError('')
     try {
       const res = await fetch('/api/sops/assignments/batch', {
         method: 'POST',
@@ -192,13 +205,17 @@ export function SopMultiAssignDialog({
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        toast.error(body.error ?? 'Failed to create assignments')
-        return
+        throw new Error(body.error ?? 'Failed to create assignments')
       }
       const result = await res.json()
+      markSaved()
       toast.success(`Created ${result.created} assignment${result.created === 1 ? '' : 's'}${result.skipped > 0 ? ` (${result.skipped} skipped)` : ''}`)
       onCreated()
       onOpenChange(false)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create assignments'
+      setSaveError(message)
+      toast.error(message)
     } finally {
       setSubmitting(false)
     }
@@ -225,7 +242,7 @@ export function SopMultiAssignDialog({
           <DialogTitle>Add Assignments</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <fieldset disabled={submitting} className="space-y-4">
           {/* Users */}
           <div>
             <Label>Users</Label>
@@ -280,7 +297,7 @@ export function SopMultiAssignDialog({
           <div className="rounded-lg border bg-muted/30 p-3">
             <div className="mb-2 text-xs font-medium text-muted-foreground">Default schedule (applies to new rows below)</div>
             <div className="flex flex-wrap items-end gap-3">
-              <div>
+              <Field>
                 <Label className="text-xs">Frequency</Label>
                 <Select value={defaultFrequency} onValueChange={(v) => handleDefaultChange('frequency', v as Frequency)}>
                   <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
@@ -291,9 +308,9 @@ export function SopMultiAssignDialog({
                     <SelectItem value="yearly">Yearly</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
+              </Field>
               {defaultFrequency === 'weekly' && (
-                <div>
+                <Field>
                   <Label className="text-xs">Day</Label>
                   <Select
                     value={String(defaultDay ?? 1)}
@@ -306,10 +323,10 @@ export function SopMultiAssignDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
+                </Field>
               )}
               {defaultFrequency === 'monthly' && (
-                <div>
+                <Field>
                   <Label className="text-xs">Day of month</Label>
                   <Input
                     type="number"
@@ -319,11 +336,11 @@ export function SopMultiAssignDialog({
                     onChange={(e) => handleDefaultChange('day', Math.max(1, Math.min(31, Number(e.target.value))))}
                     className="w-20"
                   />
-                </div>
+                </Field>
               )}
               {defaultFrequency === 'yearly' && (
                 <>
-                  <div>
+                  <Field>
                     <Label className="text-xs">Month</Label>
                     <Select
                       value={String(defaultMonth ?? 1)}
@@ -336,8 +353,8 @@ export function SopMultiAssignDialog({
                         ))}
                       </SelectContent>
                     </Select>
-                  </div>
-                  <div>
+                  </Field>
+                  <Field>
                     <Label className="text-xs">Day of month</Label>
                     <Input
                       type="number"
@@ -347,10 +364,10 @@ export function SopMultiAssignDialog({
                       onChange={(e) => handleDefaultChange('day', Math.max(1, Math.min(31, Number(e.target.value))))}
                       className="w-20"
                     />
-                  </div>
+                  </Field>
                 </>
               )}
-              <div>
+              <Field>
                 <Label className="text-xs">Deadline</Label>
                 <Input
                   type="time"
@@ -358,7 +375,7 @@ export function SopMultiAssignDialog({
                   onChange={(e) => handleDefaultChange('time', e.target.value)}
                   className="w-28"
                 />
-              </div>
+              </Field>
               <div className="flex items-center gap-2 pb-2">
                 <Checkbox
                   id="notify"
@@ -490,10 +507,11 @@ export function SopMultiAssignDialog({
               Will create {newRowCount}.{skipCount > 0 && ` ${skipCount} already exist${skipCount === 1 ? 's' : ''} — will skip.`}
             </div>
           )}
-        </div>
+        </fieldset>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+          {saveError && <p role="alert" className="text-sm text-destructive">{saveError}</p>}
+          <DiscardButton disabled={submitting} variant="ghost" onClick={() => onOpenChange(false)}>Cancel</DiscardButton>
           <Button onClick={handleSubmit} disabled={newRowCount === 0 || submitting}>
             {submitting ? 'Creating…' : `Create ${newRowCount}`}
           </Button>

@@ -1,7 +1,11 @@
 'use client'
 
+import { useSaveProtection, usePortalRouter, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
+import { Field } from '@/components/ui/field'
+
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import {
   useReactTable,
   getCoreRowModel,
@@ -329,16 +333,18 @@ interface DriverFormProps {
 }
 
 function DriverForm({ driver, vehicles, onSuccess }: DriverFormProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const releaseSaveProtection = useSaveProtection(isSubmitting)
+
   const isEditing = !!driver
 
-  const {
+  const { reset, getValues,
     register,
     handleSubmit,
     watch,
     setValue,
-    formState: { errors },
+    formState: { errors , isDirty },
   } = useForm<DriverFormValues>({
     defaultValues: {
       fullName: driver?.fullName ?? '',
@@ -348,6 +354,8 @@ function DriverForm({ driver, vehicles, onSuccess }: DriverFormProps) {
       vehicleIds: driver?.vehicleIds ?? [],
     },
   })
+  const [submitError, setSubmitError] = useState('')
+  const { markSaved } = useUnsavedChanges(isDirty)
 
   const selectedLanguage = watch('preferredLanguage')
   const isActive = watch('isActive')
@@ -358,10 +366,10 @@ function DriverForm({ driver, vehicles, onSuccess }: DriverFormProps) {
     if (current.includes(vehicleId)) {
       setValue(
         'vehicleIds',
-        current.filter((id) => id !== vehicleId)
+        current.filter((id) => id !== vehicleId), { shouldDirty: true }
       )
     } else {
-      setValue('vehicleIds', [...current, vehicleId])
+      setValue('vehicleIds', [...current, vehicleId], { shouldDirty: true })
     }
   }
 
@@ -398,10 +406,12 @@ function DriverForm({ driver, vehicles, onSuccess }: DriverFormProps) {
         )
       }
 
+      reset(getValues()); releaseSaveProtection(); markSaved(); setSubmitError('')
       toast.success(isEditing ? 'Driver updated' : 'Driver created')
       onSuccess()
       router.refresh()
     } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Something went wrong')
       toast.error(error instanceof Error ? error.message : 'Something went wrong')
     } finally {
       setIsSubmitting(false)
@@ -409,10 +419,11 @@ function DriverForm({ driver, vehicles, onSuccess }: DriverFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form onSubmit={handleSubmit(onSubmit, () => setSubmitError('Check the highlighted details before saving.'))} className="space-y-5"><fieldset disabled={isSubmitting} className="contents">
+      {submitError && <p role="alert" className="portal-form-errors rounded-xl border border-destructive/40 p-4">{submitError}</p>}
       <div className="space-y-2">
         <Label htmlFor="driver-name">Full name</Label>
-        <Input
+        <Input disabled={isSubmitting} aria-invalid={!!errors.fullName}
           id="driver-name"
           {...register('fullName', { required: 'Full name is required' })}
         />
@@ -423,15 +434,15 @@ function DriverForm({ driver, vehicles, onSuccess }: DriverFormProps) {
 
       <div className="space-y-2">
         <Label htmlFor="driver-phone">Phone</Label>
-        <Input id="driver-phone" placeholder="Optional" {...register('phone')} />
+        <Input disabled={isSubmitting} aria-invalid={!!errors.phone} id="driver-phone" placeholder="Optional" {...register('phone')} />
       </div>
 
-      <div className="space-y-2">
+      <Field className="space-y-2">
         <Label>Preferred language</Label>
-        <Select
+        <Select disabled={isSubmitting}
           value={selectedLanguage}
           onValueChange={(value) =>
-            setValue('preferredLanguage', value as DriverFormValues['preferredLanguage'])
+            setValue('preferredLanguage', value as DriverFormValues['preferredLanguage'], { shouldDirty: true })
           }
         >
           <SelectTrigger className="w-full">
@@ -443,21 +454,21 @@ function DriverForm({ driver, vehicles, onSuccess }: DriverFormProps) {
             <SelectItem value="ta">Tamil</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </Field>
 
       <div className="flex items-center justify-between rounded-lg border p-3">
         <Label htmlFor="driver-active">Active</Label>
-        <Switch
+        <Switch disabled={isSubmitting}
           id="driver-active"
           checked={isActive}
-          onCheckedChange={(checked) => setValue('isActive', checked)}
+          onCheckedChange={(checked) => setValue('isActive', checked, { shouldDirty: true })}
         />
       </div>
 
       {/* Licensed to drive — a safety control, not a preference. A driver can
           only be dispatched with a vehicle ticked here; both the engine and
           the manual dispatch path enforce it. */}
-      <div className="space-y-2">
+      <Field className="space-y-2">
         <Label>Licensed to drive</Label>
         <p className="text-xs text-muted-foreground">
           A driver can only be dispatched with a vehicle ticked here.
@@ -484,7 +495,7 @@ function DriverForm({ driver, vehicles, onSuccess }: DriverFormProps) {
             ))}
           </div>
         )}
-      </div>
+      </Field>
 
       <div className="flex justify-end gap-3 pt-2">
         <Button type="submit" disabled={isSubmitting}>
@@ -497,7 +508,7 @@ function DriverForm({ driver, vehicles, onSuccess }: DriverFormProps) {
               : 'Create Driver'}
         </Button>
       </div>
-    </form>
+    </fieldset></form>
   )
 }
 
@@ -512,7 +523,7 @@ interface DriversClientProps {
 }
 
 export function DriversClient({ drivers, vehicles, appUrl }: DriversClientProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
 
   const [sorting, setSorting] = useState<SortingState>([])
   const [createOpen, setCreateOpen] = useState(false)

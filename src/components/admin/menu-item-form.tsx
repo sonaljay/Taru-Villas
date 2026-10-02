@@ -1,7 +1,11 @@
 'use client'
 
+import { useSaveProtection, usePortalRouter, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
+import { Field, FieldInput } from '@/components/ui/field'
+
 import { useState, useRef, type KeyboardEvent } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { X } from 'lucide-react'
@@ -33,19 +37,21 @@ interface MenuItemFormProps {
 }
 
 export function MenuItemForm({ categoryId, item, onSuccess }: MenuItemFormProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const releaseSaveProtection = useSaveProtection(isSubmitting)
+
   const [tags, setTags] = useState<string[]>(item?.tags ?? [])
   const [tagInput, setTagInput] = useState('')
   const tagInputRef = useRef<HTMLInputElement>(null)
   const isEditing = !!item
 
-  const {
+  const { reset, getValues,
     register,
     handleSubmit,
     watch,
     setValue,
-    formState: { errors },
+    formState: { errors , isDirty },
   } = useForm<ItemFormValues>({
     defaultValues: {
       title: item?.title ?? '',
@@ -56,6 +62,9 @@ export function MenuItemForm({ categoryId, item, onSuccess }: MenuItemFormProps)
       isActive: item?.isActive ?? true,
     },
   })
+  const [submitError, setSubmitError] = useState('')
+  const [extraBaseline, setExtraBaseline] = useState(JSON.stringify(item?.tags ?? []))
+  const { markSaved } = useUnsavedChanges(isDirty || JSON.stringify(tags) !== extraBaseline)
 
   const isActiveValue = watch('isActive')
 
@@ -103,10 +112,12 @@ export function MenuItemForm({ categoryId, item, onSuccess }: MenuItemFormProps)
         throw new Error(body.message || body.error || 'Something went wrong')
       }
 
+      reset(getValues()); setExtraBaseline(JSON.stringify(tags)); releaseSaveProtection(); markSaved(); setSubmitError('')
       toast.success(isEditing ? 'Menu item updated' : 'Menu item created')
       onSuccess?.()
       router.refresh()
     } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Failed to save menu item')
       toast.error(
         error instanceof Error ? error.message : 'Failed to save menu item'
       )
@@ -116,10 +127,11 @@ export function MenuItemForm({ categoryId, item, onSuccess }: MenuItemFormProps)
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form onSubmit={handleSubmit(onSubmit, () => setSubmitError('Check the highlighted details before saving.'))} className="space-y-5"><fieldset disabled={isSubmitting} className="contents">
+      {submitError && <p role="alert" className="portal-form-errors rounded-xl border border-destructive/40 p-4">{submitError}</p>}
       <div className="space-y-2">
         <Label htmlFor="title">Title</Label>
-        <Input
+        <Input disabled={isSubmitting} aria-invalid={!!errors.title}
           id="title"
           placeholder="e.g. Grilled Prawns"
           {...register('title', { required: 'Title is required' })}
@@ -131,7 +143,7 @@ export function MenuItemForm({ categoryId, item, onSuccess }: MenuItemFormProps)
 
       <div className="space-y-2">
         <Label htmlFor="description">Description</Label>
-        <Textarea
+        <Textarea disabled={isSubmitting} aria-invalid={!!errors.description}
           id="description"
           placeholder="Describe the dish..."
           rows={2}
@@ -141,7 +153,7 @@ export function MenuItemForm({ categoryId, item, onSuccess }: MenuItemFormProps)
 
       <div className="space-y-2">
         <Label htmlFor="imageUrl">Image URL</Label>
-        <Input
+        <Input disabled={isSubmitting} aria-invalid={!!errors.imageUrl}
           id="imageUrl"
           placeholder="https://example.com/image.jpg"
           {...register('imageUrl')}
@@ -151,7 +163,7 @@ export function MenuItemForm({ categoryId, item, onSuccess }: MenuItemFormProps)
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="price">Price</Label>
-          <Input
+          <Input disabled={isSubmitting} aria-invalid={!!errors.price}
             id="price"
             placeholder="e.g. $12, LKR 2,500"
             {...register('price')}
@@ -159,7 +171,7 @@ export function MenuItemForm({ categoryId, item, onSuccess }: MenuItemFormProps)
         </div>
         <div className="space-y-2">
           <Label htmlFor="sortOrder">Sort Order</Label>
-          <Input
+          <Input disabled={isSubmitting} aria-invalid={!!errors.sortOrder}
             id="sortOrder"
             type="number"
             min={0}
@@ -169,7 +181,7 @@ export function MenuItemForm({ categoryId, item, onSuccess }: MenuItemFormProps)
       </div>
 
       {/* Tags input */}
-      <div className="space-y-2">
+      <Field className="space-y-2">
         <Label>Tags</Label>
         <div
           className="flex flex-wrap items-center gap-1.5 rounded-md border px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 cursor-text"
@@ -194,7 +206,7 @@ export function MenuItemForm({ categoryId, item, onSuccess }: MenuItemFormProps)
               </button>
             </Badge>
           ))}
-          <input
+          <FieldInput
             ref={tagInputRef}
             type="text"
             value={tagInput}
@@ -207,7 +219,7 @@ export function MenuItemForm({ categoryId, item, onSuccess }: MenuItemFormProps)
         <p className="text-xs text-muted-foreground">
           Press Enter or comma to add. e.g. Spicy, Vegetarian, Chef&apos;s Special
         </p>
-      </div>
+      </Field>
 
       <div className="flex items-center justify-between rounded-lg border p-4">
         <div className="space-y-0.5">
@@ -218,10 +230,10 @@ export function MenuItemForm({ categoryId, item, onSuccess }: MenuItemFormProps)
             Inactive items are hidden from the public page
           </p>
         </div>
-        <Switch
+        <Switch disabled={isSubmitting}
           id="isActive"
           checked={isActiveValue}
-          onCheckedChange={(checked) => setValue('isActive', checked)}
+          onCheckedChange={(checked) => setValue('isActive', checked, { shouldDirty: true })}
         />
       </div>
 
@@ -236,6 +248,6 @@ export function MenuItemForm({ categoryId, item, onSuccess }: MenuItemFormProps)
               : 'Create Item'}
         </Button>
       </div>
-    </form>
+    </fieldset></form>
   )
 }

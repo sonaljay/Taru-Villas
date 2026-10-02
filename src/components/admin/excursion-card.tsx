@@ -1,7 +1,9 @@
 'use client'
 
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { MoreHorizontal, Pencil, Power, Trash2, Clock, DollarSign } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -41,7 +43,7 @@ interface ExcursionCardProps {
 }
 
 export function ExcursionCard({ excursion, propertyId }: ExcursionCardProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [isToggling, setIsToggling] = useState(false)

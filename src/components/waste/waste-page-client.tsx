@@ -1,7 +1,9 @@
 'use client'
 
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -64,7 +66,7 @@ export function WastePageClient({
   showHeader = true,
   embedded = false,
 }: WastePageClientProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
@@ -129,7 +131,7 @@ export function WastePageClient({
   )
 
   return (
-    <div className={embedded ? 'space-y-6' : 'space-y-6 p-6'}>
+    <div className={embedded ? 'space-y-6' : 'space-y-6'}>
       {/* Header */}
       {showHeader ? (
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

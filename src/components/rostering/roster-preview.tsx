@@ -1,7 +1,9 @@
 'use client'
 
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+
 import { useMemo, useState } from 'react'
 import {
   AlertTriangle,
@@ -67,7 +69,7 @@ export function RosterPreview({
   isAdmin,
   accessiblePropertyIds,
 }: RosterPreviewProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const participants: PresentationParticipant[] = preview.participants.map(
     (participant) => ({
       id: participant.id,

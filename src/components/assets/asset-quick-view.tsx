@@ -1,5 +1,9 @@
 'use client'
 
+import { DiscardButton } from '@/components/ui/discard-button'
+
+import { useNativeFormGuard } from '@/hooks/use-native-form-guard'
+
 import { useState } from 'react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
@@ -47,6 +51,8 @@ interface AssetQuickViewProps {
 }
 
 export function AssetQuickView({ asset, rooms }: AssetQuickViewProps) {
+  const { formProps, markSaved } = useNativeFormGuard()
+
   const [status, setStatus] = useState<AssetStatus>(asset.status)
   const [roomId, setRoomId] = useState<string | null>(asset.roomId)
   const [roomName, setRoomName] = useState<string | null>(asset.roomName)
@@ -124,6 +130,7 @@ export function AssetQuickView({ asset, rooms }: AssetQuickViewProps) {
       setStatus('in_repair')
       setIssueDescription('')
       setShowRepairForm(false)
+      markSaved()
       toast.success('Flagged for repair')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to flag asset for repair')
@@ -209,7 +216,7 @@ export function AssetQuickView({ asset, rooms }: AssetQuickViewProps) {
               {status === 'in_repair' ? 'Already In Repair' : 'Flag for Repair'}
             </Button>
           ) : (
-            <form onSubmit={handleFlagRepair} className="space-y-3">
+            <form {...formProps} onSubmit={handleFlagRepair} className="space-y-3">
               <div className="space-y-2">
                 <Label htmlFor="issue-description" className="text-sm font-medium">
                   What&apos;s wrong?
@@ -224,7 +231,7 @@ export function AssetQuickView({ asset, rooms }: AssetQuickViewProps) {
                 />
               </div>
               <div className="flex gap-2">
-                <Button
+                <DiscardButton
                   type="button"
                   variant="ghost"
                   className="min-h-12 flex-1 text-base"
@@ -235,7 +242,7 @@ export function AssetQuickView({ asset, rooms }: AssetQuickViewProps) {
                   disabled={isFlagging}
                 >
                   Cancel
-                </Button>
+                </DiscardButton>
                 <Button
                   type="submit"
                   variant="destructive"

@@ -1,7 +1,9 @@
 'use client'
 
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import { useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+
 import {
   useReactTable,
   getCoreRowModel,
@@ -256,7 +258,7 @@ interface UserTableProps {
 }
 
 export function UserTable({ users, properties }: UserTableProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
 
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -372,6 +374,7 @@ export function UserTable({ users, properties }: UserTableProps) {
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
+            aria-label="Search users by name or email"
             placeholder="Search by name or email..."
             value={globalFilter}
             onChange={(e) => setGlobalFilter(e.target.value)}
@@ -379,7 +382,7 @@ export function UserTable({ users, properties }: UserTableProps) {
           />
         </div>
         <Select value={roleFilter} onValueChange={setRoleFilter}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger aria-label="Filter users by role" className="w-full sm:w-[180px]">
             <SelectValue placeholder="Filter by role" />
           </SelectTrigger>
           <SelectContent>
@@ -391,8 +394,21 @@ export function UserTable({ users, properties }: UserTableProps) {
         </Select>
       </div>
 
+      <div className="grid gap-3 md:hidden" aria-label="Users">
+        {table.getRowModel().rows.map(row => {
+          const user = row.original
+          return <article key={user.id} className="portal-panel space-y-3 bg-card p-4">
+            <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><p className="font-semibold break-words">{user.fullName}</p><p className="text-sm text-muted-foreground break-all">{user.email}</p></div><RoleBadge role={user.role} /></div>
+            <p className="text-sm"><span className="text-muted-foreground">Access: </span>{user.role === 'admin' ? 'All properties' : user.assignments?.map(item => item.propertyName).join(', ') || 'No properties assigned'}</p>
+            <p className="text-sm">Account: {user.isActive ? 'Active' : 'Inactive'}</p>
+            <Button variant="outline" onClick={() => handleEdit(user)}>Edit user</Button>
+          </article>
+        })}
+        {!table.getRowModel().rows.length && <p className="portal-panel bg-card p-6 text-muted-foreground">No users match these filters.</p>}
+      </div>
+
       {/* Table */}
-      <div className="rounded-lg border">
+      <div className="hidden overflow-x-auto rounded-xl border bg-card md:block">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (

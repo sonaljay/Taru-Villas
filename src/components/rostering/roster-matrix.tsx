@@ -12,7 +12,7 @@ import {
 const dutyTone: Record<string, string> = {
   W: 'border-slate-300 bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950',
   S: 'border-teal-300 bg-teal-100 text-teal-900 dark:border-teal-800 dark:bg-teal-950 dark:text-teal-200',
-  O: 'border-slate-200 bg-slate-100 text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400',
+  O: 'border-slate-200 bg-slate-100 text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-muted-foreground',
   H: 'border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300',
   AL: 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300',
   SL: 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-300',
@@ -51,12 +51,12 @@ export function RosterMatrix({
   const rows = buildMatrixRows(participants, assignments, filters)
 
   return (
-    <div className="overflow-auto rounded-xl border bg-background shadow-sm">
+    <div role="region" aria-label="Roster by employee and day, scroll across for more days" tabIndex={0} className="max-w-full overflow-auto rounded-xl border bg-card shadow-sm">
       <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
         <thead>
           <tr>
-            <th className="sticky left-0 top-0 z-30 min-w-64 border-b border-r bg-slate-950 px-4 py-3 text-left text-white">
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-300">
+            <th className="sticky left-0 top-0 z-30 min-w-64 border-b border-r bg-secondary px-4 py-3 text-left text-foreground">
+              <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                 Employee ledger
               </span>
             </th>
@@ -65,9 +65,9 @@ export function RosterMatrix({
               return (
                 <th
                   key={date}
-                  className="sticky top-0 z-20 min-w-14 border-b border-r bg-slate-950 px-1 py-2 text-center text-white last:border-r-0"
+                  className="sticky top-0 z-20 min-w-14 border-b border-r bg-secondary px-1 py-2 text-center text-foreground last:border-r-0"
                 >
-                  <span className="block text-[10px] font-medium uppercase text-slate-400">
+                  <span className="block text-[10px] font-medium uppercase text-muted-foreground">
                     {parts.weekday}
                   </span>
                   <span className="mt-0.5 block font-mono text-sm tabular-nums">

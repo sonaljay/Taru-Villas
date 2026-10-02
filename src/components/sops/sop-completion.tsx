@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
 
 import type { SopAssignmentForUser, SopCompletionWithItems } from '@/lib/sops/types'
 
@@ -29,6 +28,7 @@ export function SopCompletion({ assignment, onBack }: SopCompletionProps) {
   const [completion, setCompletion] = useState<SopCompletionWithItems | null>(
     assignment.currentCompletion
   )
+  const [saveError, setSaveError] = useState('')
   const [loading, setLoading] = useState(!completion)
   const [updatingItems, setUpdatingItems] = useState<Set<string>>(new Set())
 
@@ -40,6 +40,7 @@ export function SopCompletion({ assignment, onBack }: SopCompletionProps) {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const initCompletion = async () => {
+    setSaveError('')
     setLoading(true)
     try {
       const res = await fetch('/api/sops/completions', {
@@ -52,9 +53,10 @@ export function SopCompletion({ assignment, onBack }: SopCompletionProps) {
       })
       if (!res.ok) throw new Error('Failed to init completion')
       const data = await res.json()
+      setSaveError('')
       setCompletion(data)
     } catch (error) {
-      console.error('Init completion error:', error)
+      setSaveError('Unable to load this checklist. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -72,9 +74,10 @@ export function SopCompletion({ assignment, onBack }: SopCompletionProps) {
       })
       if (!res.ok) throw new Error('Failed to update item')
       const data = await res.json()
+      setSaveError('')
       setCompletion(data.completion)
     } catch (error) {
-      console.error('Check item error:', error)
+      setSaveError('This item could not be saved. Please try checking it again.')
     } finally {
       setUpdatingItems((prev) => {
         const next = new Set(prev)
@@ -142,6 +145,7 @@ export function SopCompletion({ assignment, onBack }: SopCompletionProps) {
 
   return (
     <div className="space-y-6">
+      {saveError && <p role="alert" className="rounded-xl border border-destructive/40 p-4">{saveError}<Button variant="outline" className="ml-3" onClick={initCompletion}>Try again</Button></p>}
       {/* Header */}
       <div className="space-y-4">
         <Button variant="ghost" size="sm" onClick={onBack}>

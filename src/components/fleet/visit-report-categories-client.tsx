@@ -1,7 +1,9 @@
 'use client'
 
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { Plus, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -22,7 +24,7 @@ async function request(url: string, method: 'POST' | 'PATCH', body: unknown) {
 }
 
 export function VisitReportCategoriesClient({ initialReasons, initialCategories }: { initialReasons: Reason[]; initialCategories: Category[] }) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [reasons, setReasons] = useState(initialReasons)
   const [categories, setCategories] = useState(initialCategories)
   const [newReasonName, setNewReasonName] = useState('')

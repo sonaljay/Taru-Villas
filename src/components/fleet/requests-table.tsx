@@ -1,7 +1,11 @@
 'use client'
 
+import { DiscardButton } from '@/components/ui/discard-button'
+
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import Link from 'next/link'
 import { useQueryState } from 'nuqs'
 import {
@@ -313,7 +317,7 @@ export function RequestsTable({
   isFleetAdmin,
   canCreateRequest,
 }: RequestsTableProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
 
   const [status, setStatus] = useQueryState('status', { defaultValue: 'all', shallow: false })
   const [scope, setScope] = useQueryState('scope', { defaultValue: 'mine', shallow: false })
@@ -456,7 +460,7 @@ export function RequestsTable({
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
                   {canEditRow(ride, currentUserId, false) && <Button size="sm" variant="outline" onClick={() => handleEdit(ride)}>Edit request</Button>}
-                  {canCancelRow(ride, currentUserId, false) && <Button size="sm" variant="ghost" onClick={() => handleCancelClick(ride)}>Cancel request</Button>}
+                  {canCancelRow(ride, currentUserId, false) && <DiscardButton size="sm" variant="ghost" onClick={() => handleCancelClick(ride)}>Cancel request</DiscardButton>}
                 </div>
               </div>
               <div className="mt-5 grid gap-4 border-t pt-4 sm:grid-cols-2">

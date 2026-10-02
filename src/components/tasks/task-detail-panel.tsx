@@ -1,4 +1,8 @@
 'use client'
+
+import { useSaveProtection, useUnsavedChangesNavigation } from '@/hooks/use-unsaved-changes'
+
+import { useNativeFormGuard } from '@/hooks/use-native-form-guard'
 import { useEffect, useState, useCallback } from 'react'
 import {
   Sheet,
@@ -48,12 +52,17 @@ export function TaskDetailPanel({
   onClose: () => void
   onChange: () => void
 }) {
+  const { confirmNavigation } = useUnsavedChangesNavigation()
+  const { formProps, markSaved } = useNativeFormGuard()
+
   const [task, setTask] = useState<TaskRow | null>(null),
     [activity, setActivity] = useState<Activity | null>(null),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
     [tab, setTab] = useState('details'),
     [historyPage, setHistoryPage] = useState(1)
+  const releaseSaveProtection = useSaveProtection(busy)
+
   const load = useCallback(async () => {
     if (!id) return
     const [t, h] = await Promise.all([
@@ -97,8 +106,8 @@ export function TaskDetailPanel({
       !!scope && !task?.archived_at && canEditTask(options.actor, scope),
     transfer = !!scope && canTransferTask(options.actor, scope),
     decide = !!scope && canDecideTask(options.actor, scope)
-  async function action(command: unknown) {
-    if (!id || !task) return
+  async function action(command: unknown, savedForm?: HTMLFormElement) {
+    if (!id || !task || (!savedForm && !confirmNavigation())) return
     setBusy(true)
     setError('')
     try {
@@ -106,6 +115,8 @@ export function TaskDetailPanel({
         `/api/tasks/${id}/actions`,
         jsonRequest({ version: task.version, command }),
       )
+      releaseSaveProtection()
+      if (savedForm) markSaved(savedForm)
       await load()
       onChange()
     } catch (e) {
@@ -176,7 +187,7 @@ export function TaskDetailPanel({
                 {['details', 'discussion', 'history'].map((t) => (
                   <button
                     key={t}
-                    onClick={() => setTab(t)}
+                    onClick={() => { if (confirmNavigation()) setTab(t) }}
                     className={`border-b-2 px-4 py-2 text-sm capitalize ${tab === t ? 'border-primary font-medium' : 'border-transparent text-muted-foreground'}`}
                   >
                     {t}
@@ -185,7 +196,7 @@ export function TaskDetailPanel({
               </nav>
               {tab === 'details' && (
                 <div className="space-y-5">
-                  <form
+                  <form {...formProps}
                     key={task.version}
                     className="space-y-4"
                     onSubmit={(e) => {
@@ -204,7 +215,7 @@ export function TaskDetailPanel({
                         },
                       })
                     }}
-                  >
+                  ><fieldset disabled={busy} className="contents">
                     <fieldset
                       disabled={!editable || busy}
                       className="space-y-4"
@@ -310,7 +321,7 @@ export function TaskDetailPanel({
                         </Button>
                       )}
                     </fieldset>
-                  </form>
+                  </fieldset></form>
                   {editable && task.status !== 'done' && (
                     <section className="space-y-2 border-t pt-4">
                       <h3 className="text-sm font-medium">Update progress</h3>
@@ -339,7 +350,7 @@ export function TaskDetailPanel({
                     </section>
                   )}
                   {decide && task.approval === 'pending' && (
-                    <form
+                    <form {...formProps}
                       className="space-y-3 rounded-lg border p-4"
                       onSubmit={(e) => {
                         e.preventDefault()
@@ -353,7 +364,7 @@ export function TaskDetailPanel({
                           note: f.get('note'),
                         })
                       }}
-                    >
+                    ><fieldset disabled={busy} className="contents">
                       <h3 className="font-medium">Committee decision</h3>
                       <textarea
                         name="note"
@@ -374,10 +385,10 @@ export function TaskDetailPanel({
                           Reject
                         </Button>
                       </div>
-                    </form>
+                    </fieldset></form>
                   )}
                   {transfer && task.status !== 'done' && (
-                    <form
+                    <form {...formProps}
                       className="space-y-3 rounded-lg border p-4"
                       onSubmit={(e) => {
                         e.preventDefault()
@@ -399,7 +410,7 @@ export function TaskDetailPanel({
                               },
                         )
                       }}
-                    >
+                    ><fieldset disabled={busy} className="contents">
                       <h3 className="font-medium">Committee ownership</h3>
                       <select
                         name="committee"
@@ -433,7 +444,7 @@ export function TaskDetailPanel({
                       <Button variant="outline" disabled={busy}>
                         Send for review
                       </Button>
-                    </form>
+                    </fieldset></form>
                   )}
                   {editable && (
                     <Button
@@ -445,7 +456,7 @@ export function TaskDetailPanel({
                     </Button>
                   )}
                   {editable && task.status === 'done' && (
-                    <form
+                    <form {...formProps}
                       className="flex gap-2"
                       onSubmit={(e) => {
                         e.preventDefault()
@@ -454,7 +465,7 @@ export function TaskDetailPanel({
                           reason: new FormData(e.currentTarget).get('reason'),
                         })
                       }}
-                    >
+                    ><fieldset disabled={busy} className="contents">
                       <input
                         name="reason"
                         aria-label="Reason for reopening"
@@ -463,14 +474,14 @@ export function TaskDetailPanel({
                         className={inputStyle}
                       />
                       <Button disabled={busy}>Reopen</Button>
-                    </form>
+                    </fieldset></form>
                   )}
                 </div>
               )}
               {tab === 'discussion' && (
                 <div className="space-y-5">
                   {editable && (
-                    <form
+                    <form {...formProps}
                       className="space-y-2"
                       onSubmit={async (e) => {
                         e.preventDefault()
@@ -484,6 +495,7 @@ export function TaskDetailPanel({
                             }),
                           )
                           form.reset()
+                          releaseSaveProtection(); markSaved(form)
                           await load()
                         } catch (e) {
                           setError((e as Error).message)
@@ -491,7 +503,7 @@ export function TaskDetailPanel({
                           setBusy(false)
                         }
                       }}
-                    >
+                    ><fieldset disabled={busy} className="contents">
                       <textarea
                         name="body"
                         required
@@ -501,7 +513,7 @@ export function TaskDetailPanel({
                         className={inputStyle + ' !h-24 py-2'}
                       />
                       <Button disabled={busy}>Add comment</Button>
-                    </form>
+                    </fieldset></form>
                   )}
                   {activity?.comments.map((c) => (
                     <article key={c.id} className="border-b pb-4">
@@ -537,6 +549,7 @@ export function TaskDetailPanel({
                                 method: 'POST',
                                 body: f,
                               })
+                              releaseSaveProtection()
                               await load()
                               onChange()
                             } catch (e) {
@@ -574,6 +587,7 @@ export function TaskDetailPanel({
                                   `/api/tasks/${id}/attachments/${f.id}`,
                                   { method: 'DELETE' },
                                 )
+                                releaseSaveProtection()
                                 await load()
                                 onChange()
                               } catch (e) {

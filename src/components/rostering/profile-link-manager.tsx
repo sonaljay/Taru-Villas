@@ -1,7 +1,9 @@
 'use client'
 
+import { usePortalRouter, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { Link2, Loader2, UserRoundCheck } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -35,12 +37,15 @@ export function ProfileLinkManager({
   employees,
   profiles,
 }: ProfileLinkManagerProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [selections, setSelections] = useState<Record<string, string>>(
     Object.fromEntries(
       employees.map((employee) => [employee.id, employee.profileId ?? 'none']),
     ),
   )
+  const [savedSelections, setSavedSelections] = useState(selections)
+  const { markSaved } = useUnsavedChanges(JSON.stringify(selections) !== JSON.stringify(savedSelections))
+  const [saveError, setSaveError] = useState('')
   const [savingId, setSavingId] = useState<string | null>(null)
 
   async function save(employeeId: string) {
@@ -59,9 +64,14 @@ export function ProfileLinkManager({
         error?: string
       }
       if (!response.ok) throw new Error(result.error ?? 'Link failed')
+      const nextSaved = { ...savedSelections, [employeeId]: selections[employeeId] }
+      setSavedSelections(nextSaved)
+      if (JSON.stringify(selections) === JSON.stringify(nextSaved)) markSaved()
+      setSaveError('')
       toast.success('Portal account link saved')
       router.refresh()
     } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Link failed')
       toast.error(error instanceof Error ? error.message : 'Link failed')
     } finally {
       setSavingId(null)
@@ -80,6 +90,7 @@ export function ProfileLinkManager({
         </p>
       </CardHeader>
       <CardContent className="divide-y px-0 py-0">
+        {saveError && <p role="alert" className="rounded-xl border border-destructive/40 p-4">{saveError}</p>}
         {employees.map((employee) => {
           const selected = selections[employee.id] ?? 'none'
           const changed = selected !== (employee.profileId ?? 'none')
@@ -103,7 +114,7 @@ export function ProfileLinkManager({
                   }))
                 }
               >
-                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label={`Portal account for ${employee.fullName}`} className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Not linked</SelectItem>
                   {profiles.map((profile) => (

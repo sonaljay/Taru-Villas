@@ -1,7 +1,13 @@
 'use client'
 
+import { DiscardButton } from '@/components/ui/discard-button'
+
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
+import { useNativeFormGuard } from '@/hooks/use-native-form-guard'
+
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { Plus, Trash2, Search, Mail } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -46,7 +52,9 @@ interface AllowedEmailsPageClientProps {
 }
 
 export function AllowedEmailsPageClient({ emails }: AllowedEmailsPageClientProps) {
-  const router = useRouter()
+  const { formProps, markSaved } = useNativeFormGuard()
+
+  const router = usePortalRouter()
   const [search, setSearch] = useState('')
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [newEmail, setNewEmail] = useState('')
@@ -73,6 +81,7 @@ export function AllowedEmailsPageClient({ emails }: AllowedEmailsPageClientProps
         throw new Error(body.error ?? 'Failed to add email')
       }
 
+      markSaved()
       toast.success('Email added to whitelist')
       setNewEmail('')
       setShowAddDialog(false)
@@ -96,6 +105,7 @@ export function AllowedEmailsPageClient({ emails }: AllowedEmailsPageClientProps
         throw new Error('Failed to remove email')
       }
 
+      markSaved()
       toast.success('Email removed from whitelist')
       setDeleteEmail(null)
       router.refresh()
@@ -107,7 +117,7 @@ export function AllowedEmailsPageClient({ emails }: AllowedEmailsPageClientProps
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -189,7 +199,7 @@ export function AllowedEmailsPageClient({ emails }: AllowedEmailsPageClientProps
           <DialogHeader>
             <DialogTitle>Add Allowed Email</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleAdd} className="space-y-4">
+          <form {...formProps} onSubmit={handleAdd} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="add-email">Email Address</Label>
               <Input
@@ -202,13 +212,13 @@ export function AllowedEmailsPageClient({ emails }: AllowedEmailsPageClientProps
               />
             </div>
             <div className="flex justify-end gap-2">
-              <Button
+              <DiscardButton
                 type="button"
                 variant="outline"
                 onClick={() => setShowAddDialog(false)}
               >
                 Cancel
-              </Button>
+              </DiscardButton>
               <Button type="submit" disabled={isAdding}>
                 {isAdding ? 'Adding...' : 'Add Email'}
               </Button>

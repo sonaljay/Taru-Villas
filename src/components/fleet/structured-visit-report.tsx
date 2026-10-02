@@ -1,4 +1,6 @@
 "use client";
+
+import { useSaveProtection, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -37,11 +39,15 @@ async function api(url: string, method = "GET", body?: unknown) {
   if (!r.ok) throw Error(result.error || "Unable to save report");
   return result;
 }
+
 export function StructuredVisitReport({ requestId }: { requestId: string }) {
   const [data, setData] = useState<Data | null>(null),
     [error, setError] = useState(""),
     [pending, setPending] = useState(false),
     [dirty, setDirty] = useState(false);
+  const releaseSaveProtection = useSaveProtection(pending)
+
+  const { markSaved } = useUnsavedChanges(dirty)
   const [content, setContent] = useState<ReportContent | null>(null),
     [answers, setAnswers] = useState<Answer[]>([]),
     [property, setProperty] = useState("");
@@ -53,6 +59,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
     setAnswers(d.answers);
     setProperty(d.report.propertyId || "");
     setDirty(false);
+    releaseSaveProtection(); markSaved();
   }
   useEffect(() => {
     let live = true;
@@ -72,12 +79,6 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
       live = false;
     };
   }, [url]);
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
   async function run(work: () => Promise<void>) {
     setPending(true);
     setError("");
@@ -277,7 +278,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
             <span className="text-sm">
               {q.kind !== "inspection" ? "Score notes (optional)" : "Findings"}
             </span>
-            <Textarea
+            <Textarea disabled={pending}
               aria-label={`${q.label} findings`}
               value={a.notes}
               maxLength={5000}
@@ -359,7 +360,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="space-y-1 sm:col-span-2">
                   <span className="text-sm">Task title</span>
-                  <Input
+                  <Input disabled={pending}
                     value={a.task.title}
                     onChange={(e) => taskPatch(a, { title: e.target.value })}
                   />
@@ -399,7 +400,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
                 </label>
                 <label className="space-y-1">
                   <span className="text-sm">Due date</span>
-                  <Input
+                  <Input disabled={pending}
                     type="date"
                     value={a.task.dueDate || ""}
                     onChange={(e) =>
@@ -431,7 +432,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
                 </label>
                 <label className="space-y-1 sm:col-span-2">
                   <span className="text-sm">Task details</span>
-                  <Textarea
+                  <Textarea disabled={pending}
                     value={a.task.description}
                     onChange={(e) =>
                       taskPatch(a, { description: e.target.value })
@@ -549,7 +550,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
           className="rounded-lg border border-destructive p-4 text-destructive"
         >
           {error}
-          <Button
+          <Button disabled={pending}
             variant="ghost"
             onClick={() => run(async () => apply(await api(url)))}
           >
@@ -578,7 +579,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
             </label>
             <label className="space-y-1">
               <span className="text-sm">Visit date</span>
-              <Input
+              <Input disabled={pending}
                 type="date"
                 value={content?.visitDate || ""}
                 onChange={(e) => details({ visitDate: e.target.value })}
@@ -589,7 +590,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
                 <span className="text-sm">
                   {i ? "Time out" : "Time in"} (optional)
                 </span>
-                <Input
+                <Input disabled={pending}
                   type="time"
                   value={content?.[key] || ""}
                   onChange={(e) => details({ [key]: e.target.value })}
@@ -605,7 +606,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
                   <span className="text-sm">
                     Co-evaluated with (Property Head / 2nd IC)
                   </span>
-                  <Input
+                  <Input disabled={pending}
                     value={content?.coEvaluator || ""}
                     onChange={(e) => details({ coEvaluator: e.target.value })}
                   />
@@ -615,7 +616,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
             {template.key === "security" && (
               <label className="space-y-1 sm:col-span-2">
                 <span className="text-sm">Third-party security firm</span>
-                <Input
+                <Input disabled={pending}
                   value={content?.thirdPartyFirm || ""}
                   onChange={(e) => details({ thirdPartyFirm: e.target.value })}
                 />
@@ -623,7 +624,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
             )}
             <label className="space-y-1 sm:col-span-2">
               <span className="text-sm">Executive summary</span>
-              <Textarea
+              <Textarea disabled={pending}
                 value={content?.summary || ""}
                 onChange={(e) => details({ summary: e.target.value })}
                 placeholder="Overall findings, key concerns and recommended actions"
@@ -651,7 +652,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-xl font-semibold">{section.title}</h2>
                 {!disabled && (
-                  <Button
+                  <Button disabled={pending}
                     variant="outline"
                     onClick={() => {
                       const instance = crypto.randomUUID();
@@ -690,7 +691,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
                           {employee ? "Employee name" : "Room or area"}
                         </span>
                         <Input
-                          disabled={disabled}
+                          disabled={pending || (disabled)}
                           placeholder={
                             employee
                               ? "Employee name"
@@ -710,7 +711,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
                         />
                       </label>
                       {instance !== "default" && !disabled && (
-                        <Button
+                        <Button disabled={pending}
                           variant="ghost"
                           onClick={() => {
                             setAnswers((items) =>
@@ -783,7 +784,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
                           <span className="text-sm font-medium">
                             Key feedback / agreed action plan
                           </span>
-                          <Textarea
+                          <Textarea disabled={pending}
                             value={group[0]?.evaluation.feedback || ""}
                             onChange={(e) => {
                               setAnswers((items) =>
@@ -846,7 +847,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
         <CardContent>
           <Textarea
             aria-label="Open comments"
-            disabled={disabled}
+            disabled={pending || (disabled)}
             value={content?.openComments || ""}
             onChange={(e) => details({ openComments: e.target.value })}
           />

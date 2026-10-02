@@ -1,5 +1,9 @@
 'use client'
 
+import { useSaveProtection, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
+import { Field } from '@/components/ui/field'
+
 import { useMemo, useState } from 'react'
 import { CalendarOff, Loader2, Plus } from 'lucide-react'
 import { toast } from 'sonner'
@@ -54,7 +58,11 @@ export function UnavailabilityManager({
   const [type, setType] = useState('annual_leave')
   const [reference, setReference] = useState('')
   const [note, setNote] = useState('')
+  const { markSaved } = useUnsavedChanges(Boolean(startDate || endDate || reference || note))
+  const [saveError, setSaveError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const releaseSaveProtection = useSaveProtection(isSaving)
+
   const employeesById = useMemo(
     () => new Map(employees.map((employee) => [employee.id, employee])),
     [employees],
@@ -90,8 +98,10 @@ export function UnavailabilityManager({
       setEndDate('')
       setReference('')
       setNote('')
+      releaseSaveProtection(); markSaved(); setSaveError('')
       toast.success('Approved unavailability saved')
     } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Failed to save approved unavailability')
       toast.error(error instanceof Error ? error.message : 'Failed to save approved unavailability')
     } finally {
       setIsSaving(false)
@@ -106,9 +116,10 @@ export function UnavailabilityManager({
           <CardDescription>This immediately blocks roster assignment for the inclusive date range.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 px-5 py-5">
-          <div className="space-y-2">
+          {saveError && <p role="alert" className="rounded-xl border border-destructive/40 p-4">{saveError}</p>}
+          <Field className="space-y-2">
             <Label>Employee</Label>
-            <Select value={employeeId} onValueChange={setEmployeeId}>
+            <Select disabled={isSaving} value={employeeId} onValueChange={setEmployeeId}>
               <SelectTrigger className="w-full"><SelectValue placeholder="No employee" /></SelectTrigger>
               <SelectContent>
                 {employees.map((employee) => (
@@ -116,14 +127,14 @@ export function UnavailabilityManager({
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </Field>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2"><Label htmlFor="unavailable-start">Start</Label><Input id="unavailable-start" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></div>
-            <div className="space-y-2"><Label htmlFor="unavailable-end">End</Label><Input id="unavailable-end" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></div>
+            <div className="space-y-2"><Label htmlFor="unavailable-start">Start</Label><Input disabled={isSaving} id="unavailable-start" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></div>
+            <div className="space-y-2"><Label htmlFor="unavailable-end">End</Label><Input disabled={isSaving} id="unavailable-end" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></div>
           </div>
-          <div className="space-y-2">
+          <Field className="space-y-2">
             <Label>Type</Label>
-            <Select value={type} onValueChange={setType}>
+            <Select disabled={isSaving} value={type} onValueChange={setType}>
               <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {['annual_leave', 'sick_leave', 'lieu', 'training', 'travel_restriction', 'other'].map((value) => (
@@ -131,9 +142,9 @@ export function UnavailabilityManager({
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-2"><Label htmlFor="unavailable-reference">Reference</Label><Input id="unavailable-reference" value={reference} onChange={(event) => setReference(event.target.value)} /></div>
-          <div className="space-y-2"><Label htmlFor="unavailable-note">Operational note</Label><Textarea id="unavailable-note" value={note} onChange={(event) => setNote(event.target.value)} /></div>
+          </Field>
+          <div className="space-y-2"><Label htmlFor="unavailable-reference">Reference</Label><Input disabled={isSaving} id="unavailable-reference" value={reference} onChange={(event) => setReference(event.target.value)} /></div>
+          <div className="space-y-2"><Label htmlFor="unavailable-note">Operational note</Label><Textarea disabled={isSaving} id="unavailable-note" value={note} onChange={(event) => setNote(event.target.value)} /></div>
           <Button onClick={save} disabled={isSaving || employees.length === 0} className="w-full">
             {isSaving ? <Loader2 className="animate-spin" /> : <Plus />}{isSaving ? 'Saving…' : 'Add approved record'}
           </Button>

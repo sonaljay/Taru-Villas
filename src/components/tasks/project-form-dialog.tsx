@@ -1,7 +1,13 @@
 'use client'
 
+import { useSaveProtection, usePortalRouter, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
+import { DiscardButton } from '@/components/ui/discard-button'
+
+import { Field } from '@/components/ui/field'
+
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { useForm, Controller } from 'react-hook-form'
 import { toast } from 'sonner'
 
@@ -54,17 +60,19 @@ export function ProjectFormDialog({
   project,
   onSaved,
 }: ProjectFormDialogProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
 
   const [isPending, setIsPending] = useState(false)
+  const releaseSaveProtection = useSaveProtection(isPending)
+
   const [color, setColor] = useState<string>(project?.color ?? PROJECT_COLORS[0])
 
-  const {
+  const { getValues,
     register,
     handleSubmit,
     control,
     reset,
-    formState: { errors },
+    formState: { errors , isDirty },
   } = useForm<FormValues>({
     defaultValues: {
       name: '',
@@ -73,6 +81,9 @@ export function ProjectFormDialog({
       targetDate: '',
     },
   })
+  const [submitError, setSubmitError] = useState('')
+  const [extraBaseline, setExtraBaseline] = useState(project?.color ?? PROJECT_COLORS[0])
+  const { markSaved } = useUnsavedChanges(open && (isDirty || color !== extraBaseline))
 
   // Prefill / clear when dialog opens or target project changes
   useEffect(() => {
@@ -83,6 +94,7 @@ export function ProjectFormDialog({
       targetDate: project?.targetDate ?? '',
     })
     setColor(project?.color ?? PROJECT_COLORS[0])
+    setExtraBaseline(project?.color ?? PROJECT_COLORS[0])
   }, [open, project?.id, reset])
 
   // -------------------------------------------------------------------------
@@ -114,11 +126,13 @@ export function ProjectFormDialog({
         throw new Error(errBody.error ?? 'Failed to save project')
       }
 
+      reset(getValues()); setExtraBaseline(color); releaseSaveProtection(); markSaved(); setSubmitError('')
       toast.success(project ? 'Project updated' : 'Project created')
       onSaved()
       router.refresh()
       onOpenChange(false)
     } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Something went wrong')
       toast.error(error instanceof Error ? error.message : 'Something went wrong')
     } finally {
       setIsPending(false)
@@ -136,13 +150,14 @@ export function ProjectFormDialog({
           <DialogTitle>{project ? 'Edit Project' : 'Create Project'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit, () => setSubmitError('Check the highlighted details before saving.'))} className="space-y-4"><fieldset disabled={isPending} className="contents">
+      {submitError && <p role="alert" className="portal-form-errors rounded-xl border border-destructive/40 p-4">{submitError}</p>}
           {/* Name */}
           <div className="space-y-1.5">
             <Label htmlFor="project-name">
               Name <span className="text-destructive">*</span>
             </Label>
-            <Input
+            <Input disabled={isPending} aria-invalid={!!errors.name}
               id="project-name"
               placeholder="Project name"
               {...register('name', { required: 'Name is required' })}
@@ -155,7 +170,7 @@ export function ProjectFormDialog({
           {/* Description */}
           <div className="space-y-1.5">
             <Label htmlFor="project-description">Description</Label>
-            <Textarea
+            <Textarea disabled={isPending} aria-invalid={!!errors.description}
               id="project-description"
               placeholder="Optional description"
               rows={3}
@@ -189,13 +204,13 @@ export function ProjectFormDialog({
 
           {/* Status + Target Date */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+            <Field className="space-y-1.5">
               <Label>Status</Label>
               <Controller
                 control={control}
                 name="status"
                 render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select disabled={isPending} value={field.value} onValueChange={field.onChange}>
                     <SelectTrigger className="w-full">
                       <SelectValue />
                     </SelectTrigger>
@@ -206,11 +221,11 @@ export function ProjectFormDialog({
                   </Select>
                 )}
               />
-            </div>
+            </Field>
 
             <div className="space-y-1.5">
               <Label htmlFor="project-target-date">Target Date</Label>
-              <Input
+              <Input disabled={isPending} aria-invalid={!!errors.targetDate}
                 id="project-target-date"
                 type="date"
                 {...register('targetDate')}
@@ -220,14 +235,14 @@ export function ProjectFormDialog({
 
           {/* Footer */}
           <div className="flex items-center justify-end gap-2 pt-2">
-            <Button
+            <DiscardButton
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={isPending}
             >
               Cancel
-            </Button>
+            </DiscardButton>
             <Button type="submit" disabled={isPending}>
               {isPending
                 ? project
@@ -238,7 +253,7 @@ export function ProjectFormDialog({
                   : 'Create Project'}
             </Button>
           </div>
-        </form>
+        </fieldset></form>
       </DialogContent>
     </Dialog>
   )

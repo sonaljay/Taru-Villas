@@ -1,7 +1,11 @@
 'use client'
 
+import { useSaveProtection, usePortalRouter, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
+import { Field } from '@/components/ui/field'
+
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -112,24 +116,26 @@ function extractErrorMessage(body: unknown): string {
 }
 
 export function AssetForm({ mode, role, properties, initial }: AssetFormProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const isEditing = mode === 'edit'
   const pmFinancialsLocked = isEditing && role === 'property_manager'
 
   const [step, setStep] = useState<StepId>(1)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const releaseSaveProtection = useSaveProtection(isSubmitting)
+
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [rooms, setRooms] = useState<Room[]>([])
   const [loadingRooms, setLoadingRooms] = useState(false)
 
-  const {
+  const { reset, getValues,
     register,
     handleSubmit,
     control,
     watch,
     trigger,
     setValue,
-    formState: { errors },
+    formState: { errors , isDirty },
   } = useForm<AssetFormValues>({
     resolver: zodResolver(assetFormSchema),
     defaultValues: {
@@ -146,6 +152,7 @@ export function AssetForm({ mode, role, properties, initial }: AssetFormProps) {
       salvageValue: initial?.salvageValue ?? '0',
     },
   })
+  const { markSaved } = useUnsavedChanges(isDirty)
 
   const propertyId = watch('propertyId')
   const category = watch('category')
@@ -167,7 +174,7 @@ export function AssetForm({ mode, role, properties, initial }: AssetFormProps) {
 
     if (!propertyId) {
       setRooms([])
-      if (!isFirstRun) setValue('roomId', '')
+      if (!isFirstRun) setValue('roomId', '', { shouldDirty: true })
       return
     }
     let cancelled = false
@@ -183,7 +190,7 @@ export function AssetForm({ mode, role, properties, initial }: AssetFormProps) {
       .finally(() => {
         if (!cancelled) setLoadingRooms(false)
       })
-    if (!isFirstRun) setValue('roomId', '')
+    if (!isFirstRun) setValue('roomId', '', { shouldDirty: true })
     return () => {
       cancelled = true
     }
@@ -255,7 +262,8 @@ export function AssetForm({ mode, role, properties, initial }: AssetFormProps) {
           const errBody = await res.json().catch(() => ({}))
           throw new Error(extractErrorMessage(errBody))
         }
-        toast.success('Asset created')
+        reset(getValues()); releaseSaveProtection(); markSaved(); setSubmitError('')
+      toast.success('Asset created')
         router.push('/assets/directory')
         router.refresh()
         return
@@ -287,6 +295,7 @@ export function AssetForm({ mode, role, properties, initial }: AssetFormProps) {
         const errBody = await res.json().catch(() => ({}))
         throw new Error(extractErrorMessage(errBody))
       }
+      reset(getValues()); releaseSaveProtection(); markSaved(); setSubmitError('')
       toast.success('Asset updated')
       router.push('/assets/directory')
       router.refresh()
@@ -300,7 +309,8 @@ export function AssetForm({ mode, role, properties, initial }: AssetFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)}>
+    <form onSubmit={handleSubmit(onSubmit, () => setSubmitError('Check the highlighted details before saving.'))}><fieldset disabled={isSubmitting} className="contents">
+      {submitError && <p role="alert" className="portal-form-errors rounded-xl border border-destructive/40 p-4">{submitError}</p>}
       <Card className="max-w-2xl">
         <CardHeader>
           <CardTitle>{isEditing ? 'Edit Asset' : 'Add Asset'}</CardTitle>
@@ -339,17 +349,17 @@ export function AssetForm({ mode, role, properties, initial }: AssetFormProps) {
             <>
               <div className="space-y-2">
                 <Label htmlFor="name">Name</Label>
-                <Input id="name" placeholder="e.g. Teak Four-Poster Bed" {...register('name')} />
+                <Input disabled={isSubmitting} aria-invalid={!!errors.name} id="name" placeholder="e.g. Teak Four-Poster Bed" {...register('name')} />
                 {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
               </div>
 
-              <div className="space-y-2">
+              <Field className="space-y-2">
                 <Label>Category</Label>
                 <Controller
                   control={control}
                   name="category"
                   render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select disabled={isSubmitting} value={field.value} onValueChange={field.onChange}>
                       <SelectTrigger className="w-full">
                         <SelectValue />
                       </SelectTrigger>
@@ -363,30 +373,30 @@ export function AssetForm({ mode, role, properties, initial }: AssetFormProps) {
                     </Select>
                   )}
                 />
-              </div>
+              </Field>
 
               <div className="space-y-2">
                 <Label htmlFor="imageUrl">Image URL</Label>
-                <Input id="imageUrl" placeholder="https://..." {...register('imageUrl')} />
+                <Input disabled={isSubmitting} aria-invalid={!!errors.imageUrl} id="imageUrl" placeholder="https://..." {...register('imageUrl')} />
                 {errors.imageUrl && <p className="text-sm text-destructive">{errors.imageUrl.message}</p>}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="serialNumber">Serial Number</Label>
-                <Input id="serialNumber" placeholder="Optional" {...register('serialNumber')} />
+                <Input disabled={isSubmitting} aria-invalid={!!errors.serialNumber} id="serialNumber" placeholder="Optional" {...register('serialNumber')} />
               </div>
             </>
           )}
 
           {step === 2 && (
             <>
-              <div className="space-y-2">
+              <Field className="space-y-2">
                 <Label>Property</Label>
                 <Controller
                   control={control}
                   name="propertyId"
                   render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange} disabled={isEditing}>
+                    <Select value={field.value} onValueChange={field.onChange} disabled={isSubmitting || (isEditing)}>
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select a property..." />
                       </SelectTrigger>
@@ -408,9 +418,9 @@ export function AssetForm({ mode, role, properties, initial }: AssetFormProps) {
                     An asset&rsquo;s property can&rsquo;t be changed here.
                   </p>
                 )}
-              </div>
+              </Field>
 
-              <div className="space-y-2">
+              <Field className="space-y-2">
                 <Label>Room</Label>
                 <Controller
                   control={control}
@@ -419,7 +429,7 @@ export function AssetForm({ mode, role, properties, initial }: AssetFormProps) {
                     <Select
                       value={field.value || NO_ROOM}
                       onValueChange={(v) => field.onChange(v === NO_ROOM ? '' : v)}
-                      disabled={!propertyId || loadingRooms}
+                      disabled={isSubmitting || (!propertyId || loadingRooms)}
                     >
                       <SelectTrigger className="w-full">
                         <SelectValue
@@ -437,7 +447,7 @@ export function AssetForm({ mode, role, properties, initial }: AssetFormProps) {
                     </Select>
                   )}
                 />
-              </div>
+              </Field>
             </>
           )}
 
@@ -445,7 +455,7 @@ export function AssetForm({ mode, role, properties, initial }: AssetFormProps) {
             <>
               <div className="space-y-2">
                 <Label htmlFor="purchaseDate">Purchase Date</Label>
-                <Input id="purchaseDate" type="date" {...register('purchaseDate')} />
+                <Input disabled={isSubmitting} aria-invalid={!!errors.purchaseDate} id="purchaseDate" type="date" {...register('purchaseDate')} />
                 {errors.purchaseDate && (
                   <p className="text-sm text-destructive">{errors.purchaseDate.message}</p>
                 )}
@@ -454,12 +464,12 @@ export function AssetForm({ mode, role, properties, initial }: AssetFormProps) {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="purchaseCost">Purchase Cost (LKR)</Label>
-                  <Input
+                  <Input aria-invalid={!!errors.purchaseCost}
                     id="purchaseCost"
                     type="number"
                     step="0.01"
                     min={0}
-                    disabled={pmFinancialsLocked}
+                    disabled={isSubmitting || (pmFinancialsLocked)}
                     {...register('purchaseCost')}
                   />
                   {errors.purchaseCost && (
@@ -469,11 +479,11 @@ export function AssetForm({ mode, role, properties, initial }: AssetFormProps) {
 
                 <div className="space-y-2">
                   <Label htmlFor="usefulLifeYears">Useful Life (years)</Label>
-                  <Input
+                  <Input aria-invalid={!!errors.usefulLifeYears}
                     id="usefulLifeYears"
                     type="number"
                     min={1}
-                    disabled={pmFinancialsLocked}
+                    disabled={isSubmitting || (pmFinancialsLocked)}
                     {...register('usefulLifeYears', { valueAsNumber: true })}
                   />
                   {errors.usefulLifeYears && (
@@ -490,7 +500,7 @@ export function AssetForm({ mode, role, properties, initial }: AssetFormProps) {
 
               <div className="space-y-2">
                 <Label htmlFor="salvageValue">Salvage Value (LKR)</Label>
-                <Input id="salvageValue" type="number" step="0.01" min={0} {...register('salvageValue')} />
+                <Input disabled={isSubmitting} aria-invalid={!!errors.salvageValue} id="salvageValue" type="number" step="0.01" min={0} {...register('salvageValue')} />
                 {errors.salvageValue && (
                   <p className="text-sm text-destructive">{errors.salvageValue.message}</p>
                 )}
@@ -510,10 +520,10 @@ export function AssetForm({ mode, role, properties, initial }: AssetFormProps) {
 
               <div className="space-y-2">
                 <Label htmlFor="assetCode">Asset Code</Label>
-                <Input
+                <Input aria-invalid={!!errors.assetCode}
                   id="assetCode"
                   placeholder={assetCodePlaceholder}
-                  disabled={isEditing}
+                  disabled={isSubmitting || (isEditing)}
                   {...register('assetCode')}
                 />
                 <p className="text-xs text-muted-foreground">
@@ -537,7 +547,7 @@ export function AssetForm({ mode, role, properties, initial }: AssetFormProps) {
           </div>
           <div>
             {step < 3 ? (
-              <Button type="button" onClick={handleNext}>
+              <Button disabled={isSubmitting} type="button" onClick={handleNext}>
                 Next
                 <ArrowRight className="size-4" />
               </Button>
@@ -555,6 +565,6 @@ export function AssetForm({ mode, role, properties, initial }: AssetFormProps) {
           </div>
         </CardFooter>
       </Card>
-    </form>
+    </fieldset></form>
   )
 }

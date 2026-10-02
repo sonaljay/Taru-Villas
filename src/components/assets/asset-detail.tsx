@@ -1,8 +1,12 @@
 'use client'
 
+import { DiscardButton } from '@/components/ui/discard-button'
+
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { ArrowLeft, Pencil, Trash2 } from 'lucide-react'
@@ -86,7 +90,7 @@ interface AssetDetailProps {
 }
 
 export function AssetDetail({ asset, logs, showFinancials, canEdit, canDelete }: AssetDetailProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [isDeleting, setIsDeleting] = useState(false)
   const [resolvingLog, setResolvingLog] = useState<MaintenanceLogRow | null>(null)
   const [repairCostInput, setRepairCostInput] = useState('')
@@ -375,14 +379,14 @@ export function AssetDetail({ asset, logs, showFinancials, canEdit, canDelete }:
             </label>
           </div>
           <DialogFooter>
-            <Button
+            <DiscardButton
               type="button"
               variant="outline"
               onClick={() => setResolvingLog(null)}
               disabled={isResolving}
             >
               Cancel
-            </Button>
+            </DiscardButton>
             <Button type="button" onClick={handleResolve} disabled={isResolving}>
               {isResolving ? 'Resolving...' : 'Resolve'}
             </Button>

@@ -1,7 +1,9 @@
 'use client'
 
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import Image from 'next/image'
 import Link from 'next/link'
 import { MoreHorizontal, Pencil, Power, MapPin, Trash2, Compass, UtensilsCrossed } from 'lucide-react'
@@ -47,7 +49,7 @@ interface PropertyCardProps {
 }
 
 export function PropertyCard({ property, allUsers = [] }: PropertyCardProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [editOpen, setEditOpen] = useState(false)
   const [deactivateOpen, setDeactivateOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)

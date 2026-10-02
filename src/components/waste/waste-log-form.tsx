@@ -1,5 +1,11 @@
 'use client'
 
+import { useSaveProtection } from '@/hooks/use-unsaved-changes'
+
+import { DiscardButton } from '@/components/ui/discard-button'
+
+import { useNativeFormGuard } from '@/hooks/use-native-form-guard'
+
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -41,6 +47,9 @@ function emptyKg(): KgState {
 }
 
 export function WasteLogForm({ propertyId, initialData, onSuccess, onCancel }: WasteLogFormProps) {
+  const [saveError, setSaveError] = useState('')
+  const { formProps, markSaved } = useNativeFormGuard()
+
   const today = new Date().toISOString().split('T')[0]
   const isEditing = !!initialData
 
@@ -59,6 +68,8 @@ export function WasteLogForm({ propertyId, initialData, onSuccess, onCancel }: W
   )
   const [note, setNote] = useState(initialData?.note ?? '')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const releaseSaveProtection = useSaveProtection(isSubmitting)
+
 
   function setField(key: WasteCategoryKey, value: string) {
     setKg((prev) => ({ ...prev, [key]: value }))
@@ -72,12 +83,13 @@ export function WasteLogForm({ propertyId, initialData, onSuccess, onCancel }: W
       const raw = kg[key].trim()
       const n = raw === '' ? 0 : parseFloat(raw)
       if (isNaN(n) || n < 0) {
-        toast.error('Enter valid non-negative kg values')
+        setSaveError('Enter valid non-negative kg values'); toast.error('Enter valid non-negative kg values')
         return
       }
       numeric[key] = n
     }
 
+    setSaveError('')
     setIsSubmitting(true)
     try {
       const url = isEditing ? `/api/waste/${initialData!.id}` : '/api/waste'
@@ -97,24 +109,28 @@ export function WasteLogForm({ propertyId, initialData, onSuccess, onCancel }: W
         throw new Error(body.error ?? 'Failed to save')
       }
 
+      setSaveError('')
+      releaseSaveProtection(); markSaved()
       toast.success(isEditing ? 'Waste log updated' : 'Waste log saved')
       if (!isEditing) {
         setKg(emptyKg())
         setNote('')
       }
+      releaseSaveProtection(); markSaved()
       onSuccess()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to save')
+      setSaveError(error instanceof Error ? error.message : 'Failed to save'); toast.error(error instanceof Error ? error.message : 'Failed to save')
     } finally {
       setIsSubmitting(false)
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form {...formProps} onSubmit={handleSubmit} className="space-y-4"><fieldset disabled={isSubmitting} className="contents">
+      {saveError && <p role="alert" className="rounded-xl border border-destructive/40 p-4">{saveError}</p>}
       <div className="space-y-2">
         <Label htmlFor="waste-date">Date</Label>
-        <Input
+        <Input disabled={isSubmitting}
           id="waste-date"
           type="date"
           value={logDate}
@@ -127,7 +143,7 @@ export function WasteLogForm({ propertyId, initialData, onSuccess, onCancel }: W
         {WASTE_CATEGORIES.map((c) => (
           <div key={c.key} className="space-y-1.5">
             <Label htmlFor={`waste-${c.key}`}>{c.label} (kg)</Label>
-            <Input
+            <Input disabled={isSubmitting}
               id={`waste-${c.key}`}
               type="number"
               step="0.01"
@@ -142,7 +158,7 @@ export function WasteLogForm({ propertyId, initialData, onSuccess, onCancel }: W
 
       <div className="space-y-2">
         <Label htmlFor="waste-note">Note (optional)</Label>
-        <Textarea
+        <Textarea disabled={isSubmitting}
           id="waste-note"
           placeholder="Any observations..."
           value={note}
@@ -153,14 +169,14 @@ export function WasteLogForm({ propertyId, initialData, onSuccess, onCancel }: W
 
       <div className="flex justify-end gap-2">
         {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel}>
+          <DiscardButton disabled={isSubmitting} type="button" variant="outline" onClick={() => onCancel?.()}>
             Cancel
-          </Button>
+          </DiscardButton>
         )}
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? 'Saving...' : isEditing ? 'Save Changes' : 'Save Entry'}
         </Button>
       </div>
-    </form>
+    </fieldset></form>
   )
 }

@@ -1,7 +1,11 @@
 'use client'
 
+import { useSaveProtection, usePortalRouter, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
+import { Field } from '@/components/ui/field'
+
 import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import Link from 'next/link'
 import {
   useReactTable,
@@ -223,15 +227,17 @@ interface VehicleFormProps {
 }
 
 function VehicleForm({ vehicle, properties, managers, onSuccess }: VehicleFormProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const releaseSaveProtection = useSaveProtection(isSubmitting)
+
   const isEditing = !!vehicle
 
-  const {
+  const { reset, getValues,
     register,
     handleSubmit,
     control,
-    formState: { errors },
+    formState: { errors , isDirty },
   } = useForm<VehicleFormValues>({
     defaultValues: {
       name: vehicle?.name ?? '',
@@ -247,6 +253,8 @@ function VehicleForm({ vehicle, properties, managers, onSuccess }: VehicleFormPr
       compliance: vehicle?.compliance ?? {},
     },
   })
+  const [submitError, setSubmitError] = useState('')
+  const { markSaved } = useUnsavedChanges(isDirty)
 
   async function onSubmit(values: VehicleFormValues) {
     setIsSubmitting(true)
@@ -288,10 +296,12 @@ function VehicleForm({ vehicle, properties, managers, onSuccess }: VehicleFormPr
         )
       }
 
+      reset(getValues()); releaseSaveProtection(); markSaved(); setSubmitError('')
       toast.success(isEditing ? 'Vehicle updated' : 'Vehicle created')
       onSuccess()
       router.refresh()
     } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Something went wrong')
       toast.error(error instanceof Error ? error.message : 'Something went wrong')
     } finally {
       setIsSubmitting(false)
@@ -299,21 +309,22 @@ function VehicleForm({ vehicle, properties, managers, onSuccess }: VehicleFormPr
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form onSubmit={handleSubmit(onSubmit, () => setSubmitError('Check the highlighted details before saving.'))} className="space-y-5"><fieldset disabled={isSubmitting} className="contents">
+      {submitError && <p role="alert" className="portal-form-errors rounded-xl border border-destructive/40 p-4">{submitError}</p>}
       <div className="space-y-2">
         <Label htmlFor="vehicle-name">Name</Label>
-        <Input id="vehicle-name" {...register('name', { required: 'Name is required' })} />
+        <Input disabled={isSubmitting} aria-invalid={!!errors.name} id="vehicle-name" {...register('name', { required: 'Name is required' })} />
         {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="vehicle-registration">Registration No.</Label>
-        <Input id="vehicle-registration" placeholder="Optional" {...register('registrationNo')} />
+        <Input disabled={isSubmitting} aria-invalid={!!errors.registrationNo} id="vehicle-registration" placeholder="Optional" {...register('registrationNo')} />
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="vehicle-seats">Seats</Label>
-        <Input
+        <Input disabled={isSubmitting} aria-invalid={!!errors.maxPassengers}
           id="vehicle-seats"
           type="number"
           min={0}
@@ -339,7 +350,7 @@ function VehicleForm({ vehicle, properties, managers, onSuccess }: VehicleFormPr
           control={control}
           name="cargoCapable"
           render={({ field }) => (
-            <Switch id="vehicle-cargo" checked={field.value} onCheckedChange={field.onChange} />
+            <Switch disabled={isSubmitting} id="vehicle-cargo" checked={field.value} onCheckedChange={field.onChange} />
           )}
         />
       </div>
@@ -355,7 +366,7 @@ function VehicleForm({ vehicle, properties, managers, onSuccess }: VehicleFormPr
           control={control}
           name="isRestricted"
           render={({ field }) => (
-            <Switch
+            <Switch disabled={isSubmitting}
               id="vehicle-restricted"
               checked={field.value}
               onCheckedChange={field.onChange}
@@ -364,13 +375,13 @@ function VehicleForm({ vehicle, properties, managers, onSuccess }: VehicleFormPr
         />
       </div>
 
-      <div className="space-y-2">
+      <Field className="space-y-2">
         <Label>Status</Label>
         <Controller
           control={control}
           name="status"
           render={({ field }) => (
-            <Select value={field.value} onValueChange={field.onChange}>
+            <Select disabled={isSubmitting} value={field.value} onValueChange={field.onChange}>
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -382,15 +393,15 @@ function VehicleForm({ vehicle, properties, managers, onSuccess }: VehicleFormPr
             </Select>
           )}
         />
-      </div>
+      </Field>
 
-      <div className="space-y-2">
+      <Field className="space-y-2">
         <Label>Currently at</Label>
         <Controller
           control={control}
           name="currentLocationPropertyId"
           render={({ field }) => (
-            <Select value={field.value} onValueChange={field.onChange}>
+            <Select disabled={isSubmitting} value={field.value} onValueChange={field.onChange}>
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -405,11 +416,11 @@ function VehicleForm({ vehicle, properties, managers, onSuccess }: VehicleFormPr
             </Select>
           )}
         />
-      </div>
+      </Field>
 
       <div className="space-y-2">
         <Label htmlFor="vehicle-sort-order">Sort order</Label>
-        <Input
+        <Input disabled={isSubmitting} aria-invalid={!!errors.sortOrder}
           id="vehicle-sort-order"
           type="number"
           {...register('sortOrder', {
@@ -436,7 +447,7 @@ function VehicleForm({ vehicle, properties, managers, onSuccess }: VehicleFormPr
               : 'Create Vehicle'}
         </Button>
       </div>
-    </form>
+    </fieldset></form>
   )
 }
 
@@ -451,7 +462,7 @@ interface VehiclesClientProps {
 }
 
 export function VehiclesClient({ vehicles, properties, managers }: VehiclesClientProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
 
   const [sorting, setSorting] = useState<SortingState>([])
   const [createOpen, setCreateOpen] = useState(false)

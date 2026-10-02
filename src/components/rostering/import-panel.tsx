@@ -62,6 +62,8 @@ function templateFor(
   ].join('\r\n')
 }
 
+import { useUnsavedChanges, useUnsavedChangesNavigation } from '@/hooks/use-unsaved-changes'
+
 export function ImportPanel({
   isAdmin,
   defaultMonth,
@@ -72,6 +74,10 @@ export function ImportPanel({
   const [month, setMonth] = useState(defaultMonth)
   const [fileName, setFileName] = useState('')
   const [csv, setCsv] = useState('')
+  const [savedCsv, setSavedCsv] = useState('')
+  const { markSaved } = useUnsavedChanges(csv !== savedCsv)
+  const { confirmNavigation } = useUnsavedChangesNavigation()
+  const [saveError, setSaveError] = useState('')
   const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const canCommit = isAdmin || !['employees', 'boundary'].includes(type)
@@ -95,6 +101,7 @@ export function ImportPanel({
 
   async function chooseFile(file: File | undefined) {
     if (!file) return
+    if (!confirmNavigation()) return
     setFileName(file.name)
     setCsv(await file.text())
     setPreview(null)
@@ -115,6 +122,7 @@ export function ImportPanel({
       if (body.errors.length) toast.error('Preview contains row errors')
       else toast.success('CSV preview ready')
     } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Import could not be completed')
       toast.error(error instanceof Error ? error.message : 'Preview failed')
     } finally {
       setIsLoading(false)
@@ -142,6 +150,7 @@ export function ImportPanel({
         unchanged?: number
       }
       if (!response.ok) throw new Error(body.error ?? 'Commit failed')
+      setSavedCsv(csv); markSaved(); setSaveError('')
       toast.success(
         `Import committed: ${body.added} added, ${body.updated} updated, ${body.unchanged} unchanged`,
       )
@@ -149,6 +158,7 @@ export function ImportPanel({
       setCsv('')
       setFileName('')
     } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Import could not be completed')
       toast.error(error instanceof Error ? error.message : 'Commit failed')
     } finally {
       setIsLoading(false)
@@ -163,6 +173,7 @@ export function ImportPanel({
           <CardDescription>Choose the source dataset to validate.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-1 px-3">
+        {saveError && <p role="alert" className="rounded-xl border border-destructive/40 p-4">{saveError}</p>}
           {(Object.keys(labels) as RosterImportType[]).map((item) => {
             const adminOnly = ['employees', 'boundary'].includes(item)
             return (

@@ -1,4 +1,10 @@
 'use client'
+
+import { useSaveProtection } from '@/hooks/use-unsaved-changes'
+
+import { DiscardButton } from '@/components/ui/discard-button'
+
+import { useNativeFormGuard } from '@/hooks/use-native-form-guard'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -19,12 +25,16 @@ type RouteTask = {
   approval: string
 }
 export function TaskRoutingClient({ options }: { options: Options }) {
+  const { formProps, markSaved } = useNativeFormGuard()
+
   const [items, setItems] = useState<RouteTask[]>([]),
     [search, setSearch] = useState(''),
     [error, setError] = useState(''),
     [selected, setSelected] = useState<RouteTask | null>(null),
     [busy, setBusy] = useState(false),
     [tick, setTick] = useState(0)
+  const releaseSaveProtection = useSaveProtection(busy)
+
   useEffect(() => {
     const c = new AbortController()
     const timer = setTimeout(
@@ -71,7 +81,7 @@ export function TaskRoutingClient({ options }: { options: Options }) {
         </p>
       )}
       {selected && (
-        <form
+        <form {...formProps}
           key={selected.id}
           className="space-y-3 rounded-lg border p-5"
           onSubmit={async (e) => {
@@ -101,6 +111,7 @@ export function TaskRoutingClient({ options }: { options: Options }) {
                         },
                 }),
               )
+              releaseSaveProtection(); markSaved()
               setSelected(null)
               setTick((t) => t + 1)
             } catch (e) {
@@ -110,7 +121,7 @@ export function TaskRoutingClient({ options }: { options: Options }) {
               setBusy(false)
             }
           }}
-        >
+        ><fieldset disabled={busy} className="contents">
           <h2 className="font-medium">{selected.title}</h2>
           <select
             name="committee"
@@ -137,15 +148,15 @@ export function TaskRoutingClient({ options }: { options: Options }) {
           />
           <div className="flex gap-2">
             <Button disabled={busy}>Send for approval</Button>
-            <Button
+            <DiscardButton disabled={busy}
               type="button"
               variant="outline"
               onClick={() => setSelected(null)}
             >
               Cancel
-            </Button>
+            </DiscardButton>
           </div>
-        </form>
+        </fieldset></form>
       )}
       <div className="divide-y rounded-lg border">
         {items.map((t) => (
@@ -160,7 +171,7 @@ export function TaskRoutingClient({ options }: { options: Options }) {
                 {statusLabel(t.approval)}
               </p>
             </div>
-            <Button variant="outline" size="sm" onClick={() => setSelected(t)}>
+            <Button disabled={busy} variant="outline" size="sm" onClick={() => setSelected(t)}>
               Route
             </Button>
           </div>

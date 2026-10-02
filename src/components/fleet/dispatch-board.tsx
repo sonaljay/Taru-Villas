@@ -1,7 +1,9 @@
 'use client'
 
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { BellOff, BellRing, CalendarClock, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -291,7 +293,7 @@ interface DispatchBoardProps {
 }
 
 export function DispatchBoard({ dispatches, pendingRequests, vehicles, drivers }: DispatchBoardProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
 
   const [isRunning, setIsRunning] = useState(false)
   const [approvingId, setApprovingId] = useState<string | null>(null)

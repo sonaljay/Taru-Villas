@@ -30,7 +30,7 @@ export async function ConsolidatedDashboard({orgId,property,filters,showPortfoli
       <div className="space-y-1">
         {property&&showPortfolioLink&&<Link href={`/dashboard?${query}`} className="text-sm text-muted-foreground hover:underline">All properties</Link>}
         <h1 className="text-2xl font-bold tracking-tight">{property?.name??'Quality overview'}</h1>
-        <p className="text-sm text-muted-foreground">Guest feedback across surveys, Google and Tripadvisor reviews.</p>
+        <p className="text-sm text-muted-foreground">See how your properties are doing, then explore the feedback behind the scores.</p>
       </div>
       <form action={base} className="flex flex-wrap items-end gap-2">
         <label className="space-y-1 text-xs text-muted-foreground"><span className="block">Source</span><select name="source" defaultValue={source} className="h-9 rounded-md border bg-background px-2 text-sm text-foreground">
@@ -43,12 +43,12 @@ export async function ConsolidatedDashboard({orgId,property,filters,showPortfoli
       </form>
     </div>
 
-    <Card><CardContent className="grid gap-6 pt-6 lg:grid-cols-[minmax(0,1fr)_2fr]">
+    <Card className="border-primary/20 bg-secondary/40"><CardContent className="grid gap-6 pt-6 lg:grid-cols-[minmax(0,1fr)_2fr]">
       <div>
         <p className="text-sm font-medium">Consolidated score</p>
         <p className={`mt-2 text-4xl font-semibold tracking-tight tabular-nums ${categoryScoreColors(summary.score).text}`}>{formattedScore(summary.score)}<span className="ml-2 text-base font-normal text-muted-foreground">/ 10</span></p>
         <p className="mt-2 text-sm text-muted-foreground">{summary.count.toLocaleString()} reviews and surveys</p>
-        <details className="mt-3 text-xs text-muted-foreground"><summary className="cursor-pointer hover:text-foreground">How the score is calculated</summary>
+        <details className="mt-3 rounded-xl border bg-card p-3 text-sm text-muted-foreground"><summary className="cursor-pointer hover:text-foreground">How the score is calculated</summary>
           <p className="mt-2 max-w-prose leading-relaxed">Guest, Internal and Reviews each have equal weight when available. Within Reviews, Google and Tripadvisor have equal weight. Survey responses use their configured scales and category weights, then each submission counts once. Google and Tripadvisor stars are normalized from 1–5 to 0–10, so 1 star = 0 and 5 stars = 10. Missing sources have no weight. AI category estimates do not change this score.</p>
         </details>
       </div>

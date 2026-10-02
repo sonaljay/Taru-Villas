@@ -1,7 +1,13 @@
 'use client'
 
+import { useSaveProtection, usePortalRouter, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
+import { DiscardButton } from '@/components/ui/discard-button'
+
+import { Field } from '@/components/ui/field'
+
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { toast } from 'sonner'
@@ -141,19 +147,21 @@ interface TemplateBuilderProps {
 // ---------------------------------------------------------------------------
 
 export function TemplateBuilder({ initialData }: TemplateBuilderProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [isSaving, setIsSaving] = useState(false)
+  const releaseSaveProtection = useSaveProtection(isSaving)
+
   const [collapsedCategories, setCollapsedCategories] = useState<Set<number>>(
     new Set()
   )
 
   const isEditing = !!initialData?.id
 
-  const {
+  const { reset, getValues,
     register,
     control,
     handleSubmit,
-    formState: { errors },
+    formState: { errors , isDirty },
     watch,
     setValue,
   } = useForm<TemplateFormValues>({
@@ -186,6 +194,8 @@ export function TemplateBuilder({ initialData }: TemplateBuilderProps) {
         })) ?? [],
     },
   })
+  const [submitError, setSubmitError] = useState('')
+  const { markSaved } = useUnsavedChanges(isDirty)
 
   const {
     fields: categoryFields,
@@ -242,6 +252,7 @@ export function TemplateBuilder({ initialData }: TemplateBuilderProps) {
     const result = templateFormSchema.safeParse(data)
     if (!result.success) {
       const firstError = result.error.issues[0]
+      setSubmitError(firstError?.message ?? 'Validation failed')
       toast.error(firstError?.message ?? 'Validation failed')
       return
     }
@@ -289,12 +300,14 @@ export function TemplateBuilder({ initialData }: TemplateBuilderProps) {
         throw new Error(body.error ?? 'Something went wrong')
       }
 
+      reset(getValues()); releaseSaveProtection(); markSaved(); setSubmitError('')
       toast.success(
         isEditing ? 'Template updated successfully' : 'Template created successfully'
       )
       router.push('/surveys/templates')
       router.refresh()
     } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Failed to save template')
       toast.error(
         error instanceof Error ? error.message : 'Failed to save template'
       )
@@ -304,7 +317,8 @@ export function TemplateBuilder({ initialData }: TemplateBuilderProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+    <form onSubmit={handleSubmit(onSubmit, () => setSubmitError('Check the highlighted details before saving.'))} className="space-y-8"><fieldset disabled={isSaving} className="contents">
+      {submitError && <p role="alert" className="portal-form-errors rounded-xl border border-destructive/40 p-4">{submitError}</p>}
       {/* Top bar */}
       <div className="flex items-center justify-between">
         <div>
@@ -318,13 +332,13 @@ export function TemplateBuilder({ initialData }: TemplateBuilderProps) {
           )}
         </div>
         <div className="flex items-center gap-3">
-          <Button
+          <DiscardButton disabled={isSaving}
             type="button"
             variant="outline"
             onClick={() => router.push('/surveys/templates')}
           >
             Cancel
-          </Button>
+          </DiscardButton>
           <Button type="submit" disabled={isSaving}>
             <Save className="size-4" />
             {isSaving ? 'Saving...' : isEditing ? 'Save Changes' : 'Save Template'}
@@ -344,7 +358,7 @@ export function TemplateBuilder({ initialData }: TemplateBuilderProps) {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="name">Template Name</Label>
-              <Input
+              <Input disabled={isSaving} aria-invalid={!!errors.name}
                 id="name"
                 placeholder="e.g. Monthly Quality Assessment"
                 {...register('name', { required: 'Template name is required' })}
@@ -353,7 +367,7 @@ export function TemplateBuilder({ initialData }: TemplateBuilderProps) {
                 <p className="text-sm text-destructive">{errors.name.message}</p>
               )}
             </div>
-            <div className="space-y-2">
+            <Field className="space-y-2">
               <Label>Survey Type</Label>
               <Controller
                 control={control}
@@ -362,7 +376,7 @@ export function TemplateBuilder({ initialData }: TemplateBuilderProps) {
                   <Select
                     value={field.value}
                     onValueChange={field.onChange}
-                    disabled={isEditing}
+                    disabled={isSaving || (isEditing)}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue />
@@ -379,11 +393,11 @@ export function TemplateBuilder({ initialData }: TemplateBuilderProps) {
                   ? 'Guest surveys for external feedback'
                   : 'Internal quality assessments'}
               </p>
-            </div>
+            </Field>
           </div>
           <div className="space-y-2">
             <Label htmlFor="description">Description</Label>
-            <Textarea
+            <Textarea disabled={isSaving} aria-invalid={!!errors.description}
               id="description"
               placeholder="Describe the purpose of this template..."
               rows={3}
@@ -444,7 +458,7 @@ export function TemplateBuilder({ initialData }: TemplateBuilderProps) {
           />
         ))}
 
-        <Button
+        <Button disabled={isSaving}
           type="button"
           variant="outline"
           onClick={addCategory}
@@ -454,7 +468,7 @@ export function TemplateBuilder({ initialData }: TemplateBuilderProps) {
           Add Category
         </Button>
       </div>
-    </form>
+    </fieldset></form>
   )
 }
 
@@ -591,7 +605,7 @@ function CategorySection({
         <CardContent className="space-y-6">
           {/* Category fields */}
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
+            <Field className="space-y-2">
               <Label>Category Name</Label>
               <Input
                 placeholder="e.g. Cleanliness"
@@ -604,8 +618,8 @@ function CategorySection({
                   {categoryErrors.name.message}
                 </p>
               )}
-            </div>
-            <div className="space-y-2">
+            </Field>
+            <Field className="space-y-2">
               <Label>Weight</Label>
               <Input
                 type="number"
@@ -617,7 +631,7 @@ function CategorySection({
               <p className="text-xs text-muted-foreground">
                 Higher weights count more toward the overall score
               </p>
-            </div>
+            </Field>
           </div>
 
           <Separator />
@@ -790,7 +804,7 @@ function SubcategorySection({
       {!hideHeader && (
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
+            <Field className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">
                 Sub-category Name
               </Label>
@@ -806,8 +820,8 @@ function SubcategorySection({
                   {subcategoryErrors.name.message}
                 </p>
               )}
-            </div>
-            <div className="space-y-1.5">
+            </Field>
+            <Field className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">
                 Description (optional)
               </Label>
@@ -817,7 +831,7 @@ function SubcategorySection({
                   `categories.${categoryIndex}.subcategories.${subcategoryIndex}.description`
                 )}
               />
-            </div>
+            </Field>
           </div>
           {onRemove && (
             <Button
@@ -952,7 +966,7 @@ function QuestionRow({
 
         {/* Question content */}
         <div className="flex-1 space-y-3">
-          <div className="space-y-2">
+          <Field className="space-y-2">
             <Label className="text-xs text-muted-foreground">
               Question {questionIndex + 1} — Title
             </Label>
@@ -968,8 +982,8 @@ function QuestionRow({
                 {questionErrors.text.message}
               </p>
             )}
-          </div>
-          <div className="space-y-2">
+          </Field>
+          <Field className="space-y-2">
             <Label className="text-xs text-muted-foreground">
               Description (optional)
             </Label>
@@ -978,10 +992,10 @@ function QuestionRow({
               rows={2}
               {...register(`${prefix}.description`)}
             />
-          </div>
+          </Field>
 
           <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
+            <Field className="flex items-center gap-2">
               <Label className="text-xs text-muted-foreground whitespace-nowrap">
                 Scale Min
               </Label>
@@ -990,8 +1004,8 @@ function QuestionRow({
                 className="w-20"
                 {...register(`${prefix}.scaleMin`, { valueAsNumber: true })}
               />
-            </div>
-            <div className="flex items-center gap-2">
+            </Field>
+            <Field className="flex items-center gap-2">
               <Label className="text-xs text-muted-foreground whitespace-nowrap">
                 Scale Max
               </Label>
@@ -1000,8 +1014,8 @@ function QuestionRow({
                 className="w-20"
                 {...register(`${prefix}.scaleMax`, { valueAsNumber: true })}
               />
-            </div>
-            <div className="flex items-center gap-2">
+            </Field>
+            <Field className="flex items-center gap-2">
               <Label className="text-xs text-muted-foreground">Required</Label>
               <Controller
                 control={control}
@@ -1013,7 +1027,7 @@ function QuestionRow({
                   />
                 )}
               />
-            </div>
+            </Field>
           </div>
         </div>
 

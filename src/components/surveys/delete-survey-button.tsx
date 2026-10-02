@@ -1,7 +1,9 @@
 'use client'
 
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -22,7 +24,7 @@ interface DeleteSurveyButtonProps {
 }
 
 export function DeleteSurveyButton({ submissionId }: DeleteSurveyButtonProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [isDeleting, setIsDeleting] = useState(false)
 
   async function handleDelete() {

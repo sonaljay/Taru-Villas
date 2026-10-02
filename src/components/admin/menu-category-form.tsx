@@ -1,7 +1,9 @@
 'use client'
 
+import { useSaveProtection, usePortalRouter, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { toast } from 'sonner'
@@ -36,16 +38,18 @@ export function MenuCategoryForm({
   category,
   onSuccess,
 }: MenuCategoryFormProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const releaseSaveProtection = useSaveProtection(isSubmitting)
+
   const isEditing = !!category
 
-  const {
+  const { reset, getValues,
     register,
     handleSubmit,
     watch,
     setValue,
-    formState: { errors },
+    formState: { errors , isDirty },
   } = useForm<CategoryFormValues>({
     defaultValues: {
       name: category?.name ?? '',
@@ -55,6 +59,8 @@ export function MenuCategoryForm({
       isActive: category?.isActive ?? true,
     },
   })
+  const [submitError, setSubmitError] = useState('')
+  const { markSaved } = useUnsavedChanges(isDirty)
 
   const isActiveValue = watch('isActive')
 
@@ -82,10 +88,12 @@ export function MenuCategoryForm({
         throw new Error(body.message || body.error || 'Something went wrong')
       }
 
+      reset(getValues()); releaseSaveProtection(); markSaved(); setSubmitError('')
       toast.success(isEditing ? 'Category updated' : 'Category created')
       onSuccess?.()
       router.refresh()
     } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Failed to save category')
       toast.error(
         error instanceof Error ? error.message : 'Failed to save category'
       )
@@ -95,10 +103,11 @@ export function MenuCategoryForm({
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form onSubmit={handleSubmit(onSubmit, () => setSubmitError('Check the highlighted details before saving.'))} className="space-y-5"><fieldset disabled={isSubmitting} className="contents">
+      {submitError && <p role="alert" className="portal-form-errors rounded-xl border border-destructive/40 p-4">{submitError}</p>}
       <div className="space-y-2">
         <Label htmlFor="name">Name</Label>
-        <Input
+        <Input disabled={isSubmitting} aria-invalid={!!errors.name}
           id="name"
           placeholder="e.g. Starters, Main Course, Desserts"
           {...register('name', { required: 'Name is required' })}
@@ -110,7 +119,7 @@ export function MenuCategoryForm({
 
       <div className="space-y-2">
         <Label htmlFor="description">Description</Label>
-        <Textarea
+        <Textarea disabled={isSubmitting} aria-invalid={!!errors.description}
           id="description"
           placeholder="Optional description for this category..."
           rows={2}
@@ -120,7 +129,7 @@ export function MenuCategoryForm({
 
       <div className="space-y-2">
         <Label htmlFor="priceNote">Price note (optional)</Label>
-        <Input id="priceNote" placeholder="e.g. $25 per person" {...register('priceNote')} />
+        <Input disabled={isSubmitting} aria-invalid={!!errors.priceNote} id="priceNote" placeholder="e.g. $25 per person" {...register('priceNote')} />
         <p className="text-xs text-muted-foreground">
           On a set menu, leave this blank to include the course in the set price
           (shown at the menu level). Add a price here to show it as a separate,
@@ -130,7 +139,7 @@ export function MenuCategoryForm({
 
       <div className="space-y-2">
         <Label htmlFor="sortOrder">Sort Order</Label>
-        <Input
+        <Input disabled={isSubmitting} aria-invalid={!!errors.sortOrder}
           id="sortOrder"
           type="number"
           min={0}
@@ -150,10 +159,10 @@ export function MenuCategoryForm({
             Inactive categories are hidden from the public page
           </p>
         </div>
-        <Switch
+        <Switch disabled={isSubmitting}
           id="isActive"
           checked={isActiveValue}
-          onCheckedChange={(checked) => setValue('isActive', checked)}
+          onCheckedChange={(checked) => setValue('isActive', checked, { shouldDirty: true })}
         />
       </div>
 
@@ -168,6 +177,6 @@ export function MenuCategoryForm({
               : 'Create Category'}
         </Button>
       </div>
-    </form>
+    </fieldset></form>
   )
 }

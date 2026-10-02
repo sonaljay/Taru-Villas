@@ -1,7 +1,9 @@
 'use client'
 
+import { useSaveProtection, usePortalRouter, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { Check } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -57,7 +59,7 @@ async function parseErrorMessage(res: Response, fallback: string): Promise<strin
 }
 
 export function DistancesGrid({ distances, properties }: DistancesGridProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
 
   // Head office is a node represented by a null property id, and comes first.
   const nodes: Node[] = useMemo(
@@ -200,6 +202,8 @@ function DistanceCell({
   // resync from props — it survives any number of unrelated refreshes.
   const [draft, setDraft] = useState(value !== null ? String(value) : '')
   const [isSaving, setIsSaving] = useState(false)
+  const releaseSaveProtection = useSaveProtection(isSaving)
+
   const [justSaved, setJustSaved] = useState(false)
 
   // Auto-clears the quiet "saved" indicator — see the toast-noise note on
@@ -210,6 +214,10 @@ function DistanceCell({
     const timer = setTimeout(() => setJustSaved(false), 1500)
     return () => clearTimeout(timer)
   }, [justSaved])
+
+  const [baseline, setBaseline] = useState(value !== null ? String(value) : '')
+  const [saveError, setSaveError] = useState('')
+  const { markSaved } = useUnsavedChanges(draft !== baseline)
 
   async function handleBlur() {
     const trimmed = draft.trim()
@@ -224,8 +232,8 @@ function DistanceCell({
 
     const parsed = Number(trimmed)
     if (!Number.isFinite(parsed) || parsed < 0) {
+      setSaveError('Enter a valid distance in km')
       toast.error('Enter a valid distance in km')
-      setDraft(value !== null ? String(value) : '')
       return
     }
 
@@ -235,25 +243,26 @@ function DistanceCell({
     if (value !== null && parsed === value) return
 
     if (parsed > MAX_DISTANCE_KM) {
+      setSaveError(`Distance must be ${MAX_DISTANCE_KM} km or less`)
       toast.error(`Distance must be ${MAX_DISTANCE_KM} km or less`)
-      setDraft(value !== null ? String(value) : '')
       return
     }
 
     setIsSaving(true)
+    setSaveError('')
     try {
       await onSave(parsed)
-      setJustSaved(true)
+      setBaseline(draft); releaseSaveProtection(); markSaved(); setJustSaved(true)
     } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Failed to save distance')
       toast.error(error instanceof Error ? error.message : 'Failed to save distance')
-      setDraft(value !== null ? String(value) : '')
     } finally {
       setIsSaving(false)
     }
   }
 
   return (
-    <div className="mx-auto flex w-24 items-center justify-center gap-1">
+    <div className="mx-auto flex w-24 flex-wrap items-center justify-center gap-1">
       <Input
         type="number"
         min={0}
@@ -262,11 +271,12 @@ function DistanceCell({
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={handleBlur}
-        disabled={isSaving}
+        disabled={isSaving || (isSaving)}
         placeholder="—"
         aria-label={ariaLabel}
-        className="h-8 w-20 text-center"
+        aria-invalid={Boolean(saveError)} className="portal-dense-field h-8 w-20 text-center"
       />
+      {saveError && <span role="alert" className="text-sm text-destructive">{saveError}</span>}
       <Check
         className={`size-3.5 shrink-0 text-emerald-600 transition-opacity ${
           justSaved ? 'opacity-100' : 'opacity-0'

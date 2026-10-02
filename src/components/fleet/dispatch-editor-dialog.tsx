@@ -1,7 +1,11 @@
 'use client'
 
+import { useSaveProtection, usePortalRouter, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
+import { Field } from '@/components/ui/field'
+
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { useForm, Controller } from 'react-hook-form'
 import { toast } from 'sonner'
 
@@ -95,8 +99,10 @@ export function DispatchEditorDialog({
   prefillRequest,
   onSuccess,
 }: DispatchEditorDialogProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const releaseSaveProtection = useSaveProtection(isSubmitting)
+
   const [selectedRequestIds, setSelectedRequestIds] = useState<Set<string>>(new Set())
 
   // Matches the manual-dispatch API's own `status !== 'active'` check
@@ -122,16 +128,18 @@ export function DispatchEditorDialog({
     return staleVehicle ? [...activeVehicles, staleVehicle] : activeVehicles
   }, [activeVehicles, vehicles, dispatch])
 
-  const {
+  const { getValues,
     register,
     handleSubmit,
     control,
     watch,
     reset,
-    formState: { errors },
+    formState: { errors , isDirty },
   } = useForm<DispatchEditorFormValues>({
     defaultValues: { vehicleId: '', driverId: '', startDate: '', endDate: '' },
   })
+  const [submitError, setSubmitError] = useState('')
+  const { markSaved } = useUnsavedChanges(isDirty)
 
   // Re-seed the form every time the dialog opens for a (possibly different)
   // context — "New dispatch", "Edit" on a draft, or "Assign manually" on a
@@ -281,10 +289,12 @@ export function DispatchEditorDialog({
         )
       }
 
+      reset(getValues()); releaseSaveProtection(); markSaved(); setSubmitError('')
       toast.success(dispatch ? 'Dispatch updated' : 'Dispatch created')
       onSuccess?.()
       router.refresh()
     } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Something went wrong')
       toast.error(error instanceof Error ? error.message : 'Something went wrong')
     } finally {
       setIsSubmitting(false)
@@ -308,15 +318,16 @@ export function DispatchEditorDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>Choose a vehicle, an eligible driver, and the requests to attach.</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-          <div className="space-y-2">
+        <form onSubmit={handleSubmit(onSubmit, () => setSubmitError('Check the highlighted details before saving.'))} className="space-y-5"><fieldset disabled={isSubmitting} className="contents">
+      {submitError && <p role="alert" className="portal-form-errors rounded-xl border border-destructive/40 p-4">{submitError}</p>}
+          <Field className="space-y-2">
             <Label>Vehicle</Label>
             <Controller
               control={control}
               name="vehicleId"
               rules={{ required: 'Select a vehicle' }}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select disabled={isSubmitting} value={field.value} onValueChange={field.onChange}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select a vehicle" />
                   </SelectTrigger>
@@ -339,16 +350,16 @@ export function DispatchEditorDialog({
                 dispatched — choose another vehicle.
               </p>
             )}
-          </div>
+          </Field>
 
-          <div className="space-y-2">
+          <Field className="space-y-2">
             <Label>Driver</Label>
             <Controller
               control={control}
               name="driverId"
               rules={{ required: 'Select a driver' }}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange} disabled={vehicleId === ''}>
+                <Select value={field.value} onValueChange={field.onChange} disabled={isSubmitting || (vehicleId === '')}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder={vehicleId === '' ? 'Select a vehicle first' : 'Select a driver'} />
                   </SelectTrigger>
@@ -372,12 +383,12 @@ export function DispatchEditorDialog({
             ) : (
               errors.driverId && <p className="text-sm text-destructive">{errors.driverId.message}</p>
             )}
-          </div>
+          </Field>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="dispatch-start">Start date</Label>
-              <Input
+              <Input disabled={isSubmitting} aria-invalid={!!errors.startDate}
                 id="dispatch-start"
                 type="date"
                 {...register('startDate', { required: 'Start date is required' })}
@@ -386,7 +397,7 @@ export function DispatchEditorDialog({
             </div>
             <div className="space-y-2">
               <Label htmlFor="dispatch-end">End date</Label>
-              <Input
+              <Input disabled={isSubmitting} aria-invalid={!!errors.endDate}
                 id="dispatch-end"
                 type="date"
                 {...register('endDate', {
@@ -464,7 +475,7 @@ export function DispatchEditorDialog({
               {submitLabel}
             </Button>
           </div>
-        </form>
+        </fieldset></form>
       </DialogContent>
     </Dialog>
   )

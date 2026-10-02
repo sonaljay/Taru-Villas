@@ -1,5 +1,9 @@
 'use client'
 
+import { useSaveProtection, useUnsavedChanges, useUnsavedChangesNavigation } from '@/hooks/use-unsaved-changes'
+
+import { DiscardButton } from '@/components/ui/discard-button'
+
 import { useRef, useState } from 'react'
 import { Upload, Download, FileSpreadsheet } from 'lucide-react'
 import { toast } from 'sonner'
@@ -44,7 +48,11 @@ export function BulkImportCard({
   const [rows, setRows] = useState<Record<string, string>[]>([])
   const [fileName, setFileName] = useState<string | null>(null)
   const [preview, setPreview] = useState<PreviewResult | null>(null)
+  const [committedRows, setCommittedRows] = useState('[]')
+  const { markSaved } = useUnsavedChanges(JSON.stringify(rows) !== committedRows)
+  const { confirmNavigation } = useUnsavedChangesNavigation()
   const [busy, setBusy] = useState(false)
+  const releaseSaveProtection = useSaveProtection(busy)
 
   const endpoint = type === 'wastage' ? '/api/waste/bulk-import' : '/api/utilities/bulk-import'
 
@@ -66,7 +74,7 @@ export function BulkImportCard({
 
   async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (!file) return
+    if (!file || !confirmNavigation()) return
     setFileName(file.name)
     setPreview(null)
     try {
@@ -104,6 +112,7 @@ export function BulkImportCard({
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Import failed')
+      setCommittedRows(JSON.stringify(rows)); releaseSaveProtection(); markSaved()
       toast.success(`Imported ${data.imported} rows (${data.newCount} new, ${data.overwriteCount} updated)`)
       reset()
       onSuccess?.()
@@ -138,7 +147,7 @@ export function BulkImportCard({
         </p>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={downloadTemplate}>
+          <Button disabled={busy} variant="outline" size="sm" onClick={downloadTemplate}>
             <Download className="size-4" />
             Download template
           </Button>
@@ -191,9 +200,9 @@ export function BulkImportCard({
               <Button size="sm" onClick={confirmImport} disabled={!canConfirm}>
                 {busy ? 'Importing…' : 'Confirm import'}
               </Button>
-              <Button size="sm" variant="ghost" onClick={reset} disabled={busy}>
+              <DiscardButton size="sm" variant="ghost" onClick={reset} disabled={busy}>
                 Cancel
-              </Button>
+              </DiscardButton>
               {preview.errorCount > 0 && (
                 <span className="text-xs text-muted-foreground">
                   Fix the errors and re-select the file to enable import.

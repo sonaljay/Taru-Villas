@@ -1,6 +1,10 @@
 'use client'
 
-import { useRouter, usePathname, useSearchParams } from 'next/navigation'
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
+import { Field } from '@/components/ui/field'
+
+import {  usePathname, useSearchParams } from 'next/navigation'
 import { useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,7 +35,7 @@ export function SurveyFilters({
   currentDateTo,
   currentSurveyType,
 }: SurveyFiltersProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
@@ -64,7 +68,7 @@ export function SurveyFilters({
 
   return (
     <div className="flex flex-wrap items-end gap-4">
-      <div className="space-y-1.5">
+      <Field className="space-y-1.5">
         <Label className="text-xs text-muted-foreground">Survey Type</Label>
         <Select
           value={currentSurveyType ?? 'all'}
@@ -81,9 +85,9 @@ export function SurveyFilters({
             <SelectItem value="guest">Guest</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </Field>
 
-      <div className="space-y-1.5">
+      <Field className="space-y-1.5">
         <Label className="text-xs text-muted-foreground">Property</Label>
         <Select
           value={currentPropertyId ?? 'all'}
@@ -103,9 +107,9 @@ export function SurveyFilters({
             ))}
           </SelectContent>
         </Select>
-      </div>
+      </Field>
 
-      <div className="space-y-1.5">
+      <Field className="space-y-1.5">
         <Label className="text-xs text-muted-foreground">Status</Label>
         <Select
           value={currentStatus ?? 'all'}
@@ -123,9 +127,9 @@ export function SurveyFilters({
             <SelectItem value="reviewed">Reviewed</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </Field>
 
-      <div className="space-y-1.5">
+      <Field className="space-y-1.5">
         <Label className="text-xs text-muted-foreground">From</Label>
         <Input
           type="date"
@@ -135,9 +139,9 @@ export function SurveyFilters({
             updateFilter('dateFrom', e.target.value || undefined)
           }
         />
-      </div>
+      </Field>
 
-      <div className="space-y-1.5">
+      <Field className="space-y-1.5">
         <Label className="text-xs text-muted-foreground">To</Label>
         <Input
           type="date"
@@ -147,7 +151,7 @@ export function SurveyFilters({
             updateFilter('dateTo', e.target.value || undefined)
           }
         />
-      </div>
+      </Field>
 
       {hasFilters && (
         <Button variant="ghost" size="sm" onClick={clearFilters}>

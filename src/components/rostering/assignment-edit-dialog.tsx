@@ -1,7 +1,13 @@
 'use client'
 
+import { useSaveProtection, usePortalRouter, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
+import { DiscardButton } from '@/components/ui/discard-button'
+
+import { Field } from '@/components/ui/field'
+
 import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { Loader2, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -61,9 +67,11 @@ export function AssignmentEditDialog({
   roles,
   shiftTemplates,
 }: AssignmentEditDialogProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const releaseSaveProtection = useSaveProtection(saving)
+
   const [dutyPropertyId, setDutyPropertyId] = useState(
     assignment.dutyPropertyId,
   )
@@ -75,6 +83,12 @@ export function AssignmentEditDialog({
     assignment.shiftTemplateId ?? '',
   )
   const [explanation, setExplanation] = useState(assignment.explanation)
+
+  const initialSnapshot = JSON.stringify([assignment.dutyPropertyId, assignment.roleId, assignment.dutyCode === 'S' ? 'S' : 'W', assignment.shiftTemplateId ?? '', assignment.explanation])
+  const [savedSnapshot, setSavedSnapshot] = useState(initialSnapshot)
+  const snapshot = JSON.stringify([dutyPropertyId, roleId, dutyCode, shiftTemplateId, explanation])
+  const { markSaved } = useUnsavedChanges(open && snapshot !== savedSnapshot)
+  const [saveError, setSaveError] = useState('')
 
   const availableRoles = roles.filter((role) =>
     qualifiedRoleIds.includes(role.id),
@@ -114,10 +128,12 @@ export function AssignmentEditDialog({
         error?: string
       }
       if (!response.ok) throw new Error(result.error ?? 'Assignment update failed')
+      setSavedSnapshot(snapshot); releaseSaveProtection(); markSaved(); setSaveError('')
       toast.success('Assignment updated and demand rechecked')
       setOpen(false)
       router.refresh()
     } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Assignment update failed')
       toast.error(
         error instanceof Error ? error.message : 'Assignment update failed',
       )
@@ -129,11 +145,12 @@ export function AssignmentEditDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="w-full" variant="outline">
+        <Button disabled={saving} className="w-full" variant="outline">
           <Pencil /> Edit assignment
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-xl">
+        {saveError && <p role="alert" className="rounded-xl border border-destructive/40 p-4">{saveError}</p>}
         <DialogHeader>
           <DialogTitle>Edit assignment</DialogTitle>
           <DialogDescription>
@@ -141,9 +158,9 @@ export function AssignmentEditDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
+          <Field className="space-y-2">
             <Label>Duty property</Label>
-            <Select value={dutyPropertyId} onValueChange={setDutyPropertyId}>
+            <Select disabled={saving} value={dutyPropertyId} onValueChange={setDutyPropertyId}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {properties.map((property) => (
@@ -153,10 +170,10 @@ export function AssignmentEditDialog({
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-2">
+          </Field>
+          <Field className="space-y-2">
             <Label>Duty type</Label>
-            <Select
+            <Select disabled={saving}
               value={dutyCode}
               onValueChange={(value) => setDutyCode(value as 'W' | 'S')}
             >
@@ -166,10 +183,10 @@ export function AssignmentEditDialog({
                 <SelectItem value="S">S · Same-hub spoke duty</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-2">
+          </Field>
+          <Field className="space-y-2">
             <Label>Role</Label>
-            <Select value={roleId} onValueChange={chooseRole}>
+            <Select disabled={saving} value={roleId} onValueChange={chooseRole}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {availableRoles.map((role) => (
@@ -179,10 +196,10 @@ export function AssignmentEditDialog({
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-2">
+          </Field>
+          <Field className="space-y-2">
             <Label>Shift template</Label>
-            <Select value={shiftTemplateId} onValueChange={setShiftTemplateId}>
+            <Select disabled={saving} value={shiftTemplateId} onValueChange={setShiftTemplateId}>
               <SelectTrigger><SelectValue placeholder="Select shift" /></SelectTrigger>
               <SelectContent>
                 {availableTemplates.map((template) => (
@@ -192,10 +209,10 @@ export function AssignmentEditDialog({
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </Field>
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="assignment-explanation">Audit explanation</Label>
-            <Textarea
+            <Textarea disabled={saving}
               id="assignment-explanation"
               value={explanation}
               onChange={(event) => setExplanation(event.target.value)}
@@ -204,9 +221,9 @@ export function AssignmentEditDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
+          <DiscardButton disabled={saving} variant="outline" onClick={() => setOpen(false)}>
             Cancel
-          </Button>
+          </DiscardButton>
           <Button
             onClick={save}
             disabled={

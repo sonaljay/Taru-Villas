@@ -1,5 +1,9 @@
 'use client'
 
+import { useSaveProtection, useUnsavedChanges, useUnsavedChangesNavigation } from '@/hooks/use-unsaved-changes'
+
+import { Field } from '@/components/ui/field'
+
 import { useEffect, useState } from 'react'
 import { Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
@@ -54,12 +58,17 @@ function dayLabel(date: string): string {
 }
 
 export function ForecastGrid({ properties, defaultMonth }: ForecastGridProps) {
+  const [dirty, setDirty] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const { markSaved } = useUnsavedChanges(dirty)
+  const { confirmNavigation } = useUnsavedChangesNavigation()
   const [propertyId, setPropertyId] = useState(properties[0]?.id ?? '')
   const [month, setMonth] = useState(defaultMonth)
   const [rows, setRows] = useState<EditableForecast[]>([])
   const [fillOccupancy, setFillOccupancy] = useState('65')
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const releaseSaveProtection = useSaveProtection(isSaving)
 
   useEffect(() => {
     if (!propertyId || !month) return
@@ -112,6 +121,7 @@ export function ForecastGrid({ properties, defaultMonth }: ForecastGridProps) {
   }, [month, propertyId])
 
   function updateRow(date: string, field: keyof EditableForecast, value: string) {
+    setDirty(true)
     setRows((current) =>
       current.map((row) => (row.date === date ? { ...row, [field]: value } : row)),
     )
@@ -122,6 +132,7 @@ export function ForecastGrid({ properties, defaultMonth }: ForecastGridProps) {
     if (!Number.isFinite(value) || value < 0 || value > 100) {
       return toast.error('Occupancy must be between 0 and 100')
     }
+    setDirty(true)
     setRows((current) =>
       current.map((row) => ({ ...row, occupancyPercent: String(value) })),
     )
@@ -129,7 +140,7 @@ export function ForecastGrid({ properties, defaultMonth }: ForecastGridProps) {
 
   async function save() {
     if (rows.some((row) => row.occupancyPercent === '')) {
-      return toast.error('Enter occupancy for every calendar day')
+      setSaveError('Enter occupancy for every calendar day'); return toast.error('Enter occupancy for every calendar day')
     }
     setIsSaving(true)
     try {
@@ -148,9 +159,11 @@ export function ForecastGrid({ properties, defaultMonth }: ForecastGridProps) {
       })
       const body = (await response.json()) as { error?: string }
       if (!response.ok) throw new Error(body.error ?? 'Failed to save forecasts')
+      setDirty(false); releaseSaveProtection(); markSaved(); setSaveError('')
       toast.success(`Saved ${rows.length} daily forecasts`)
       setRows((current) => current.map((row) => ({ ...row, source: 'manual' })))
     } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Failed to save forecasts')
       toast.error(error instanceof Error ? error.message : 'Failed to save forecasts')
     } finally {
       setIsSaving(false)
@@ -167,9 +180,9 @@ export function ForecastGrid({ properties, defaultMonth }: ForecastGridProps) {
       </CardHeader>
       <CardContent className="space-y-5 px-6 py-6">
         <div className="flex flex-wrap items-end gap-3">
-          <div className="space-y-2">
+          <Field className="space-y-2">
             <Label>Property</Label>
-            <Select value={propertyId} onValueChange={setPropertyId}>
+            <Select disabled={isSaving} value={propertyId} onValueChange={value => { if (confirmNavigation()) { setDirty(false); releaseSaveProtection(); markSaved(); setPropertyId(value) } }}>
               <SelectTrigger className="w-64"><SelectValue placeholder="No property" /></SelectTrigger>
               <SelectContent>
                 {properties.map((property) => (
@@ -177,16 +190,22 @@ export function ForecastGrid({ properties, defaultMonth }: ForecastGridProps) {
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </Field>
           <div className="space-y-2">
             <Label htmlFor="forecast-month">Month</Label>
-            <Input id="forecast-month" type="month" value={month} onChange={(event) => setMonth(event.target.value)} className="w-44" />
+            <Input disabled={isSaving} id="forecast-month" type="month" value={month} onChange={(event) => {
+              if (confirmNavigation()) {
+                setDirty(false)
+                markSaved()
+                setMonth(event.target.value)
+              }
+            }} className="w-44" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="fill-occupancy">Fill occupancy %</Label>
             <div className="flex gap-2">
-              <Input id="fill-occupancy" type="number" min="0" max="100" value={fillOccupancy} onChange={(event) => setFillOccupancy(event.target.value)} className="w-28" />
-              <Button variant="outline" onClick={fillMonth}>Fill month</Button>
+              <Input disabled={isSaving} id="fill-occupancy" type="number" min="0" max="100" value={fillOccupancy} onChange={(event) => setFillOccupancy(event.target.value)} className="w-28" />
+              <Button disabled={isSaving} variant="outline" onClick={fillMonth}>Fill month</Button>
             </div>
           </div>
         </div>
@@ -196,7 +215,7 @@ export function ForecastGrid({ properties, defaultMonth }: ForecastGridProps) {
             <Loader2 className="mr-2 size-4 animate-spin" /> Loading forecasts…
           </div>
         ) : (
-          <div className="max-h-[600px] overflow-auto rounded-xl border">
+          <div role="region" aria-label="Daily forecasts, scroll across for more columns" tabIndex={0} className="max-h-[600px] max-w-full overflow-auto rounded-xl border">
             <table className="w-full min-w-[680px] text-sm">
               <thead className="sticky top-0 z-10 bg-slate-950 text-white">
                 <tr>
@@ -211,9 +230,9 @@ export function ForecastGrid({ properties, defaultMonth }: ForecastGridProps) {
                 {rows.map((row) => (
                   <tr key={row.date} className="border-b last:border-0">
                     <td className="whitespace-nowrap px-3 py-2 font-medium">{dayLabel(row.date)}</td>
-                    <td className="px-3 py-2"><Input type="number" min="0" max="100" value={row.occupancyPercent} onChange={(event) => updateRow(row.date, 'occupancyPercent', event.target.value)} className="h-8 w-28" /></td>
-                    <td className="px-3 py-2"><Input type="number" min="0" value={row.arrivalsCount} onChange={(event) => updateRow(row.date, 'arrivalsCount', event.target.value)} className="h-8 w-24" /></td>
-                    <td className="px-3 py-2"><Input type="number" min="0" value={row.departuresCount} onChange={(event) => updateRow(row.date, 'departuresCount', event.target.value)} className="h-8 w-24" /></td>
+                    <td className="px-3 py-2"><Input disabled={isSaving} type="number" min="0" max="100" value={row.occupancyPercent} onChange={(event) => updateRow(row.date, 'occupancyPercent', event.target.value)} aria-label={`Occupancy percent for ${dayLabel(row.date)}`} className="portal-dense-field h-8 w-28" /></td>
+                    <td className="px-3 py-2"><Input disabled={isSaving} type="number" min="0" aria-label={`Arrivals for ${dayLabel(row.date)}`} value={row.arrivalsCount} onChange={(event) => updateRow(row.date, 'arrivalsCount', event.target.value)} className="portal-dense-field h-8 w-24" /></td>
+                    <td className="px-3 py-2"><Input disabled={isSaving} type="number" min="0" aria-label={`Departures for ${dayLabel(row.date)}`} value={row.departuresCount} onChange={(event) => updateRow(row.date, 'departuresCount', event.target.value)} className="portal-dense-field h-8 w-24" /></td>
                     <td className="px-3 py-2 text-xs capitalize text-muted-foreground">{row.source ?? 'missing'}</td>
                   </tr>
                 ))}
@@ -221,6 +240,8 @@ export function ForecastGrid({ properties, defaultMonth }: ForecastGridProps) {
             </table>
           </div>
         )}
+        {saveError && <p role="alert" className="rounded-xl border border-destructive/40 p-4">{saveError}</p>}
+        <p className="portal-help md:hidden">Swipe across to see occupancy, arrivals and departures.</p>
         <div className="flex justify-end">
           <Button onClick={save} disabled={isLoading || isSaving || rows.length === 0}>
             {isSaving ? <Loader2 className="animate-spin" /> : <Save />}

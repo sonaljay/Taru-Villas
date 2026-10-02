@@ -1,5 +1,9 @@
 'use client'
 
+import { DiscardButton } from '@/components/ui/discard-button'
+
+import { useNativeFormGuard } from '@/hooks/use-native-form-guard'
+
 import { useState } from 'react'
 import { Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -64,6 +68,8 @@ interface ReadingsTableProps {
 }
 
 export function UtilityReadingsTable({ readings, dailyRows, utilityType, isAdmin, onRefresh }: ReadingsTableProps) {
+  const { formProps, markSaved } = useNativeFormGuard()
+
   const [deleteReading, setDeleteReading] = useState<ReadingEntry | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [editReading, setEditReading] = useState<ReadingEntry | null>(null)
@@ -105,6 +111,7 @@ export function UtilityReadingsTable({ readings, dailyRows, utilityType, isAdmin
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error ?? 'Failed to update')
       }
+      markSaved()
       toast.success('Reading updated')
       setEditReading(null)
       onRefresh()
@@ -250,7 +257,7 @@ export function UtilityReadingsTable({ readings, dailyRows, utilityType, isAdmin
           <DialogHeader>
             <DialogTitle>Edit Reading — {editReading && formatDate(editReading.readingDate)}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleEdit} className="space-y-4">
+          <form {...formProps} onSubmit={handleEdit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="edit-value">Meter Reading</Label>
               <Input
@@ -264,9 +271,9 @@ export function UtilityReadingsTable({ readings, dailyRows, utilityType, isAdmin
               />
             </div>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setEditReading(null)}>
+              <DiscardButton type="button" variant="outline" onClick={() => setEditReading(null)}>
                 Cancel
-              </Button>
+              </DiscardButton>
               <Button type="submit" disabled={isEditing}>
                 {isEditing ? 'Saving...' : 'Save'}
               </Button>
