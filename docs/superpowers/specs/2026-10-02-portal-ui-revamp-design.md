@@ -1,8 +1,8 @@
 # Taru Villas portal UI revamp
 
-Status: proposed written design for review. Sonal approved the warm cream-and-green
-direction on 2 October 2026. This document defines that direction in detail;
-product implementation begins after its review and the implementation-plan stage.
+Status: approved by Sonal on 2 October 2026, including the written design and
+interactive preview. Product implementation begins after review of the
+implementation plan and selection of the execution method.
 
 ## Purpose and audience
 
