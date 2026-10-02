@@ -1,7 +1,9 @@
 'use client'
 
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import { useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+
 import Link from 'next/link'
 import { useQueryState } from 'nuqs'
 import { toast } from 'sonner'
@@ -61,7 +63,7 @@ export function TasksPageClient({
   canDeleteProject,
   initialTaskId,
 }: TasksPageClientProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [view, setView] = useQueryState('view', { defaultValue: 'board' })
   const [search, setSearch] = useState('')
   const [propertyFilter, setPropertyFilter] = useState(NONE)

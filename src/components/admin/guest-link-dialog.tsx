@@ -1,5 +1,7 @@
 'use client'
 
+import { Field } from '@/components/ui/field'
+
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { Check, Copy, Link as LinkIcon, Loader2 } from 'lucide-react'
@@ -133,7 +135,7 @@ export function GuestLinkDialog({
 
         <div className="space-y-4">
           {/* Property selector */}
-          <div className="space-y-1.5">
+          <Field className="space-y-1.5">
             <Label>Property</Label>
             <Select
               value={propertyId}
@@ -153,7 +155,7 @@ export function GuestLinkDialog({
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </Field>
 
           {/* Generate button */}
           {!linkData && (

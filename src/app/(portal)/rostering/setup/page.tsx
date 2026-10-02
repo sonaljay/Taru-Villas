@@ -4,7 +4,8 @@ import { ForecastGrid } from '@/components/rostering/forecast-grid'
 import { ImportPanel } from '@/components/rostering/import-panel'
 import { ProfileLinkManager } from '@/components/rostering/profile-link-manager'
 import { UnavailabilityManager } from '@/components/rostering/unavailability-manager'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { GuardedTabs as Tabs } from '@/components/ui/guarded-tabs'
 import { requireAuth } from '@/lib/auth/guards'
 import {
   getRosterProfileLinkDirectory,

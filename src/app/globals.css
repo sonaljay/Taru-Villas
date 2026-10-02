@@ -184,3 +184,98 @@
     }
   }
 }
+/* Hospitality workspace. Public guest pages keep the root design tokens. */
+.portal-theme {
+  --background: #F3EFE6; --foreground: #273D34;
+  --card: #FAF8F3; --card-foreground: #273D34;
+  --popover: #FAF8F3; --popover-foreground: #273D34;
+  --primary: #244D3E; --primary-foreground: #FFFFFF;
+  --secondary: #E5EDDF; --secondary-foreground: #244D3E;
+  --muted: #EAE6DC; --muted-foreground: #59645B;
+  --accent: #E5EDDF; --accent-foreground: #244D3E;
+  --destructive: #A33E30; --border: #D5DCCF; --input: #7A8476; --ring: #244D3E;
+  --sidebar: #244D3E; --sidebar-foreground: #FFFFFF;
+  --sidebar-primary: #E5EDDF; --sidebar-primary-foreground: #244D3E;
+  --sidebar-accent: #36614F; --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: #51715F; --sidebar-ring: #D7E7C9;
+  --portal-field-background: #FFFFFF; --portal-warning: #86591C;
+  color: var(--foreground); background: var(--background);
+  font-size: 16px; line-height: 1.5;
+}
+.dark .portal-theme, .portal-theme.dark {
+  --background: #14281F; --foreground: #EFF3EB;
+  --card: #20382B; --card-foreground: #EFF3EB;
+  --popover: #20382B; --popover-foreground: #EFF3EB;
+  --primary: #D7E7C9; --primary-foreground: #14281F;
+  --secondary: #304C3B; --secondary-foreground: #EFF3EB;
+  --muted: #304C3B; --muted-foreground: #BCCBBF;
+  --accent: #365541; --accent-foreground: #EFF3EB;
+  --destructive: #FFA795; --border: #526B59; --input: #91A98C; --ring: #D7E7C9;
+  --portal-field-background: #172D22; --portal-warning: #F0CB8E;
+}
+.portal-theme :is(.glass, .glass-strong, .glass-subtle),
+.portal-theme:is([data-slot='dialog-content'], [data-slot='alert-dialog-content'], [data-slot='select-content'], [data-slot='popover-content'], [data-slot='dropdown-menu-content'], [data-slot='dropdown-menu-sub-content'], [data-slot='sheet-content'], [data-slot='tooltip-content']) {
+  background: var(--card); color: var(--card-foreground); border-color: var(--border);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+.portal-theme .glass-sheen::before { display: none; }
+.portal-theme [data-slot='sidebar-inset'] { background: var(--background); }
+.portal-theme :is([data-slot='sidebar-inner'], [data-slot='sidebar'][data-mobile='true']) {
+  background: var(--sidebar); color: var(--sidebar-foreground);
+  --muted-foreground: #CFDCCF; --foreground: #FFFFFF; --ring: #D7E7C9;
+}
+.portal-theme [data-slot='sidebar-group-label'] { color: #CFDCCF; font-size: 12px; text-transform: uppercase; letter-spacing: .09em; }
+.portal-theme [data-slot='sidebar-menu-button'] { min-height: 44px; border-radius: 10px; }
+.portal-theme [data-slot='sidebar-menu-button']:hover { background: var(--sidebar-accent); }
+.portal-theme [data-slot='sidebar-menu-button'][data-active='true'] { background: #E5EDDF; color: #244D3E; font-weight: 600; box-shadow: none; }
+.portal-theme [data-slot='sidebar-separator'] { background: var(--sidebar-border); }
+.portal-theme [data-portal-header] { background: var(--card); border-bottom: 1px solid var(--border); box-shadow: none; }
+.portal-theme main > :is(div, section) { max-width: 1440px; margin-inline: auto; }
+.portal-theme main h1 { font-family: Georgia, 'Times New Roman', serif; font-weight: 400; font-size: clamp(28px, 3vw, 38px); line-height: 1.2; letter-spacing: -.025em; }
+.portal-theme :is([data-slot='card'], .portal-panel) { border: 1px solid var(--border); border-radius: 18px; box-shadow: 0 3px 14px #273d3406; }
+.portal-theme :is([data-slot='card-title'], [data-slot='dialog-title']) { font-size: 20px; line-height: 1.35; }
+.portal-theme :is([data-slot='label'], label) { color: var(--foreground); font-size: 14px; font-weight: 600; line-height: 1.4; }
+.portal-theme :is([data-slot='input'], [data-slot='select-trigger'], .portal-field, input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='hidden'], [type='submit'], [type='button']), select) {
+  min-height: 46px; background: var(--portal-field-background); border: 1px solid var(--input);
+  border-radius: 12px; font-size: 16px; color: var(--foreground); box-shadow: none;
+}
+.portal-theme :is([data-slot='textarea'], textarea) { min-height: 104px; background: var(--portal-field-background); border: 1px solid var(--input); border-radius: 12px; font-size: 16px; color: var(--foreground); box-shadow: none; }
+.portal-theme :is(input, textarea)::placeholder { color: var(--muted-foreground); opacity: 1; }
+.portal-theme :is(input, textarea, select, [data-slot='select-trigger']):disabled { background: var(--muted); opacity: .75; cursor: not-allowed; }
+.portal-theme :is(input, textarea)[readonly] { background: var(--muted); border-style: dashed; }
+.portal-theme [aria-invalid='true'] { border-color: var(--destructive); }
+.portal-theme :is(input, textarea, select, button, a, [tabindex]):focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; }
+.portal-theme :is([data-slot='button'], [data-slot='tabs-trigger']) { min-height: 44px; border-radius: 10px; }
+.portal-theme [data-slot='button'][data-variant='outline'] { color: var(--foreground); border-color: var(--input); background: var(--portal-field-background); }
+.portal-theme :is([data-slot='select-item'], [data-slot='dropdown-menu-item']) { min-height: 40px; font-size: 14px; }
+.portal-theme :is([data-slot='dialog-close'], [data-slot='sheet-content'] > button) { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+.portal-theme [data-slot='tabs-list'] { height: auto; padding: 5px; gap: 4px; background: var(--muted); flex-wrap: wrap; }
+.portal-theme th { background: var(--secondary); color: var(--foreground); font-size: 14px; font-weight: 600; }
+.portal-theme :is(td, [data-slot='card-description'], [data-slot='dialog-description'], .text-xs) { font-size: 14px; }
+.portal-theme [data-slot='table-row']:hover { background: color-mix(in srgb, var(--secondary) 55%, transparent); }
+.portal-theme .portal-form-section { padding: 20px; background: var(--card); border: 1px solid var(--border); border-radius: 16px; }
+.portal-theme .portal-form-section + .portal-form-section { margin-top: 20px; }
+.portal-theme .portal-form-section legend { padding-inline: 8px; font-weight: 600; }
+.portal-theme .portal-help { font-size: 14px; color: var(--muted-foreground); }
+.portal-theme .portal-toast { background: var(--card); color: var(--foreground); border: 1px solid var(--input); }
+.portal-theme .portal-dense-field { min-height: 36px; border-radius: 6px; font-size: 14px; }
+.portal-theme [role='alert'] { color: var(--destructive); }
+.portal-auth { background-image: radial-gradient(ellipse at top left, #E5EDDF 0, transparent 65%); }
+@media (max-width: 640px) {
+  .portal-theme main { padding: 20px 16px; }
+  .portal-theme .portal-form-section { padding: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .portal-theme *, .portal-theme *::before, .portal-theme *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+@media print {
+  .portal-theme { background: white; color: black; }
+  .portal-theme [data-slot='sidebar'], .portal-theme [data-slot='sidebar-container'], .portal-theme [data-portal-header], .portal-theme [data-slot='sidebar-gap'] { display: none !important; }
+  .portal-theme :is(.glass, .glass-subtle, .portal-panel, [data-slot='card']) { background: white; box-shadow: none; }
+  .portal-theme main { padding: 0; }
+}
+
+.portal-theme [data-slot='sidebar-inner'] [data-slot='avatar-fallback'] { background: #E5EDDF; color: #244D3E; }
+.portal-theme nav[aria-label] :is(button, a) { min-height: 44px; }
+.portal-theme:is([data-slot='dialog-overlay'], [data-slot='alert-dialog-overlay'], [data-slot='sheet-overlay']) { background: #14281F88; }
+.portal-theme:is([data-slot='sidebar'][data-mobile='true']) { background: var(--sidebar); color: var(--sidebar-foreground); --muted-foreground: #CFDCCF; --foreground: #FFFFFF; --ring: #D7E7C9; }

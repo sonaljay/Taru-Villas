@@ -47,6 +47,8 @@ export function TaskWorkspace({
     [error, setError] = useState(''),
     [creating, setCreating] = useState(false),
     [tick, setTick] = useState(0)
+  const [showFilters, setShowFilters] = useState(false)
+  const activeFilterCount = Object.values(filters).filter(Boolean).length
   const refresh = useCallback(() => setTick((n) => n + 1), [])
   useEffect(() => {
     const controller = new AbortController()
@@ -94,12 +96,12 @@ export function TaskWorkspace({
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            Task Manager
+            Tasks
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {selectedProject
               ? selectedProject.name
-              : 'Across your properties. Clear ownership, from request to completion.'}
+              : 'See what needs doing, who is responsible, and what comes next.'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -127,11 +129,12 @@ export function TaskWorkspace({
       </header>
       <nav
         aria-label="Task views"
-        className="flex gap-1 overflow-x-auto border-b"
+        className="flex gap-1 overflow-x-auto rounded-xl bg-secondary p-1"
       >
         {choices.map(([key, label]) => (
           <button
             key={key}
+            aria-current={view === key ? 'page' : undefined}
             onClick={() => {
               setView(key)
               setPage(1)
@@ -142,7 +145,7 @@ export function TaskWorkspace({
           </button>
         ))}
       </nav>
-      <section aria-label="Filter tasks" className="space-y-3">
+      <section aria-label="Filter tasks" className="portal-panel bg-card p-4 space-y-3">
         <div className="flex flex-wrap gap-3">
           <div className="relative min-w-60 flex-1">
             <Search className="absolute left-3 top-3 size-4 text-muted-foreground" />
@@ -181,7 +184,8 @@ export function TaskWorkspace({
             </Link>
           </Button>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" aria-expanded={showFilters} aria-controls="task-advanced-filters" onClick={() => setShowFilters(value => !value)}><SlidersHorizontal className="mr-2 size-4" />Filters{activeFilterCount > 0 ? ` (${activeFilterCount} active)` : ''}</Button>
+        <div id="task-advanced-filters" hidden={!showFilters} className={showFilters ? "flex flex-wrap items-center gap-2" : "hidden"}>
           <SlidersHorizontal className="mr-1 size-4 text-muted-foreground" />
           {(
             [
@@ -216,7 +220,7 @@ export function TaskWorkspace({
             <select
               key={key}
               aria-label={label}
-              className={inputStyle + ' !h-9 !w-auto max-w-52 text-xs'}
+              className={inputStyle + ' !w-auto max-w-full sm:max-w-52'}
               value={filters[key] ?? ''}
               onChange={(e) => setFilter(key, e.target.value)}
             >

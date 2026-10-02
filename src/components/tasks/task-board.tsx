@@ -1,13 +1,15 @@
 'use client'
+
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { toast } from 'sonner'
 import { STATUSES, STATUS_META, type TaskStatus } from './task-meta'
 import { TaskCard } from './task-card'
 import type { TaskWithRelations } from '@/lib/db/queries/tasks'
 
 export function TaskBoard({ tasks, onEdit }: { tasks: TaskWithRelations[]; onEdit: (t: TaskWithRelations) => void }) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [dragId, setDragId] = useState<string | null>(null)
   const [overCol, setOverCol] = useState<TaskStatus | null>(null)
 

@@ -1,7 +1,9 @@
 'use client'
 
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { Trash2, UserPlus } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -49,7 +51,7 @@ export function SopAssignments({
   properties,
   users,
 }: SopAssignmentsProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [multiAssignOpen, setMultiAssignOpen] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
 

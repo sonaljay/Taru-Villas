@@ -1,7 +1,9 @@
 'use client'
 
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
@@ -113,7 +115,7 @@ function ScoreBadge({ score }: { score: number }) {
 // ---------------------------------------------------------------------------
 
 export function IssueDetail({ issue, backHref = '/issues' }: IssueDetailProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [isUpdating, setIsUpdating] = useState(false)
   const [closingNotes, setClosingNotes] = useState('')
   const [showCloseDialog, setShowCloseDialog] = useState(false)

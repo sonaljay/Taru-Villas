@@ -1,7 +1,9 @@
 'use client'
 
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { MoreHorizontal, Pencil, Power, Trash2, DollarSign } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -41,7 +43,7 @@ interface MenuItemCardProps {
 }
 
 export function MenuItemCard({ item, categoryId }: MenuItemCardProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [isToggling, setIsToggling] = useState(false)

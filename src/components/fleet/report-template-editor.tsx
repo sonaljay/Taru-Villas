@@ -1,4 +1,6 @@
 "use client";
+
+import { useSaveProtection } from '@/hooks/use-unsaved-changes'
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -8,21 +10,29 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import type { ReportTemplate } from "@/lib/fleet/structured-reports/model";
 type Template = { key: string; version: number; definition: ReportTemplate };
+import { useUnsavedChanges, useUnsavedChangesNavigation } from '@/hooks/use-unsaved-changes';
+
 export function ReportTemplateEditor() {
   const [items, setItems] = useState<Template[]>([]),
     [selected, setSelected] = useState(""),
     [pending, setPending] = useState(false),
     [error, setError] = useState("");
+  const releaseSaveProtection = useSaveProtection(pending)
+
   useEffect(() => {
     fetch("/api/fleet/report-templates")
       .then(async (r) => {
         const b = await r.json();
         if (!r.ok) throw Error(b.error);
         setItems(b);
+        setSavedDefinitions(Object.fromEntries(b.map((item: Template) => [item.key, JSON.stringify(item.definition)])));
         setSelected(b[0]?.key || "");
       })
       .catch((e) => setError(e.message));
   }, []);
+  const [savedDefinitions, setSavedDefinitions] = useState<Record<string, string>>({});
+  const { markSaved } = useUnsavedChanges(items.some(item => JSON.stringify(item.definition) !== savedDefinitions[item.key]));
+  const { confirmNavigation } = useUnsavedChangesNavigation();
   const item = items.find((t) => t.key === selected);
   function update(definition: ReportTemplate) {
     setItems((ts) =>
@@ -48,8 +58,13 @@ export function ReportTemplateEditor() {
           t.key === selected ? { ...t, version: t.version + 1 } : t,
         ),
       );
+      const nextSaved = { ...savedDefinitions, [item.key]: JSON.stringify(item.definition) };
+      setSavedDefinitions(nextSaved);
+      releaseSaveProtection();
+      if (items.every(entry => JSON.stringify(entry.definition) === nextSaved[entry.key])) markSaved();
       toast.success("New template version published");
     } catch (e) {
+      setError((e as Error).message);
       toast.error((e as Error).message);
     } finally {
       setPending(false);
@@ -70,7 +85,7 @@ export function ReportTemplateEditor() {
           aria-label="Report template"
           className="h-10 w-full rounded border bg-background px-3"
           value={selected}
-          onChange={(e) => setSelected(e.target.value)}
+          onChange={(e) => { if (confirmNavigation()) setSelected(e.target.value) }}
         >
           {items.map((t) => (
             <option key={t.key} value={t.key}>
@@ -92,7 +107,7 @@ export function ReportTemplateEditor() {
           <fieldset disabled={pending} className="space-y-4">
             <label className="block space-y-1">
               <span>Category name</span>
-              <Input
+              <Input disabled={pending}
                 value={item.definition.name}
                 onChange={(e) =>
                   update({ ...item.definition, name: e.target.value })
@@ -101,7 +116,7 @@ export function ReportTemplateEditor() {
             </label>
             <label className="block space-y-1">
               <span>Visit types (one per line)</span>
-              <Textarea
+              <Textarea disabled={pending}
                 value={item.definition.visitTypes.join("\n")}
                 onChange={(e) =>
                   update({
@@ -123,7 +138,7 @@ export function ReportTemplateEditor() {
                   {section.id !== "scorecard" && (
                     <label className="block">
                       <span className="text-sm">Section title</span>
-                      <Input
+                      <Input disabled={pending}
                         value={section.title}
                         onChange={(e) =>
                           update({
@@ -147,7 +162,7 @@ export function ReportTemplateEditor() {
                       >
                         <label className="block">
                           <span className="text-sm">Question</span>
-                          <Input
+                          <Input disabled={pending}
                             value={q.label}
                             onChange={(e) =>
                               update({
@@ -163,7 +178,7 @@ export function ReportTemplateEditor() {
                         </label>
                         <label className="block">
                           <span className="text-sm">Guidance</span>
-                          <Textarea
+                          <Textarea disabled={pending}
                             value={q.guidance}
                             onChange={(e) =>
                               update({

@@ -1,7 +1,11 @@
 'use client'
 
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
+import { Field } from '@/components/ui/field'
+
 import { useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -71,7 +75,7 @@ export function NewSurveyWizard({
   templates,
   properties,
 }: NewSurveyWizardProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [step, setStep] = useState(1)
   const [surveyType, setSurveyType] = useState<'internal' | 'guest'>('internal')
   const [templateId, setTemplateId] = useState('')
@@ -152,7 +156,7 @@ export function NewSurveyWizard({
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Survey Type */}
-        <div className="space-y-2">
+        <Field className="space-y-2">
           <Label>Survey Type</Label>
           <Select value={surveyType} onValueChange={(v) => handleSurveyTypeChange(v as 'internal' | 'guest')}>
             <SelectTrigger className="w-full">
@@ -163,10 +167,10 @@ export function NewSurveyWizard({
               <SelectItem value="guest">Guest Survey</SelectItem>
             </SelectContent>
           </Select>
-        </div>
+        </Field>
 
         {/* Template */}
-        <div className="space-y-2">
+        <Field className="space-y-2">
           <Label>Survey Template</Label>
           <Select value={templateId} onValueChange={setTemplateId}>
             <SelectTrigger className="w-full">
@@ -186,10 +190,10 @@ export function NewSurveyWizard({
               one.
             </p>
           )}
-        </div>
+        </Field>
 
         {/* Property */}
-        <div className="space-y-2">
+        <Field className="space-y-2">
           <Label>Property</Label>
           <Select value={propertyId} onValueChange={setPropertyId}>
             <SelectTrigger className="w-full">
@@ -208,17 +212,17 @@ export function NewSurveyWizard({
               No properties assigned to you. Contact your administrator.
             </p>
           )}
-        </div>
+        </Field>
 
         {/* Visit Date */}
-        <div className="space-y-2">
+        <Field className="space-y-2">
           <Label>Visit Date</Label>
           <Input
             type="date"
             value={visitDate}
             onChange={(e) => setVisitDate(e.target.value)}
           />
-        </div>
+        </Field>
 
         <Separator />
 

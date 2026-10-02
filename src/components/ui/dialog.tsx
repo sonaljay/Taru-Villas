@@ -4,13 +4,17 @@ import * as React from "react"
 import { XIcon } from "lucide-react"
 import { Dialog as DialogPrimitive } from "radix-ui"
 
+import { usePortalThemeClassName } from "@/components/providers/portal-theme-provider"
+import { useUnsavedChangesNavigation } from "@/hooks/use-unsaved-changes"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
 function Dialog({
+  onOpenChange,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />
+  const { confirmNavigation } = useUnsavedChangesNavigation()
+  return <DialogPrimitive.Root data-slot="dialog" {...props} onOpenChange={open => { if (open || confirmNavigation()) onOpenChange?.(open) }} />
 }
 
 function DialogTrigger({
@@ -35,10 +39,12 @@ function DialogOverlay({
   className,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
+  const portalThemeClassName = usePortalThemeClassName()
   return (
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
+          portalThemeClassName,
         "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/40 backdrop-blur-sm",
         className
       )}
@@ -55,12 +61,14 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  const portalThemeClassName = usePortalThemeClassName()
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
+          portalThemeClassName,
           "glass-strong data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-6 rounded-lg p-6 sm:p-8 shadow-lg duration-200 outline-none sm:max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto",
           className
         )}

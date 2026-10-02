@@ -1,31 +1,14 @@
 'use client'
 
+import { useUnsavedChangesNavigation } from '@/hooks/use-unsaved-changes'
+
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import {
-  LayoutDashboard,
-  ClipboardCheck,
-  Settings,
-  Building2,
-  Users,
-  LogOut,
-  ChevronsUpDown,
-  ListTodo,
-  Compass,
-  UtensilsCrossed,
-  ListChecks,
-  ShieldCheck,
-  ClipboardList,
-  UserCheck,
-  Package,
-  CalendarClock,
-  CalendarDays,
-} from 'lucide-react'
+import { LogOut, ChevronsUpDown, Settings } from 'lucide-react'
 
 import { useAuth } from '@/components/providers/auth-provider'
-import { getFleetNavigationItems } from '@/lib/fleet/navigation'
+import { getPortalNavigationGroups } from '@/lib/portal/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { isPathEnabled, type ClientModule } from '@/lib/client-release/modules'
 
 import {
   Sidebar,
@@ -53,45 +36,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-// ---------------------------------------------------------------------------
-// Navigation configuration
-// ---------------------------------------------------------------------------
-
-interface NavItem {
-  title: string
-  href: string
-  icon: React.ComponentType<{ className?: string }>
-  module: ClientModule
-}
-
-const mainNavItems: NavItem[] = [
-  { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, module: 'dashboard' },
-  { title: 'Surveys', href: '/surveys', icon: ClipboardCheck, module: 'surveys' },
-  { title: 'Task Manager', href: '/tasks', icon: ListTodo, module: 'tasks' },
-  { title: 'My Roster', href: '/my-roster', icon: CalendarDays, module: 'rostering' },
-  { title: 'Rostering', href: '/rostering', icon: CalendarClock, module: 'rostering' },
-  { title: 'SOPs', href: '/sops', icon: ListChecks, module: 'sops' },
-  { title: 'Daily Records', href: '/daily-records', icon: ClipboardList, module: 'daily-records' },
-  { title: 'Asset Registry', href: '/assets', icon: Package, module: 'assets' },
-  { title: 'Settings', href: '/settings', icon: Settings, module: 'settings' },
-]
-
-const propertyNavItems: NavItem[] = [
-  { title: 'Excursions', href: '/excursions', icon: Compass, module: 'excursions' },
-  { title: 'Menus', href: '/menus', icon: UtensilsCrossed, module: 'menus' },
-  { title: 'Guest Profiles', href: '/guest-profiles', icon: UserCheck, module: 'guest-profiles' },
-]
-
-const adminNavItems: NavItem[] = [
-  { title: 'Property Settings', href: '/admin/properties', icon: Building2, module: 'core' },
-  { title: 'Users', href: '/admin/users', icon: Users, module: 'core' },
-  { title: 'Allowed Emails', href: '/admin/allowed-emails', icon: ShieldCheck, module: 'allowed-emails' },
-]
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function getInitials(name: string): string {
   return name
     .split(' ')
@@ -116,6 +60,7 @@ function formatRole(role: string): string {
 export function AppSidebar() {
   const pathname = usePathname()
   const router = useRouter()
+  const { confirmNavigation } = useUnsavedChangesNavigation()
   const { profile, enabledModules } = useAuth()
   const { setOpenMobile } = useSidebar()
 
@@ -129,45 +74,24 @@ export function AppSidebar() {
     if (href === '/fleet') {
       return pathname === '/fleet'
     }
-    return pathname.startsWith(href)
+    return pathname === href || pathname.startsWith(`${href}/`)
   }
 
   const handleSignOut = async () => {
+    if (!confirmNavigation()) return
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/login')
   }
 
-  const showPropertySection =
-    profile.role === 'property_manager' || profile.role === 'admin'
-  const showAdminSection = profile.role === 'admin'
-
-  const isFleetAdmin = profile.isFleetAdmin || profile.role === 'admin'
-  const canSeeFleet = profile.canBookFleet || isFleetAdmin
-  const enabledSet = new Set(enabledModules)
-  const fleetNavItems = isPathEnabled('/fleet', enabledSet)
-    ? getFleetNavigationItems(canSeeFleet, isFleetAdmin)
-    : []
-
-  const visibleMainNavItems = mainNavItems.filter((item) => {
-    if (!isPathEnabled(item.href, enabledSet)) return false
-    if (item.href === '/dashboard') return showAdminSection
-    if (item.href === '/rostering') return showPropertySection
-    return true
-  })
-  const visiblePropertyNavItems = propertyNavItems.filter(
-    (item) => isPathEnabled(item.href, enabledSet)
-  )
-  const visibleAdminNavItems = adminNavItems.filter(
-    (item) => isPathEnabled(item.href, enabledSet)
-  )
+  const navigationGroups = getPortalNavigationGroups({ profile, enabledModules })
 
   return (
     <Sidebar collapsible="icon">
       {/* ---- Brand Header ---- */}
       <SidebarHeader>
         <div className="flex items-center gap-2.5 px-1.5 py-2.5">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/10">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#E5EDDF]">
             <img
               src="/TVPL.png"
               alt="Taru Villas logo"
@@ -175,9 +99,9 @@ export function AppSidebar() {
             />
           </div>
           <div className="flex flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
-            <span className="font-semibold tracking-tight">Taru Villas</span>
-            <span className="text-[11px] text-muted-foreground">
-              Management Portal
+            <span className="font-serif text-xl tracking-tight">Taru Villas</span>
+            <span className="text-sm text-muted-foreground">
+              Your work, made simpler
             </span>
           </div>
         </div>
@@ -185,107 +109,23 @@ export function AppSidebar() {
 
       <SidebarSeparator />
 
-      {/* ---- Main Navigation ---- */}
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Main</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {visibleMainNavItems.map((item) => (
+        {navigationGroups.map(group => (
+          <SidebarGroup key={group.title}>
+            <SidebarGroupLabel>{group.title}</SidebarGroupLabel>
+            <SidebarGroupContent><SidebarMenu>
+              {group.items.map(item => (
                 <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.href)}
-                    tooltip={item.title}
-                    className="h-9 rounded-lg transition-colors data-[active=true]:font-medium hover:bg-white/40 dark:hover:bg-white/5 data-[active=true]:bg-white/55 dark:data-[active=true]:bg-white/10 data-[active=true]:shadow-sm"
-                  >
-                    <Link href={item.href} onClick={() => setOpenMobile(false)}>
-                      <item.icon className="size-4" />
-                      <span>{item.title}</span>
+                  <SidebarMenuButton asChild isActive={isActive(item.href)} tooltip={item.title} className="h-11 rounded-lg">
+                    <Link href={item.href} aria-current={isActive(item.href) ? 'page' : undefined} onClick={() => setOpenMobile(false)}>
+                      <item.icon className="size-4" /><span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {fleetNavItems.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Fleet Management</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {fleetNavItems.map((item) => (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive(item.href)}
-                      tooltip={item.title}
-                      className="h-9 rounded-lg transition-colors data-[active=true]:font-medium hover:bg-white/40 dark:hover:bg-white/5 data-[active=true]:bg-white/55 dark:data-[active=true]:bg-white/10 data-[active=true]:shadow-sm"
-                    >
-                      <Link href={item.href} onClick={() => setOpenMobile(false)}>
-                        <item.icon className="size-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
+            </SidebarMenu></SidebarGroupContent>
           </SidebarGroup>
-        )}
-
-        {/* ---- Properties Section (Property Manager + Admin) ---- */}
-        {showPropertySection && visiblePropertyNavItems.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Property Content</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {visiblePropertyNavItems.map((item) => (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive(item.href)}
-                      tooltip={item.title}
-                      className="h-9 rounded-lg transition-colors data-[active=true]:font-medium hover:bg-white/40 dark:hover:bg-white/5 data-[active=true]:bg-white/55 dark:data-[active=true]:bg-white/10 data-[active=true]:shadow-sm"
-                    >
-                      <Link href={item.href} onClick={() => setOpenMobile(false)}>
-                        <item.icon className="size-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
-        {/* ---- Admin Section ---- */}
-        {showAdminSection && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Setup & Permissions</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {visibleAdminNavItems.map((item) => (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive(item.href)}
-                      tooltip={item.title}
-                      className="h-9 rounded-lg transition-colors data-[active=true]:font-medium hover:bg-white/40 dark:hover:bg-white/5 data-[active=true]:bg-white/55 dark:data-[active=true]:bg-white/10 data-[active=true]:shadow-sm"
-                    >
-                      <Link href={item.href} onClick={() => setOpenMobile(false)}>
-                        <item.icon className="size-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+        ))}
       </SidebarContent>
 
       {/* ---- Footer: User Info + Sign Out ---- */}
@@ -353,7 +193,7 @@ export function AppSidebar() {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {isPathEnabled('/settings', enabledSet) && (
+                {navigationGroups.some(group => group.items.some(item => item.href === '/settings')) && (
                   <>
                     <DropdownMenuItem asChild>
                       <Link href="/settings" onClick={() => setOpenMobile(false)}>

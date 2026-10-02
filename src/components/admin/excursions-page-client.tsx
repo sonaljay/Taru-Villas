@@ -1,7 +1,9 @@
 'use client'
 
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { ArrowLeft, Plus, Compass, Link2, Copy } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -27,7 +29,7 @@ export function ExcursionsPageClient({
   property,
   excursions,
 }: ExcursionsPageClientProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [createOpen, setCreateOpen] = useState(false)
 
   function copyPublicLink() {

@@ -82,7 +82,7 @@ export function GuestProfilesPageClient({ property, profiles, isAdmin }: Props) 
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => router.push('/guest-profiles')}>

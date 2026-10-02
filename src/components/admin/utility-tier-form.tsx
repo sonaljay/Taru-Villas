@@ -1,5 +1,11 @@
 'use client'
 
+import { useSaveProtection, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
+import { DiscardButton } from '@/components/ui/discard-button'
+
+import { Field } from '@/components/ui/field'
+
 import { useState, useEffect } from 'react'
 import { Settings2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -48,7 +54,12 @@ export function UtilityTierForm({ propertyId, utilityType, onRefresh }: TierForm
   const [tiers, setTiers] = useState<TierData[]>([])
   const [editTiers, setEditTiers] = useState<TierData[]>([])
   const [showDialog, setShowDialog] = useState(false)
+  const [savedEdit, setSavedEdit] = useState('')
+  const { markSaved } = useUnsavedChanges(showDialog && JSON.stringify(editTiers) !== savedEdit)
+  const [saveError, setSaveError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const releaseSaveProtection = useSaveProtection(isSaving)
+
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -80,6 +91,7 @@ export function UtilityTierForm({ propertyId, utilityType, onRefresh }: TierForm
 
   function openEdit() {
     setEditTiers(tiers.length > 0 ? [...tiers] : [...DEFAULT_TIERS])
+    setSavedEdit(JSON.stringify(tiers))
     setShowDialog(true)
   }
 
@@ -126,11 +138,13 @@ export function UtilityTierForm({ propertyId, utilityType, onRefresh }: TierForm
         throw new Error(body.error ?? 'Failed to save tiers')
       }
 
+      setSavedEdit(JSON.stringify(editTiers)); releaseSaveProtection(); markSaved(); setSaveError('')
       toast.success('Rate tiers updated')
       setShowDialog(false)
       await fetchTiers()
       onRefresh()
     } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Unable to save configuration')
       toast.error(error instanceof Error ? error.message : 'Failed to save')
     } finally {
       setIsSaving(false)
@@ -142,7 +156,7 @@ export function UtilityTierForm({ propertyId, utilityType, onRefresh }: TierForm
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">Rate Configuration</CardTitle>
-          <Button variant="outline" size="sm" onClick={openEdit}>
+          <Button disabled={isSaving} variant="outline" size="sm" onClick={openEdit}>
             <Settings2 className="size-4" />
             {tiers.length > 0 ? 'Edit Tiers' : 'Set Up Tiers'}
           </Button>
@@ -188,6 +202,7 @@ export function UtilityTierForm({ propertyId, utilityType, onRefresh }: TierForm
       {/* Edit Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          {saveError && <p role="alert" className="rounded-xl border border-destructive/40 p-4">{saveError}</p>}
           <DialogHeader>
             <DialogTitle>
               Edit {utilityType === 'water' ? 'Water' : 'Electricity'} Rate Tiers
@@ -205,7 +220,7 @@ export function UtilityTierForm({ propertyId, utilityType, onRefresh }: TierForm
                     Tier {tier.tierNumber}
                   </Label>
                 </div>
-                <div className="space-y-1">
+                <Field className="space-y-1">
                   <Label className="text-xs">From (units)</Label>
                   <Input
                     type="number"
@@ -213,14 +228,14 @@ export function UtilityTierForm({ propertyId, utilityType, onRefresh }: TierForm
                     min="0"
                     value={tier.minUnits}
                     onChange={(e) => updateEditTier(index, 'minUnits', e.target.value)}
-                    disabled={index > 0} // Auto-set from previous tier
+                    disabled={isSaving || (index > 0)} // Auto-set from previous tier
                   />
-                </div>
-                <div className="space-y-1">
+                </Field>
+                <Field className="space-y-1">
                   <Label className="text-xs">
                     To (units){index === editTiers.length - 1 ? ' — leave empty for ∞' : ''}
                   </Label>
-                  <Input
+                  <Input disabled={isSaving}
                     type="number"
                     step="0.01"
                     min="0"
@@ -228,24 +243,24 @@ export function UtilityTierForm({ propertyId, utilityType, onRefresh }: TierForm
                     onChange={(e) => updateEditTier(index, 'maxUnits', e.target.value)}
                     placeholder={index === editTiers.length - 1 ? '∞' : ''}
                   />
-                </div>
-                <div className="space-y-1">
+                </Field>
+                <Field className="space-y-1">
                   <Label className="text-xs">Rate (LKR/unit)</Label>
-                  <Input
+                  <Input disabled={isSaving}
                     type="number"
                     step="0.01"
                     min="0"
                     value={tier.ratePerUnit}
                     onChange={(e) => updateEditTier(index, 'ratePerUnit', e.target.value)}
                   />
-                </div>
+                </Field>
               </div>
             ))}
 
             <div className="flex justify-end gap-2 pt-4">
-              <Button variant="outline" onClick={() => setShowDialog(false)}>
+              <DiscardButton disabled={isSaving} variant="outline" onClick={() => setShowDialog(false)}>
                 Cancel
-              </Button>
+              </DiscardButton>
               <Button onClick={handleSave} disabled={isSaving}>
                 {isSaving ? 'Saving...' : 'Save Tiers'}
               </Button>

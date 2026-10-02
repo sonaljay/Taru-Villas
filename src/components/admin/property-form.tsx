@@ -1,7 +1,11 @@
 'use client'
 
+import { useSaveProtection, usePortalRouter, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
+import { Field } from '@/components/ui/field'
+
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { toast } from 'sonner'
@@ -76,8 +80,10 @@ export function PropertyForm({
   allUsers = [],
   assignedUserIds: initialAssignedIds = [],
 }: PropertyFormProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const releaseSaveProtection = useSaveProtection(isSubmitting)
+
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(
     new Set(initialAssignedIds)
   )
@@ -86,12 +92,12 @@ export function PropertyForm({
   )
   const isEditing = !!property
 
-  const {
+  const { reset, getValues,
     register,
     handleSubmit,
     watch,
     setValue,
-    formState: { errors },
+    formState: { errors , isDirty },
   } = useForm<PropertyFormValues>({
     defaultValues: {
       name: property?.name ?? '',
@@ -103,6 +109,9 @@ export function PropertyForm({
       isActive: property?.isActive ?? true,
     },
   })
+  const [submitError, setSubmitError] = useState('')
+  const [extraBaseline, setExtraBaseline] = useState(JSON.stringify([[...initialAssignedIds].sort(), property?.primaryPmId ?? null]))
+  const { markSaved } = useUnsavedChanges(isDirty || JSON.stringify([[...selectedUserIds].sort(), primaryPmId]) !== extraBaseline)
 
   const nameValue = watch('name')
   const isActiveValue = watch('isActive')
@@ -110,7 +119,7 @@ export function PropertyForm({
   // Auto-generate slug from name (only if not editing)
   useEffect(() => {
     if (!isEditing && nameValue) {
-      setValue('slug', generateSlug(nameValue))
+      setValue('slug', generateSlug(nameValue), { shouldDirty: true })
     }
   }, [nameValue, isEditing, setValue])
 
@@ -168,10 +177,12 @@ export function PropertyForm({
         throw new Error(body.message || body.error || 'Something went wrong')
       }
 
+      reset(getValues()); setExtraBaseline(JSON.stringify([[...selectedUserIds].sort(), primaryPmId])); releaseSaveProtection(); markSaved(); setSubmitError('')
       toast.success(isEditing ? 'Property updated' : 'Property created')
       onSuccess?.()
       router.refresh()
     } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Failed to save property')
       toast.error(
         error instanceof Error ? error.message : 'Failed to save property'
       )
@@ -181,11 +192,12 @@ export function PropertyForm({
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form onSubmit={handleSubmit(onSubmit, () => setSubmitError('Check the highlighted details before saving.'))} className="space-y-5"><fieldset disabled={isSubmitting} className="contents">
+      {submitError && <p role="alert" className="portal-form-errors rounded-xl border border-destructive/40 p-4">{submitError}</p>}
       {/* Name */}
       <div className="space-y-2">
         <Label htmlFor="name">Property Name</Label>
-        <Input
+        <Input disabled={isSubmitting} aria-invalid={!!errors.name}
           id="name"
           placeholder="e.g. Taru Villas - Bentota"
           {...register('name', { required: 'Name is required' })}
@@ -198,7 +210,7 @@ export function PropertyForm({
       {/* Code */}
       <div className="space-y-2">
         <Label htmlFor="code">Property Code</Label>
-        <Input
+        <Input disabled={isSubmitting} aria-invalid={!!errors.code}
           id="code"
           placeholder="e.g. TV-BEN"
           className="uppercase"
@@ -210,7 +222,7 @@ export function PropertyForm({
             },
           })}
           onChange={(e) => {
-            setValue('code', e.target.value.toUpperCase())
+            setValue('code', e.target.value.toUpperCase(), { shouldDirty: true })
           }}
         />
         {errors.code && (
@@ -221,7 +233,7 @@ export function PropertyForm({
       {/* Slug */}
       <div className="space-y-2">
         <Label htmlFor="slug">URL Slug</Label>
-        <Input
+        <Input disabled={isSubmitting} aria-invalid={!!errors.slug}
           id="slug"
           placeholder="auto-generated-from-name"
           {...register('slug', { required: 'Slug is required' })}
@@ -235,7 +247,7 @@ export function PropertyForm({
       {/* Location */}
       <div className="space-y-2">
         <Label htmlFor="location">Location</Label>
-        <Input
+        <Input disabled={isSubmitting} aria-invalid={!!errors.location}
           id="location"
           placeholder="e.g. Bentota, Sri Lanka"
           {...register('location')}
@@ -245,7 +257,7 @@ export function PropertyForm({
       {/* Oracle Hotel ID */}
       <div className="space-y-2">
         <Label htmlFor="oracleHotelId">Oracle Hotel ID</Label>
-        <Input
+        <Input disabled={isSubmitting} aria-invalid={!!errors.oracleHotelId}
           id="oracleHotelId"
           placeholder="OPERA hotelId for this property (e.g. SAND01)"
           {...register('oracleHotelId')}
@@ -255,7 +267,7 @@ export function PropertyForm({
       {/* Image URL */}
       <div className="space-y-2">
         <Label htmlFor="imageUrl">Image URL</Label>
-        <Input
+        <Input disabled={isSubmitting} aria-invalid={!!errors.imageUrl}
           id="imageUrl"
           placeholder="https://example.com/image.png"
           {...register('imageUrl')}
@@ -275,10 +287,10 @@ export function PropertyForm({
             Inactive properties are hidden from non-admin users
           </p>
         </div>
-        <Switch
+        <Switch disabled={isSubmitting}
           id="isActive"
           checked={isActiveValue}
-          onCheckedChange={(checked) => setValue('isActive', checked)}
+          onCheckedChange={(checked) => setValue('isActive', checked, { shouldDirty: true })}
         />
       </div>
 
@@ -286,12 +298,12 @@ export function PropertyForm({
       {isEditing && allUsers.length > 0 && (
         <>
           <Separator />
-          <div className="space-y-2">
+          <Field className="space-y-2">
             <Label className="text-sm font-medium">Property Manager</Label>
             <p className="text-xs text-muted-foreground">
               Select the primary manager for this property
             </p>
-            <Select
+            <Select disabled={isSubmitting}
               value={primaryPmId ?? 'none'}
               onValueChange={(val) => setPrimaryPmId(val === 'none' ? null : val)}
             >
@@ -310,7 +322,7 @@ export function PropertyForm({
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </Field>
         </>
       )}
 
@@ -395,6 +407,6 @@ export function PropertyForm({
               : 'Create Property'}
         </Button>
       </div>
-    </form>
+    </fieldset></form>
   )
 }

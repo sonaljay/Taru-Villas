@@ -1,7 +1,9 @@
 'use client'
 
+import { usePortalRouter, useUnsavedChanges, useUnsavedChangesNavigation } from '@/hooks/use-unsaved-changes'
+
 import { Fragment, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { Check, DoorOpen, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -51,7 +53,7 @@ async function parseErrorMessage(res: Response, fallback: string): Promise<strin
 }
 
 export function RoomsManager({ properties, rooms }: RoomsManagerProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>(properties[0]?.id ?? '')
 
   // Add room form state
@@ -71,12 +73,18 @@ export function RoomsManager({ properties, rooms }: RoomsManagerProps) {
   const [deleteTarget, setDeleteTarget] = useState<Room | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  const [editBaseline, setEditBaseline] = useState('')
+  const editSnapshot = JSON.stringify([editName, editFloor])
+  const { markSaved } = useUnsavedChanges(Boolean(newName || newFloor) || Boolean(editingId && editSnapshot !== editBaseline), isAdding || isSavingEdit)
+  const { confirmNavigation } = useUnsavedChangesNavigation()
   const propertyRooms = useMemo(
     () => rooms.filter((r) => r.propertyId === selectedPropertyId),
     [rooms, selectedPropertyId],
   )
 
   function startEdit(room: Room) {
+    if (!confirmNavigation()) return
+    setEditBaseline(JSON.stringify([room.name, room.floorLevel ?? '']))
     setEditingId(room.id)
     setEditName(room.name)
     setEditFloor(room.floorLevel ?? '')
@@ -122,11 +130,13 @@ export function RoomsManager({ properties, rooms }: RoomsManagerProps) {
         throw new Error(message)
       }
 
+      if (!editingId || editSnapshot === editBaseline) markSaved()
       toast.success('Room added')
       setNewName('')
       setNewFloor('')
       router.refresh()
     } catch (error) {
+      setAddError(error instanceof Error ? error.message : 'Failed to add room')
       toast.error(error instanceof Error ? error.message : 'Failed to add room')
     } finally {
       setIsAdding(false)
@@ -162,10 +172,13 @@ export function RoomsManager({ properties, rooms }: RoomsManagerProps) {
         throw new Error(message)
       }
 
+      setEditBaseline(editSnapshot)
+      if (!newName && !newFloor) markSaved()
       toast.success('Room updated')
       setEditingId(null)
       router.refresh()
     } catch (error) {
+      setEditError(error instanceof Error ? error.message : 'Failed to update room')
       toast.error(error instanceof Error ? error.message : 'Failed to update room')
     } finally {
       setIsSavingEdit(false)
@@ -216,7 +229,7 @@ export function RoomsManager({ properties, rooms }: RoomsManagerProps) {
             Manage the rooms/locations used to place assets
           </p>
         </div>
-        <Select value={selectedPropertyId} onValueChange={setSelectedPropertyId}>
+        <Select value={selectedPropertyId} onValueChange={value => { if (confirmNavigation()) { setNewName(''); setNewFloor(''); setEditingId(null); markSaved(); setSelectedPropertyId(value) } }}>
           <SelectTrigger className="w-[240px]">
             <SelectValue placeholder="Select a property" />
           </SelectTrigger>

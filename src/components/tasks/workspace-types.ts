@@ -12,7 +12,7 @@ export type Options = {
   committees: Committee[]
 }
 export const inputStyle =
-  'h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring'
+  'portal-field min-h-11 w-full rounded-xl border border-input bg-background px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
 export async function taskFetch<T>(
   url: string,
   init?: RequestInit,

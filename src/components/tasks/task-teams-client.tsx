@@ -1,7 +1,11 @@
 'use client'
 
+import { DiscardButton } from '@/components/ui/discard-button'
+
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { Pencil, Plus, Trash2, X, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,7 +27,7 @@ interface Props {
 }
 
 export function TaskTeamsClient({ teams: initialTeams }: Props) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [teams, setTeams] = useState(initialTeams)
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
@@ -158,9 +162,9 @@ export function TaskTeamsClient({ teams: initialTeams }: Props) {
                 className="flex-1"
               />
               <Button size="sm" onClick={handleCreate}>Create</Button>
-              <Button size="sm" variant="ghost" onClick={() => { setAdding(false); setNewName('') }}>
+              <DiscardButton size="sm" variant="ghost" onClick={() => { setAdding(false); setNewName('') }}>
                 Cancel
-              </Button>
+              </DiscardButton>
             </div>
           )}
         </div>

@@ -1,10 +1,15 @@
 'use client'
 
+import { useSaveProtection, usePortalRouter, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
+import { Field } from '@/components/ui/field'
+
 import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { useForm, Controller } from 'react-hook-form'
 import { toast } from 'sonner'
 
+import { FormErrorSummary } from '@/components/ui/form-error-summary'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -69,18 +74,20 @@ interface RequestFormProps {
 }
 
 export function RequestForm({ request, vehicles, properties, projects, eligibleTasks, people, currentUserId, onSuccess }: RequestFormProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const releaseSaveProtection = useSaveProtection(isSubmitting)
+
   const isEditing = !!request
 
-  const {
+  const { reset,
     register,
     handleSubmit,
     control,
     watch,
     setValue,
     getValues,
-    formState: { errors },
+    formState: { errors , isDirty },
   } = useForm<RequestFormValues>({
     defaultValues: {
       reportOwnerId: request?.reportOwnerId ?? request?.requestedBy ?? currentUserId,
@@ -114,6 +121,14 @@ export function RequestForm({ request, vehicles, properties, projects, eligibleT
       taskTitle: '',
       taskProjectId: projects[0]?.id ?? '',
     },
+  })
+  const [submitError, setSubmitError] = useState('')
+  const { markSaved } = useUnsavedChanges(isDirty)
+
+  const errorFields = {"reportOwnerId":"request-report-owner","targetPropertyId":"request-property","originSelection":"request-pickup","taskReasonKind":"request-task-reason","taskId":"request-task","taskPropertyId":"request-task-property","taskProjectId":"request-task-project","taskTitle":"fleet-task-title","destinationText":"request-destination","startDate":"request-start","endDate":"request-end","paxCount":"request-pax","originText":"request-origin-text"} as const
+  const fieldErrors = Object.entries(errors).flatMap(([name, error]) => {
+    const fieldId = errorFields[name as keyof typeof errorFields]
+    return fieldId && error?.message ? [{ fieldId, message: String(error.message) }] : []
   })
 
   const requestType = watch('requestType')
@@ -257,10 +272,12 @@ export function RequestForm({ request, vehicles, properties, projects, eligibleT
         )
       }
 
+      reset(getValues()); releaseSaveProtection(); markSaved(); setSubmitError('')
       toast.success(isEditing ? 'Request updated' : 'Request submitted')
       onSuccess?.()
       router.refresh()
     } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Something went wrong')
       toast.error(error instanceof Error ? error.message : 'Something went wrong')
     } finally {
       setIsSubmitting(false)
@@ -268,22 +285,13 @@ export function RequestForm({ request, vehicles, properties, projects, eligibleT
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-      <div className="space-y-2">
-        <Label>Visit report owner</Label>
-        <Controller control={control} name="reportOwnerId" rules={{ validate: (value) => people.some((person) => person.id === value) || 'Select an active report owner' }} render={({ field }) => (
-          <Select value={field.value} onValueChange={field.onChange}>
-            <SelectTrigger className="w-full"><SelectValue placeholder="Select report owner" /></SelectTrigger>
-            <SelectContent>{people.map((person) => <SelectItem key={person.id} value={person.id}>{person.fullName}</SelectItem>)}</SelectContent>
-          </Select>
-        )} />
-        <p className="text-sm text-muted-foreground">This person must submit the visit report within 48 hours of trip completion.</p>
-        {errors.reportOwnerId && <p className="text-sm text-destructive">{errors.reportOwnerId.message}</p>}
-      </div>
-      <Tabs
+    <form onSubmit={handleSubmit(onSubmit, () => setSubmitError('Check the highlighted details before saving.'))} className="space-y-5"><fieldset disabled={isSubmitting} className="contents">
+<FormErrorSummary errors={fieldErrors} />
+{submitError && <p role="alert" className="portal-form-errors rounded-xl border border-destructive/40 p-4">{submitError}</p>}
+<fieldset className="portal-form-section space-y-5"><legend>1. Trip details</legend><Tabs
         value={requestType}
         onValueChange={(value) =>
-          setValue('requestType', value as RequestFormValues['requestType'])
+          setValue('requestType', value as RequestFormValues['requestType'], { shouldDirty: true })
         }
       >
         <TabsList className="w-full">
@@ -299,7 +307,7 @@ export function RequestForm({ request, vehicles, properties, projects, eligibleT
         </TabsList>
 
         <TabsContent value="visit" className="space-y-5 pt-4">
-          <div className="space-y-2">
+          <Field controlId="request-property" className="space-y-2">
             <Label>Property</Label>
             <Controller
               control={control}
@@ -314,8 +322,8 @@ export function RequestForm({ request, vehicles, properties, projects, eligibleT
                   getValues('requestType') !== 'visit' || Boolean(v) || 'Select a property',
               }}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger className="w-full">
+                <Select disabled={isSubmitting} value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger id="request-property" ref={field.ref} aria-invalid={!!errors.targetPropertyId} aria-label="Property" className="w-full">
                     <SelectValue placeholder="Select a property" />
                   </SelectTrigger>
                   <SelectContent>
@@ -331,11 +339,11 @@ export function RequestForm({ request, vehicles, properties, projects, eligibleT
             {errors.targetPropertyId && (
               <p className="text-sm text-destructive">{errors.targetPropertyId.message}</p>
             )}
-          </div>
+          </Field>
 
           <div className="space-y-2">
-            <Label htmlFor="request-purpose">Purpose</Label>
-            <Textarea
+            <Label htmlFor="request-purpose">Purpose (optional)</Label>
+            <Textarea disabled={isSubmitting} aria-invalid={!!errors.purpose}
               id="request-purpose"
               placeholder="Optional"
               maxLength={1000}
@@ -347,7 +355,7 @@ export function RequestForm({ request, vehicles, properties, projects, eligibleT
         <TabsContent value="standalone" className="space-y-5 pt-4">
           <div className="space-y-2">
             <Label htmlFor="request-destination">Destination</Label>
-            <Input
+            <Input disabled={isSubmitting} aria-invalid={!!errors.destinationText}
               id="request-destination"
               placeholder="e.g. Bandaranaike Airport"
               maxLength={500}
@@ -377,102 +385,7 @@ export function RequestForm({ request, vehicles, properties, projects, eligibleT
           </div>
         </TabsContent>
       </Tabs>
-
-      {!isEditing && (
-        <div className="space-y-3 rounded-lg border p-4">
-          <div>
-            <Label>Task reason</Label>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Link this trip to an open task, or create one for the selected property.
-            </p>
-          </div>
-
-          {requestType === 'standalone' && (
-            <div className="space-y-2">
-              <Label>Task property</Label>
-              <Controller
-                control={control}
-                name="taskPropertyId"
-                rules={{
-                  validate: (v) =>
-                    getValues('requestType') !== 'standalone' ||
-                    Boolean(v) ||
-                    'Select the property this trip supports',
-                }}
-                render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className="w-full"><SelectValue placeholder="Select a property" /></SelectTrigger>
-                    <SelectContent>
-                      {properties.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {errors.taskPropertyId && <p className="text-sm text-destructive">{errors.taskPropertyId.message}</p>}
-            </div>
-          )}
-
-          <Controller
-            control={control}
-            name="taskReasonKind"
-            render={({ field }) => (
-              <Select value={field.value} onValueChange={(value) => field.onChange(value as 'existing' | 'new')}>
-                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="existing">Use an existing open task</SelectItem>
-                  <SelectItem value="new">Create a new task</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          />
-
-          {taskReasonKind === 'existing' ? (
-            <div className="space-y-2">
-              <Controller
-                control={control}
-                name="taskId"
-                rules={{ validate: (v) => Boolean(v) || 'Select an open task' }}
-                render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange} disabled={!effectiveTaskPropertyId}>
-                    <SelectTrigger className="w-full"><SelectValue placeholder={effectiveTaskPropertyId ? 'Select an open task' : 'Select the property first'} /></SelectTrigger>
-                    <SelectContent>
-                      {eligibleTasksForProperty.map((task) => (
-                        <SelectItem key={task.id} value={task.id}>{task.title} — {task.projectName}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {effectiveTaskPropertyId && eligibleTasksForProperty.length === 0 && (
-                <p className="text-sm text-muted-foreground">No eligible tasks for this property. Create a new one instead.</p>
-              )}
-              {errors.taskId && <p className="text-sm text-destructive">{errors.taskId.message}</p>}
-            </div>
-          ) : (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="fleet-task-title">New task title</Label>
-                <Input id="fleet-task-title" maxLength={500} placeholder="What this trip supports" {...register('taskTitle', {
-                  validate: (v) => taskReasonKind !== 'new' || Boolean(v.trim()) || 'Task title is required',
-                })} />
-                {errors.taskTitle && <p className="text-sm text-destructive">{errors.taskTitle.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label>Project</Label>
-                <Controller control={control} name="taskProjectId" rules={{ validate: (v) => taskReasonKind !== 'new' || Boolean(v) || 'Select an active project' }} render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className="w-full"><SelectValue placeholder="Select an active project" /></SelectTrigger>
-                    <SelectContent>{projects.map((project) => <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>)}</SelectContent>
-                  </Select>
-                )} />
-                {errors.taskProjectId && <p className="text-sm text-destructive">{errors.taskProjectId.message}</p>}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      <div className="space-y-2">
+<Field controlId="request-pickup" className="space-y-2">
         <Label>Pick-up</Label>
         <Controller
           control={control}
@@ -492,8 +405,8 @@ export function RequestForm({ request, vehicles, properties, projects, eligibleT
             validate: (v) => (v !== '' && v !== 'property') || 'Choose a pick-up point',
           }}
           render={({ field }) => (
-            <Select value={field.value} onValueChange={field.onChange}>
-              <SelectTrigger className="w-full">
+            <Select disabled={isSubmitting} value={field.value} onValueChange={field.onChange}>
+              <SelectTrigger id="request-pickup" ref={field.ref} aria-invalid={!!errors.originSelection} aria-label="Pick-up" className="w-full">
                 <SelectValue placeholder="Select a pick-up point" />
               </SelectTrigger>
               <SelectContent>
@@ -511,12 +424,11 @@ export function RequestForm({ request, vehicles, properties, projects, eligibleT
         {errors.originSelection && (
           <p className="text-sm text-destructive">{errors.originSelection.message}</p>
         )}
-      </div>
-
-      {originSelection === 'other' && (
+      </Field>
+{originSelection === 'other' && (
         <div className="space-y-2">
           <Label htmlFor="request-origin-text">Pick-up location</Label>
-          <Input
+          <Input disabled={isSubmitting} aria-invalid={!!errors.originText}
             id="request-origin-text"
             placeholder="e.g. Bandaranaike Airport"
             maxLength={500}
@@ -536,43 +448,114 @@ export function RequestForm({ request, vehicles, properties, projects, eligibleT
             <p className="text-sm text-destructive">{errors.originText.message}</p>
           )}
         </div>
-      )}
+      )}</fieldset>
+<fieldset className="portal-form-section space-y-5"><legend>2. Work this trip supports</legend>{!isEditing && (
+        <div className="space-y-3 rounded-lg border p-4">
+          <div>
+            <Label>Task reason</Label>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Link this trip to an open task, or create one for the selected property.
+            </p>
+          </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="request-start">Start date</Label>
-          <Input
-            id="request-start"
-            type="date"
-            {...register('startDate', { required: 'Start date is required' })}
+          {requestType === 'standalone' && (
+            <Field controlId="request-task-property" className="space-y-2">
+              <Label>Task property</Label>
+              <Controller
+                control={control}
+                name="taskPropertyId"
+                rules={{
+                  validate: (v) =>
+                    getValues('requestType') !== 'standalone' ||
+                    Boolean(v) ||
+                    'Select the property this trip supports',
+                }}
+                render={({ field }) => (
+                  <Select disabled={isSubmitting} value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger id="request-task-property" ref={field.ref} aria-invalid={!!errors.taskPropertyId} aria-label="Task property" className="w-full"><SelectValue placeholder="Select a property" /></SelectTrigger>
+                    <SelectContent>
+                      {properties.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.taskPropertyId && <p className="text-sm text-destructive">{errors.taskPropertyId.message}</p>}
+            </Field>
+          )}
+
+          <Controller
+            control={control}
+            name="taskReasonKind"
+            render={({ field }) => (
+              <Select disabled={isSubmitting} value={field.value} onValueChange={(value) => field.onChange(value as 'existing' | 'new')}>
+                <SelectTrigger id="request-task-reason" ref={field.ref} aria-invalid={!!errors.taskReasonKind} aria-label="Task reason" className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="existing">Use an existing open task</SelectItem>
+                  <SelectItem value="new">Create a new task</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
           />
-          {errors.startDate && (
-            <p className="text-sm text-destructive">{errors.startDate.message}</p>
+
+          {taskReasonKind === 'existing' ? (
+            <div className="space-y-2">
+              <Controller
+                control={control}
+                name="taskId"
+                rules={{ validate: (v) => Boolean(v) || 'Select an open task' }}
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange} disabled={isSubmitting || (!effectiveTaskPropertyId)}>
+                    <SelectTrigger id="request-task" ref={field.ref} aria-invalid={!!errors.taskId} aria-label="Open task" className="w-full"><SelectValue placeholder={effectiveTaskPropertyId ? 'Select an open task' : 'Select the property first'} /></SelectTrigger>
+                    <SelectContent>
+                      {eligibleTasksForProperty.map((task) => (
+                        <SelectItem key={task.id} value={task.id}>{task.title} — {task.projectName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {effectiveTaskPropertyId && eligibleTasksForProperty.length === 0 && (
+                <p className="text-sm text-muted-foreground">No eligible tasks for this property. Create a new one instead.</p>
+              )}
+              {errors.taskId && <p className="text-sm text-destructive">{errors.taskId.message}</p>}
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="fleet-task-title">New task title</Label>
+                <Input disabled={isSubmitting} aria-invalid={!!errors.taskTitle} id="fleet-task-title" maxLength={500} placeholder="What this trip supports" {...register('taskTitle', {
+                  validate: (v) => taskReasonKind !== 'new' || Boolean(v.trim()) || 'Task title is required',
+                })} />
+                {errors.taskTitle && <p className="text-sm text-destructive">{errors.taskTitle.message}</p>}
+              </div>
+              <Field controlId="request-task-project" className="space-y-2">
+                <Label>Project</Label>
+                <Controller control={control} name="taskProjectId" rules={{ validate: (v) => taskReasonKind !== 'new' || Boolean(v) || 'Select an active project' }} render={({ field }) => (
+                  <Select disabled={isSubmitting} value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger id="request-task-project" ref={field.ref} aria-invalid={!!errors.taskProjectId} aria-label="Project" className="w-full"><SelectValue placeholder="Select an active project" /></SelectTrigger>
+                    <SelectContent>{projects.map((project) => <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                )} />
+                {errors.taskProjectId && <p className="text-sm text-destructive">{errors.taskProjectId.message}</p>}
+              </Field>
+            </>
           )}
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="request-end">End date</Label>
-          <Input
-            id="request-end"
-            type="date"
-            {...register('endDate', {
-              required: 'End date is required',
-              // Mirrors the POST route's Zod `.refine` (and the PATCH route's
-              // identical imperative check) word-for-word, so a transposed
-              // date is caught here instead of round-tripping to a bare
-              // "Validation failed" toast with the real reason buried in
-              // `details`, which parseErrorMessage doesn't read.
-              validate: (v) =>
-                !v || v >= getValues('startDate') || 'End date cannot be before the start date',
-            })}
-          />
-          {errors.endDate && <p className="text-sm text-destructive">{errors.endDate.message}</p>}
-        </div>
-      </div>
-
-      <div className="space-y-2">
+      )}</fieldset>
+<fieldset className="portal-form-section space-y-5"><legend>3. People and transport</legend><Field controlId="request-report-owner" className="space-y-2">
+        <Label>Visit report owner</Label>
+        <Controller control={control} name="reportOwnerId" rules={{ validate: (value) => people.some((person) => person.id === value) || 'Select an active report owner' }} render={({ field }) => (
+          <Select disabled={isSubmitting} value={field.value} onValueChange={field.onChange}>
+            <SelectTrigger id="request-report-owner" ref={field.ref} aria-invalid={!!errors.reportOwnerId} aria-label="Visit report owner" className="w-full"><SelectValue placeholder="Select report owner" /></SelectTrigger>
+            <SelectContent>{people.map((person) => <SelectItem key={person.id} value={person.id}>{person.fullName}</SelectItem>)}</SelectContent>
+          </Select>
+        )} />
+        <p className="text-sm text-muted-foreground">This person must submit the visit report within 48 hours of trip completion.</p>
+        {errors.reportOwnerId && <p className="text-sm text-destructive">{errors.reportOwnerId.message}</p>}
+      </Field>
+<div className="space-y-2">
         <Label htmlFor="request-pax">Passengers</Label>
-        <Input
+        <Input disabled={isSubmitting} aria-invalid={!!errors.paxCount}
           id="request-pax"
           type="number"
           min={0}
@@ -599,39 +582,67 @@ export function RequestForm({ request, vehicles, properties, projects, eligibleT
           <p className="text-sm text-destructive">{constraintCheck.error}</p>
         ) : null}
       </div>
-
-      <div className="flex items-center justify-between rounded-lg border p-3">
+<div className="flex items-center justify-between rounded-lg border p-3">
         <Label htmlFor="request-cargo">Needs cargo transport</Label>
         <Controller
           control={control}
           name="cargoRequired"
           render={({ field }) => (
-            <Switch id="request-cargo" checked={field.value} onCheckedChange={field.onChange} />
+            <Switch disabled={isSubmitting} id="request-cargo" checked={field.value} onCheckedChange={field.onChange} />
           )}
         />
+      </div></fieldset>
+<fieldset className="portal-form-section space-y-5"><legend>4. Dates and extra details</legend><div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="request-start">Start date</Label>
+          <Input disabled={isSubmitting} aria-invalid={!!errors.startDate}
+            id="request-start"
+            type="date"
+            {...register('startDate', { required: 'Start date is required' })}
+          />
+          {errors.startDate && (
+            <p className="text-sm text-destructive">{errors.startDate.message}</p>
+          )}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="request-end">End date</Label>
+          <Input disabled={isSubmitting} aria-invalid={!!errors.endDate}
+            id="request-end"
+            type="date"
+            {...register('endDate', {
+              required: 'End date is required',
+              // Mirrors the POST route's Zod `.refine` (and the PATCH route's
+              // identical imperative check) word-for-word, so a transposed
+              // date is caught here instead of round-tripping to a bare
+              // "Validation failed" toast with the real reason buried in
+              // `details`, which parseErrorMessage doesn't read.
+              validate: (v) =>
+                !v || v >= getValues('startDate') || 'End date cannot be before the start date',
+            })}
+          />
+          {errors.endDate && <p className="text-sm text-destructive">{errors.endDate.message}</p>}
+        </div>
       </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="request-notes">Notes</Label>
-        <Textarea
+<div className="space-y-2">
+        <Label htmlFor="request-notes">Notes (optional)</Label>
+        <Textarea disabled={isSubmitting} aria-invalid={!!errors.notes}
           id="request-notes"
           placeholder="Optional"
           maxLength={2000}
           {...register('notes')}
         />
-      </div>
-
-      <div className="flex justify-end gap-3 pt-2">
+      </div></fieldset>
+<div className="flex justify-end gap-3 pt-2">
         <Button type="submit" disabled={isSubmitting || !constraintCheck.ok}>
           {isSubmitting
             ? isEditing
               ? 'Saving...'
               : 'Submitting...'
             : isEditing
-              ? 'Save Changes'
-              : 'Submit Request'}
+              ? 'Save ride request'
+              : 'Submit ride request'}
         </Button>
       </div>
-    </form>
+</fieldset></form>
   )
 }

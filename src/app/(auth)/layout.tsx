@@ -1,11 +1,12 @@
+import { PortalThemeProvider } from "@/components/providers/portal-theme-provider"
 export default function AuthLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30">
+    <PortalThemeProvider><div className="portal-theme portal-auth min-h-screen flex items-center justify-center p-4">
       {children}
-    </div>
+    </div></PortalThemeProvider>
   )
 }

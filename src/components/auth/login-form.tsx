@@ -96,17 +96,17 @@ function LoginFormContent({ inviteOnly }: { inviteOnly: boolean }) {
   const displayError = formError || (error ? (ERROR_MESSAGES[error] ?? 'An unexpected error occurred.') : null)
 
   return (
-    <div className="w-full max-w-sm space-y-8">
+    <div className="portal-panel w-full max-w-md space-y-7 bg-card p-6 sm:p-10">
       <div className="text-center space-y-4">
         <img src="/TVPL.png" alt="Taru Villas logo" className="mx-auto size-16" />
         <div className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight">Taru Villas</h1>
-          <p className="text-muted-foreground">Management Portal</p>
+          <h1 className="font-serif text-4xl tracking-tight">Taru Villas</h1>
+          <p className="text-muted-foreground">Welcome back</p><p className="text-sm text-muted-foreground">Sign in to organise your day and look after your property.</p>
         </div>
       </div>
 
       {displayError && (
-        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div role="alert" className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {displayError}
         </div>
       )}

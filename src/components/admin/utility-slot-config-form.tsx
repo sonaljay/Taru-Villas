@@ -1,5 +1,7 @@
 'use client'
 
+import { useSaveProtection, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
 import { useState, useEffect } from 'react'
 import { Clock } from 'lucide-react'
 import { toast } from 'sonner'
@@ -16,8 +18,14 @@ export function UtilitySlotConfigForm({ onRefresh }: SlotConfigFormProps) {
   const [morning, setMorning] = useState('05:30')
   const [evening, setEvening] = useState('17:30')
   const [night, setNight] = useState('22:30')
+  const [savedTimes, setSavedTimes] = useState(JSON.stringify(['05:30', '17:30', '22:30']))
+  const currentTimes = JSON.stringify([morning, evening, night])
+  const [saveError, setSaveError] = useState('')
   const [loading, setLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const releaseSaveProtection = useSaveProtection(isSaving)
+
+  const { markSaved } = useUnsavedChanges(!loading && currentTimes !== savedTimes)
 
   useEffect(() => {
     ;(async () => {
@@ -28,6 +36,7 @@ export function UtilitySlotConfigForm({ onRefresh }: SlotConfigFormProps) {
           if (d.morningTime) setMorning(d.morningTime.slice(0, 5))
           if (d.eveningTime) setEvening(d.eveningTime.slice(0, 5))
           if (d.nightTime) setNight(d.nightTime.slice(0, 5))
+          setSavedTimes(JSON.stringify([d.morningTime?.slice(0, 5) ?? '05:30', d.eveningTime?.slice(0, 5) ?? '17:30', d.nightTime?.slice(0, 5) ?? '22:30']))
         }
       } finally {
         setLoading(false)
@@ -47,9 +56,11 @@ export function UtilitySlotConfigForm({ onRefresh }: SlotConfigFormProps) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error ?? 'Failed to save slot times')
       }
+      setSavedTimes(currentTimes); releaseSaveProtection(); markSaved(); setSaveError('')
       toast.success('Slot times updated')
       onRefresh()
     } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Unable to save times')
       toast.error(error instanceof Error ? error.message : 'Failed to save')
     } finally {
       setIsSaving(false)
@@ -65,21 +76,22 @@ export function UtilitySlotConfigForm({ onRefresh }: SlotConfigFormProps) {
         </CardTitle>
       </CardHeader>
       <CardContent>
+      {saveError && <p role="alert" className="rounded-xl border border-destructive/40 p-4">{saveError}</p>}
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="slot-morning">Morning</Label>
             <Input id="slot-morning" type="time" className="w-32" value={morning}
-              onChange={(e) => setMorning(e.target.value)} disabled={loading} />
+              onChange={(e) => setMorning(e.target.value)} disabled={isSaving || (loading)} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="slot-evening">Evening</Label>
             <Input id="slot-evening" type="time" className="w-32" value={evening}
-              onChange={(e) => setEvening(e.target.value)} disabled={loading} />
+              onChange={(e) => setEvening(e.target.value)} disabled={isSaving || (loading)} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="slot-night">Night</Label>
             <Input id="slot-night" type="time" className="w-32" value={night}
-              onChange={(e) => setNight(e.target.value)} disabled={loading} />
+              onChange={(e) => setNight(e.target.value)} disabled={isSaving || (loading)} />
           </div>
           <Button onClick={handleSave} disabled={isSaving || loading}>
             {isSaving ? 'Saving...' : 'Save'}

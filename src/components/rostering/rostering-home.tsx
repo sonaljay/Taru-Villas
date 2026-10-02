@@ -1,7 +1,9 @@
 'use client'
 
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+
 import { useMemo, useState } from 'react'
 import {
   ArrowRight,
@@ -96,7 +98,7 @@ export function RosteringHome({
   defaultMonth,
   isAdmin,
 }: RosteringHomeProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [hubId, setHubId] = useState(hubs[0]?.id ?? '')
   const [month, setMonth] = useState(defaultMonth)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -138,7 +140,7 @@ export function RosteringHome({
 
   return (
     <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-6 p-4 sm:p-6 lg:p-8">
-      <section className="relative overflow-hidden rounded-2xl border bg-[linear-gradient(120deg,rgba(15,23,42,0.98),rgba(27,45,58,0.96))] px-6 py-7 text-white shadow-sm sm:px-8 sm:py-9">
+      <section className="relative overflow-hidden rounded-2xl border bg-primary px-6 py-7 text-white shadow-sm sm:px-8 sm:py-9">
         <div className="absolute inset-y-0 right-0 hidden w-[42%] opacity-25 lg:block" aria-hidden="true">
           <div className="grid h-full grid-cols-7 border-l border-white/15">
             {Array.from({ length: 7 }, (_, index) => (
@@ -154,7 +156,7 @@ export function RosteringHome({
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
             Build the month around service, rest, and real property demand.
           </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-primary-foreground/85 sm:text-base">
             Generate one coordinated draft for every property in a hub. Hard
             rules stay visible; optimization warnings remain explainable.
           </p>

@@ -49,6 +49,11 @@ const segmentLabels: Record<string, string> = {
   rostering: 'Rostering',
   approvals: 'Approvals',
   setup: 'Setup',
+  assets: 'Asset registry',
+  'my-roster': 'My roster',
+  directory: 'Directory',
+  rooms: 'Rooms',
+  profile: 'Profile',
 }
 
 function getPageTitle(pathname: string): string {
@@ -108,14 +113,14 @@ export function Header() {
   const breadcrumbs = getBreadcrumbs(pathname)
 
   return (
-    <header className="glass sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 px-3 sm:px-4">
+    <header data-portal-header className="glass sticky top-0 z-30 flex h-18 shrink-0 items-center gap-2 px-3 sm:px-4">
       {/* Left side: sidebar trigger + breadcrumbs */}
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <SidebarTrigger className="-ml-1 shrink-0" />
+        <SidebarTrigger className="-ml-1 w-auto shrink-0 px-2 sm:w-11"><span className="sm:hidden">Menu</span><span className="sr-only ">Toggle menu</span></SidebarTrigger>
         <Separator orientation="vertical" className="mr-1 !h-4 shrink-0 sm:mr-2" />
 
         {breadcrumbs.length > 0 ? (
-          <nav className="flex min-w-0 items-center gap-1 text-sm">
+          <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 text-sm">
             {breadcrumbs.map((crumb, index) => {
               const isLast = index === breadcrumbs.length - 1
               return (
@@ -149,7 +154,7 @@ export function Header() {
             })}
           </nav>
         ) : (
-          <h1 className="truncate text-sm font-medium">{pageTitle}</h1>
+          <span className="truncate text-sm font-medium">{pageTitle}</span>
         )}
       </div>
 

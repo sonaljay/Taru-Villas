@@ -1,5 +1,9 @@
 'use client'
 
+import { useSaveProtection } from '@/hooks/use-unsaved-changes'
+
+import { useNativeFormGuard } from '@/hooks/use-native-form-guard'
+
 import { useEffect, useRef, useState } from 'react'
 import { Camera, Clock, Loader2, Users } from 'lucide-react'
 import { toast } from 'sonner'
@@ -49,6 +53,9 @@ export function UtilityReadingForm({
   initialStaff,
   onSuccess,
 }: ReadingFormProps) {
+  const [saveError, setSaveError] = useState('')
+  const { formProps, markSaved } = useNativeFormGuard()
+
   const today = new Date().toISOString().split('T')[0]
   const [readingDate, setReadingDate] = useState(today)
   const [slot, setSlot] = useState<'morning' | 'evening' | 'night'>('morning')
@@ -57,6 +64,8 @@ export function UtilityReadingForm({
   const [guestCount, setGuestCount] = useState(initialGuests != null ? String(initialGuests) : '')
   const [staffCount, setStaffCount] = useState(initialStaff != null ? String(initialStaff) : '')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const releaseSaveProtection = useSaveProtection(isSubmitting)
+
   const [isScanning, setIsScanning] = useState(false)
   const [scannedPreview, setScannedPreview] = useState<string | null>(null)
   const [readingTimestamp, setReadingTimestamp] = useState<string | null>(null)
@@ -104,9 +113,11 @@ export function UtilityReadingForm({
       setReadingValue(String(value))
       setReadingTimestamp(nowIST())
       setIsScannedReading(true)
+      setSaveError('')
+      releaseSaveProtection(); markSaved()
       toast.success(`Detected reading: ${value}`)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not read meter')
+      setSaveError(err instanceof Error ? err.message : 'Could not read meter'); toast.error(err instanceof Error ? err.message : 'Could not read meter')
       setScannedPreview(null)
     } finally {
       setIsScanning(false)
@@ -125,10 +136,11 @@ export function UtilityReadingForm({
 
     const value = parseFloat(readingValue)
     if (isNaN(value) || value < 0) {
-      toast.error('Please enter a valid meter reading')
+      setSaveError('Please enter a valid meter reading'); toast.error('Please enter a valid meter reading')
       return
     }
 
+    setSaveError('')
     setIsSubmitting(true)
     try {
       const res = await fetch('/api/utilities/readings', {
@@ -151,15 +163,18 @@ export function UtilityReadingForm({
         throw new Error(body.error ?? 'Failed to save reading')
       }
 
+      setSaveError('')
+      releaseSaveProtection(); markSaved()
       toast.success('Reading saved')
       setReadingValue('')
       setNote('')
       setScannedPreview(null)
       setReadingTimestamp(null)
       setIsScannedReading(false)
+      releaseSaveProtection(); markSaved()
       onSuccess()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to save')
+      setSaveError(error instanceof Error ? error.message : 'Failed to save'); toast.error(error instanceof Error ? error.message : 'Failed to save')
     } finally {
       setIsSubmitting(false)
     }
@@ -171,10 +186,11 @@ export function UtilityReadingForm({
         <CardTitle className="text-base">Add Reading</CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form {...formProps} onSubmit={handleSubmit} className="space-y-4"><fieldset disabled={isSubmitting} className="contents">
+      {saveError && <p role="alert" className="rounded-xl border border-destructive/40 p-4">{saveError}</p>}
           <div className="space-y-2">
             <Label htmlFor="reading-date">Date</Label>
-            <Input
+            <Input disabled={isSubmitting}
               id="reading-date"
               type="date"
               value={readingDate}
@@ -186,7 +202,7 @@ export function UtilityReadingForm({
           {utilityType === 'electricity' && (
             <div className="space-y-2">
               <Label htmlFor="reading-slot">Reading Time</Label>
-              <Select value={slot} onValueChange={(v) => setSlot(v as typeof slot)}>
+              <Select disabled={isSubmitting} value={slot} onValueChange={(v) => setSlot(v as typeof slot)}>
                 <SelectTrigger id="reading-slot">
                   <SelectValue />
                 </SelectTrigger>
@@ -259,7 +275,7 @@ export function UtilityReadingForm({
 
           <div className="space-y-1.5">
             <Label htmlFor="reading-value">Meter Reading</Label>
-            <Input
+            <Input disabled={isSubmitting}
               id="reading-value"
               type="number"
               step="0.01"
@@ -279,7 +295,7 @@ export function UtilityReadingForm({
 
           <div className="space-y-2">
             <Label htmlFor="reading-note">Note (optional)</Label>
-            <Textarea
+            <Textarea disabled={isSubmitting}
               id="reading-note"
               placeholder="Any observations..."
               value={note}
@@ -294,7 +310,7 @@ export function UtilityReadingForm({
                 <Users className="size-3.5" />
                 Guests
               </Label>
-              <Input id="reading-guests" type="number" min="0" value={guestCount}
+              <Input disabled={isSubmitting} id="reading-guests" type="number" min="0" value={guestCount}
                 onChange={(e) => setGuestCount(e.target.value)} placeholder="0" />
             </div>
             <div className="space-y-1.5">
@@ -302,7 +318,7 @@ export function UtilityReadingForm({
                 <Users className="size-3.5" />
                 Staff
               </Label>
-              <Input id="reading-staff" type="number" min="0" value={staffCount}
+              <Input disabled={isSubmitting} id="reading-staff" type="number" min="0" value={staffCount}
                 onChange={(e) => setStaffCount(e.target.value)} placeholder="0" />
             </div>
           </div>
@@ -314,7 +330,7 @@ export function UtilityReadingForm({
           >
             {isSubmitting ? 'Saving...' : 'Save Reading'}
           </Button>
-        </form>
+        </fieldset></form>
       </CardContent>
     </Card>
   )

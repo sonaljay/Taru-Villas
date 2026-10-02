@@ -23,7 +23,7 @@ export function UtilityKpiRollup({ rollup }: { rollup: PropertyKpiRollup[] }) {
       <CardContent>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {rollup.map((r) => (
-            <div key={r.propertyId} className="rounded-lg border p-3">
+            <div key={r.propertyId} className="min-w-0 rounded-lg border p-3">
               <p className="text-sm font-medium mb-2 truncate">
                 {r.propertyName.replace('Taru Villas - ', '')}
               </p>

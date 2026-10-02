@@ -38,7 +38,7 @@ export function SetPasswordForm() {
   }
 
   return (
-    <div className="w-full max-w-sm space-y-8">
+    <div className="portal-panel bg-card p-6 sm:p-10 w-full max-w-md space-y-8">
       <div className="space-y-2 text-center">
         <h1 className="text-3xl font-bold tracking-tight">Set your password</h1>
         <p className="text-muted-foreground">

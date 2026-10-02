@@ -1,7 +1,10 @@
 'use client'
 
+import { DiscardButton } from '@/components/ui/discard-button'
+import { useUnsavedChanges, usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import {
   AlertTriangle,
   Check,
@@ -61,13 +64,17 @@ export function RosterWorkflowControls({
   isAdmin,
   accessiblePropertyIds,
 }: RosterWorkflowControlsProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [workingKey, setWorkingKey] = useState<string | null>(null)
   const [overrideViolation, setOverrideViolation] =
     useState<WorkflowViolation | null>(null)
   const [overrideReason, setOverrideReason] = useState('')
   const [rejectOpen, setRejectOpen] = useState(false)
   const [rejectComments, setRejectComments] = useState('')
+  const { markSaved } = useUnsavedChanges(
+    Boolean(overrideViolation && overrideReason.trim()) || Boolean(rejectOpen && rejectComments.trim()),
+    workingKey !== null,
+  )
 
   const accessible =
     accessiblePropertyIds === null ? null : new Set(accessiblePropertyIds)
@@ -96,6 +103,7 @@ export function RosterWorkflowControls({
         cycleId?: string
       }
       if (!response.ok) throw new Error(result.error ?? 'Roster action failed')
+      markSaved()
       toast.success(successMessage)
       router.refresh()
       return result
@@ -306,6 +314,7 @@ export function RosterWorkflowControls({
           <div className="space-y-2">
             <Label htmlFor="override-reason">Override reason</Label>
             <Textarea
+              disabled={workingKey !== null}
               id="override-reason"
               value={overrideReason}
               onChange={(event) => setOverrideReason(event.target.value)}
@@ -313,9 +322,9 @@ export function RosterWorkflowControls({
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOverrideViolation(null)}>
+            <DiscardButton variant="outline" onClick={() => setOverrideViolation(null)}>
               Cancel
-            </Button>
+            </DiscardButton>
             <Button
               onClick={overrideWarning}
               disabled={overrideReason.trim().length < 5 || workingKey !== null}
@@ -340,6 +349,7 @@ export function RosterWorkflowControls({
           <div className="space-y-2">
             <Label htmlFor="reject-comments">Review comments</Label>
             <Textarea
+              disabled={workingKey !== null}
               id="reject-comments"
               value={rejectComments}
               onChange={(event) => setRejectComments(event.target.value)}
@@ -347,9 +357,9 @@ export function RosterWorkflowControls({
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectOpen(false)}>
+            <DiscardButton variant="outline" onClick={() => setRejectOpen(false)}>
               Cancel
-            </Button>
+            </DiscardButton>
             <Button
               variant="destructive"
               onClick={rejectCycle}

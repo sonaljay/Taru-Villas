@@ -1,7 +1,9 @@
 'use client'
 
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import Link from 'next/link'
 import { Html5Qrcode, type Html5QrcodeResult } from 'html5-qrcode'
 import { Camera, CircleAlert } from 'lucide-react'
@@ -35,7 +37,7 @@ function extractAssetId(decodedText: string): string | null {
 }
 
 export function QrScanner() {
-  const router = useRouter()
+  const router = usePortalRouter()
   const scannerRef = useRef<Html5Qrcode | null>(null)
   // Guards against the success callback firing again (fps: 10) while the
   // async stop()/navigate sequence from a prior decode is still in flight.

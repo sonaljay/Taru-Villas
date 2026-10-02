@@ -1,5 +1,7 @@
 'use client'
 
+import { DiscardButton } from '@/components/ui/discard-button'
+
 import { useState, useTransition } from 'react'
 import { GripVertical, Pencil, Plus, Trash2, X, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -195,9 +197,9 @@ export function SopCategoriesManagement({ initialCategories }: Props) {
               className="flex-1"
             />
             <Button size="sm" onClick={handleCreate}>Create</Button>
-            <Button size="sm" variant="ghost" onClick={() => { setAdding(false); setNewName('') }}>
+            <DiscardButton size="sm" variant="ghost" onClick={() => { setAdding(false); setNewName('') }}>
               Cancel
-            </Button>
+            </DiscardButton>
           </div>
         )}
       </div>

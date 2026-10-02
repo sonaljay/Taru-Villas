@@ -1,6 +1,12 @@
 'use client'
+
+import { useSaveProtection, usePortalRouter } from '@/hooks/use-unsaved-changes'
+
+import { DiscardButton } from '@/components/ui/discard-button'
+
+import { useNativeFormGuard } from '@/hooks/use-native-form-guard'
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { Button } from '@/components/ui/button'
 import { TasksAreaTabs } from './tasks-area-tabs'
 import {
@@ -11,11 +17,15 @@ import {
   jsonRequest,
 } from './workspace-types'
 export function TaskCommitteesClient({ options }: { options: Options }) {
-  const router = useRouter(),
+  const { formProps, markSaved } = useNativeFormGuard()
+
+  const router = usePortalRouter(),
     [editing, setEditing] = useState<Committee | null>(null),
     [adding, setAdding] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('')
+  const releaseSaveProtection = useSaveProtection(busy)
+
   const [failures, setFailures] = useState<
     { id: string; title: string; channel: string; error: string }[]
   >([])
@@ -33,7 +43,7 @@ export function TaskCommitteesClient({ options }: { options: Options }) {
             Manage the people who own and review tasks.
           </p>
         </div>
-        <Button
+        <Button disabled={busy}
           onClick={() => {
             setEditing(null)
             setAdding(true)
@@ -78,7 +88,7 @@ export function TaskCommitteesClient({ options }: { options: Options }) {
                 )
                 .join(', ') || 'No members — add members to enable approvals.'}
             </p>
-            <Button
+            <Button disabled={busy}
               variant="outline"
               size="sm"
               className="mt-4"
@@ -94,7 +104,7 @@ export function TaskCommitteesClient({ options }: { options: Options }) {
         ))}
       </div>
       {adding && (
-        <form
+        <form {...formProps}
           key={editing?.id ?? 'new'}
           className="max-w-xl space-y-4 rounded-lg border p-5"
           onSubmit={async (e) => {
@@ -114,6 +124,7 @@ export function TaskCommitteesClient({ options }: { options: Options }) {
                   editing ? 'PATCH' : 'POST',
                 ),
               )
+              releaseSaveProtection(); markSaved()
               setAdding(false)
               router.refresh()
             } catch (e) {
@@ -122,7 +133,7 @@ export function TaskCommitteesClient({ options }: { options: Options }) {
               setBusy(false)
             }
           }}
-        >
+        ><fieldset disabled={busy} className="contents">
           <h2 className="font-semibold">
             {editing ? 'Edit committee' : 'Create committee'}
           </h2>
@@ -165,15 +176,15 @@ export function TaskCommitteesClient({ options }: { options: Options }) {
           )}
           <div className="flex gap-2">
             <Button disabled={busy}>Save committee</Button>
-            <Button
+            <DiscardButton disabled={busy}
               type="button"
               variant="outline"
               onClick={() => setAdding(false)}
             >
               Cancel
-            </Button>
+            </DiscardButton>
           </div>
-        </form>
+        </fieldset></form>
       )}
     </div>
   )

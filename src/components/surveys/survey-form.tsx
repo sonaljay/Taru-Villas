@@ -1,8 +1,11 @@
 'use client'
 
+import { useSaveProtection, usePortalRouter, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { useForm, Controller } from 'react-hook-form'
+import { acceptedDraftValues } from '@/lib/portal/survey-draft'
 import { toast } from 'sonner'
 import {
   ChevronLeft,
@@ -13,6 +16,7 @@ import {
   AlertTriangle,
 } from 'lucide-react'
 
+import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -108,9 +112,10 @@ export function SurveyForm({
   onGuestSubmit,
 }: SurveyFormProps) {
   const isInternal = surveyType === 'internal'
-  const router = useRouter()
+  const router = usePortalRouter()
   const [isSaving, setIsSaving] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const releaseSaveProtection = useSaveProtection(!isGuest && (isSaving || isSubmitting))
   const [showNotes, setShowNotes] = useState<Set<string>>(new Set())
   const [currentIndex, setCurrentIndex] = useState(0)
   const [direction, setDirection] = useState<'next' | 'prev'>('next')
@@ -149,10 +154,27 @@ export function SurveyForm({
     }
   }
 
-  const { control, watch, getValues, setValue } = useForm<FormValues>({
+  const { control, watch, getValues, reset, setValue, formState: { isDirty } } = useForm<FormValues>({
     defaultValues,
   })
 
+  const { markSaved } = useUnsavedChanges(!isGuest && isDirty)
+  const acceptedValues = useRef(defaultValues)
+  const acceptDraft = useCallback((submitted: FormValues) => {
+    const current = structuredClone(getValues())
+    const accepted = acceptedDraftValues(acceptedValues.current, submitted)
+    acceptedValues.current = accepted
+    reset(accepted)
+    for (const [id, value] of Object.entries(current)) {
+      if (JSON.stringify(value) !== JSON.stringify(accepted[id])) {
+        setValue(id, value, { shouldDirty: true })
+      }
+    }
+    releaseSaveProtection()
+    if (JSON.stringify(current) === JSON.stringify(accepted)) markSaved()
+    setSaveError('')
+  }, [getValues, reset, setValue, releaseSaveProtection, markSaved])
+  const [saveError, setSaveError] = useState('')
   const watchedValues = watch()
 
   // Count answered questions
@@ -213,7 +235,7 @@ export function SurveyForm({
 
   // Auto-save draft every 30 seconds
   const saveDraft = useCallback(async () => {
-    const values = getValues()
+    const values = structuredClone(getValues())
     const responses = Object.entries(values)
       .filter(([, v]) => v.score !== null && v.score !== undefined)
       .map(([questionId, v]) => ({
@@ -227,7 +249,7 @@ export function SurveyForm({
 
     try {
       if (currentSubmissionId.current) {
-        await fetch(`/api/surveys/${currentSubmissionId.current}`, {
+        const res = await fetch(`/api/surveys/${currentSubmissionId.current}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -235,6 +257,8 @@ export function SurveyForm({
             responses,
           }),
         })
+        if (!res.ok) throw new Error('Draft could not be saved automatically')
+        acceptDraft(values)
       } else {
         const res = await fetch('/api/surveys', {
           method: 'POST',
@@ -250,12 +274,14 @@ export function SurveyForm({
         if (res.ok) {
           const data = await res.json()
           currentSubmissionId.current = data.id
-        }
+          acceptDraft(values)
+        } else throw new Error('Draft could not be saved automatically')
       }
     } catch {
-      // Silent fail for auto-save
+      setSaveError('Automatic save failed. Your answers are still here; try Save draft.')
+      // Preserve edits for retry
     }
-  }, [getValues, templateId, propertyId, visitDate])
+  }, [getValues, acceptDraft, templateId, propertyId, visitDate])
 
   useEffect(() => {
     if (isGuest) return // No auto-save for guest mode
@@ -273,7 +299,7 @@ export function SurveyForm({
   async function handleSaveDraft() {
     setIsSaving(true)
     try {
-      const values = getValues()
+      const values = structuredClone(getValues())
       const responses = Object.entries(values)
         .filter(([, v]) => v.score !== null && v.score !== undefined)
         .map(([questionId, v]) => ({
@@ -315,8 +341,10 @@ export function SurveyForm({
         currentSubmissionId.current = data.id
       }
 
+      acceptDraft(values)
       toast.success('Draft saved successfully')
     } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Unable to save. Your answers are still here.')
       toast.error(
         error instanceof Error ? error.message : 'Failed to save draft'
       )
@@ -328,7 +356,7 @@ export function SurveyForm({
   async function handleSubmit() {
     setIsSubmitting(true)
     try {
-      const values = getValues()
+      const values = structuredClone(getValues())
 
       // Validate required questions
       const unansweredRequired = flatQuestions.filter(
@@ -430,10 +458,12 @@ export function SurveyForm({
         if (!res.ok) throw new Error('Failed to submit survey')
       }
 
+      reset(getValues()); releaseSaveProtection(); markSaved(); setSaveError('')
       toast.success('Survey submitted successfully')
       router.push('/surveys')
       router.refresh()
     } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Unable to save. Your answers are still here.')
       toast.error(
         error instanceof Error ? error.message : 'Failed to submit survey'
       )
@@ -447,7 +477,7 @@ export function SurveyForm({
   }
 
   return (
-    <div className="flex flex-col items-center gap-6">
+    <div className="flex flex-col items-center gap-6"><fieldset disabled={!isGuest && (isSaving || isSubmitting)} className="contents">
       {/* 3D Card Wrapper */}
       <div className="w-full max-w-2xl" style={{ perspective: '1000px' }}>
         <div
@@ -519,7 +549,9 @@ export function SurveyForm({
                   control={control}
                   name={`${currentQuestion.id}.issueDescription`}
                   render={({ field }) => (
-                    <Textarea
+                    <Textarea disabled={isSaving}
+                      id={`issue-${currentQuestion.id}`}
+                      aria-label="Issue description"
                       placeholder="Describe the issue observed..."
                       rows={3}
                       value={field.value ?? ''}
@@ -534,11 +566,12 @@ export function SurveyForm({
           {/* Note toggle and field */}
           <div className="mt-6">
             {showNotes.has(currentQuestion.id) ? (
-              <Controller
+              <div className="space-y-2"><Label htmlFor={`note-${currentQuestion.id}`}>Notes (optional)</Label><p className="portal-help">Add context for the team reviewing this assessment.</p><Controller
                 control={control}
                 name={`${currentQuestion.id}.note`}
                 render={({ field }) => (
-                  <Textarea
+                  <Textarea disabled={isSaving}
+                    id={`note-${currentQuestion.id}`}
                     placeholder="Add a note..."
                     rows={3}
                     value={field.value ?? ''}
@@ -546,7 +579,7 @@ export function SurveyForm({
                     className="text-sm"
                   />
                 )}
-              />
+              /></div>
             ) : (
               <button
                 type="button"
@@ -561,6 +594,7 @@ export function SurveyForm({
         </div>
       </div>
 
+      {saveError && <p role="alert" className="portal-form-errors rounded-xl border border-destructive/40 p-4">{saveError}</p>}
       {/* Navigation & actions */}
       <div className="w-full max-w-2xl space-y-4">
         <div className="flex items-center justify-between">
@@ -591,7 +625,7 @@ export function SurveyForm({
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleSubmit}>
+                  <AlertDialogAction disabled={!isGuest && (isSaving || isSubmitting)} onClick={handleSubmit}>
                     Submit
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -633,7 +667,7 @@ export function SurveyForm({
           </p>
         </div>
       </div>
-    </div>
+    </fieldset></div>
   )
 }
 

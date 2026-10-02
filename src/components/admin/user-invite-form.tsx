@@ -1,7 +1,11 @@
 'use client'
 
+import { useSaveProtection, usePortalRouter, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
+import { Field } from '@/components/ui/field'
+
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
@@ -31,17 +35,19 @@ interface UserInviteFormProps {
 }
 
 export function UserInviteForm({ onSuccess }: UserInviteFormProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const releaseSaveProtection = useSaveProtection(isSubmitting)
+
   const [properties, setProperties] = useState<Property[]>([])
   const [loadingProperties, setLoadingProperties] = useState(true)
 
-  const {
+  const { reset, getValues,
     register,
     handleSubmit,
     watch,
     setValue,
-    formState: { errors },
+    formState: { errors , isDirty },
   } = useForm<UserInviteFormValues>({
     defaultValues: {
       email: '',
@@ -50,6 +56,8 @@ export function UserInviteForm({ onSuccess }: UserInviteFormProps) {
       propertyIds: [],
     },
   })
+  const [submitError, setSubmitError] = useState('')
+  const { markSaved } = useUnsavedChanges(isDirty)
 
   const selectedRole = watch('role')
   const selectedPropertyIds = watch('propertyIds')
@@ -77,10 +85,10 @@ export function UserInviteForm({ onSuccess }: UserInviteFormProps) {
     if (current.includes(propertyId)) {
       setValue(
         'propertyIds',
-        current.filter((id) => id !== propertyId)
+        current.filter((id) => id !== propertyId), { shouldDirty: true }
       )
     } else {
-      setValue('propertyIds', [...current, propertyId])
+      setValue('propertyIds', [...current, propertyId], { shouldDirty: true })
     }
   }
 
@@ -98,10 +106,12 @@ export function UserInviteForm({ onSuccess }: UserInviteFormProps) {
         throw new Error(body.error ?? 'Failed to invite user')
       }
 
+      reset(getValues()); releaseSaveProtection(); markSaved(); setSubmitError('')
       toast.success('User invited successfully')
       onSuccess?.()
       router.refresh()
     } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Failed to invite user')
       toast.error(
         error instanceof Error ? error.message : 'Failed to invite user'
       )
@@ -111,11 +121,12 @@ export function UserInviteForm({ onSuccess }: UserInviteFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form onSubmit={handleSubmit(onSubmit, () => setSubmitError('Check the highlighted details before saving.'))} className="space-y-5"><fieldset disabled={isSubmitting} className="contents">
+      {submitError && <p role="alert" className="portal-form-errors rounded-xl border border-destructive/40 p-4">{submitError}</p>}
       {/* Email */}
       <div className="space-y-2">
         <Label htmlFor="email">Email Address</Label>
-        <Input
+        <Input disabled={isSubmitting} aria-invalid={!!errors.email}
           id="email"
           type="email"
           placeholder="manager@client.example"
@@ -132,7 +143,7 @@ export function UserInviteForm({ onSuccess }: UserInviteFormProps) {
       {/* Full Name */}
       <div className="space-y-2">
         <Label htmlFor="fullName">Full Name</Label>
-        <Input
+        <Input disabled={isSubmitting} aria-invalid={!!errors.fullName}
           id="fullName"
           placeholder="John Doe"
           {...register('fullName', { required: 'Full name is required' })}
@@ -143,12 +154,12 @@ export function UserInviteForm({ onSuccess }: UserInviteFormProps) {
       </div>
 
       {/* Role */}
-      <div className="space-y-2">
+      <Field className="space-y-2">
         <Label>Role</Label>
-        <Select
+        <Select disabled={isSubmitting}
           value={selectedRole}
           onValueChange={(value) =>
-            setValue('role', value as UserInviteFormValues['role'])
+            setValue('role', value as UserInviteFormValues['role'], { shouldDirty: true })
           }
         >
           <SelectTrigger className="w-full">
@@ -160,12 +171,12 @@ export function UserInviteForm({ onSuccess }: UserInviteFormProps) {
             <SelectItem value="staff">Staff</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </Field>
 
       {/* Property Assignments */}
       {selectedRole !== 'admin' && (
-        <div className="space-y-2">
-          <Label>Property Assignments</Label>
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-semibold">Property Assignments</legend>
           <p className="text-xs text-muted-foreground">
             Select the properties this user can access
           </p>
@@ -199,7 +210,7 @@ export function UserInviteForm({ onSuccess }: UserInviteFormProps) {
               ))}
             </div>
           )}
-        </div>
+        </fieldset>
       )}
 
       {/* Submit */}
@@ -215,6 +226,6 @@ export function UserInviteForm({ onSuccess }: UserInviteFormProps) {
           )}
         </Button>
       </div>
-    </form>
+    </fieldset></form>
   )
 }

@@ -1,7 +1,9 @@
 'use client'
 
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { ImageIcon, Save, X, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -28,7 +30,7 @@ export function CoverImageInput({
   currentUrl,
   label,
 }: CoverImageInputProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [url, setUrl] = useState(currentUrl ?? '')
   const [saving, setSaving] = useState(false)
 

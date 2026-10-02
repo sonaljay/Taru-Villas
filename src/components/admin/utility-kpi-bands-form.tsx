@@ -1,5 +1,11 @@
 'use client'
 
+import { useSaveProtection, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
+import { DiscardButton } from '@/components/ui/discard-button'
+
+import { Field } from '@/components/ui/field'
+
 import { useState, useEffect } from 'react'
 import { Settings2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -50,7 +56,12 @@ export function UtilityKpiBandsForm({ propertyId, utilityType, onRefresh }: KpiB
   const [bands, setBands] = useState<Band[]>([])
   const [editBands, setEditBands] = useState<Band[]>([])
   const [showDialog, setShowDialog] = useState(false)
+  const [savedEdit, setSavedEdit] = useState('')
+  const { markSaved } = useUnsavedChanges(showDialog && JSON.stringify(editBands) !== savedEdit)
+  const [saveError, setSaveError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const releaseSaveProtection = useSaveProtection(isSaving)
+
   const [loading, setLoading] = useState(true)
 
   const unit = utilityType === 'water' ? 'm³' : 'kWh'
@@ -82,6 +93,7 @@ export function UtilityKpiBandsForm({ propertyId, utilityType, onRefresh }: KpiB
 
   function openEdit() {
     setEditBands(bands.length > 0 ? [...bands] : [...DEFAULT_BANDS_BY_UTILITY[utilityType]])
+    setSavedEdit(JSON.stringify(bands))
     setShowDialog(true)
   }
 
@@ -123,11 +135,13 @@ export function UtilityKpiBandsForm({ propertyId, utilityType, onRefresh }: KpiB
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error ?? 'Failed to save bands')
       }
+      setSavedEdit(JSON.stringify(editBands)); releaseSaveProtection(); markSaved(); setSaveError('')
       toast.success('KPI bands updated')
       setShowDialog(false)
       await fetchBands()
       onRefresh()
     } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Unable to save configuration')
       toast.error(error instanceof Error ? error.message : 'Failed to save')
     } finally {
       setIsSaving(false)
@@ -141,7 +155,7 @@ export function UtilityKpiBandsForm({ propertyId, utilityType, onRefresh }: KpiB
           <CardTitle className="text-base">
             {`${label} KPI Bands (${unit} by guest count)`}
           </CardTitle>
-          <Button variant="outline" size="sm" onClick={openEdit}>
+          <Button disabled={isSaving} variant="outline" size="sm" onClick={openEdit}>
             <Settings2 className="size-4" />
             {bands.length > 0 ? 'Edit Bands' : 'Set Up Bands'}
           </Button>
@@ -180,28 +194,29 @@ export function UtilityKpiBandsForm({ propertyId, utilityType, onRefresh }: KpiB
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+          {saveError && <p role="alert" className="rounded-xl border border-destructive/40 p-4">{saveError}</p>}
           <DialogHeader>
             <DialogTitle>{`Edit ${label} KPI Bands`}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             {editBands.map((band, index) => (
               <div key={index} className="grid grid-cols-[1fr_1fr_auto] gap-3 items-end">
-                <div className="space-y-1">
+                <Field className="space-y-1">
                   <Label className="text-xs">Guests from</Label>
-                  <Input
+                  <Input disabled={isSaving}
                     type="number" min="0"
                     value={band.minGuests}
                     onChange={(e) => updateBand(index, 'minGuests', e.target.value)}
                   />
-                </div>
-                <div className="space-y-1">
+                </Field>
+                <Field className="space-y-1">
                   <Label className="text-xs">{`Target (${unit})`}</Label>
-                  <Input
+                  <Input disabled={isSaving}
                     type="number" min="0" step="0.01"
                     value={band.targetUnits}
                     onChange={(e) => updateBand(index, 'targetUnits', e.target.value)}
                   />
-                </div>
+                </Field>
                 <Button
                   variant="ghost" size="icon"
                   onClick={() => removeBand(index)}
@@ -211,11 +226,11 @@ export function UtilityKpiBandsForm({ propertyId, utilityType, onRefresh }: KpiB
                 </Button>
               </div>
             ))}
-            <Button variant="outline" size="sm" onClick={addBand}>
+            <Button disabled={isSaving} variant="outline" size="sm" onClick={addBand}>
               <Plus className="size-4" /> Add Band
             </Button>
             <div className="flex justify-end gap-2 pt-4">
-              <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
+              <DiscardButton disabled={isSaving} variant="outline" onClick={() => setShowDialog(false)}>Cancel</DiscardButton>
               <Button onClick={handleSave} disabled={isSaving}>
                 {isSaving ? 'Saving...' : 'Save Bands'}
               </Button>

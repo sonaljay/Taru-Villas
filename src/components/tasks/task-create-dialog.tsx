@@ -1,4 +1,8 @@
 'use client'
+
+import { useSaveProtection } from '@/hooks/use-unsaved-changes'
+
+import { useNativeFormGuard } from '@/hooks/use-native-form-guard'
 import { useState } from 'react'
 import {
   Dialog,
@@ -27,9 +31,13 @@ export function TaskCreateDialog({
   onCreated: (id: string) => void
   projectId: string
 }) {
+  const { formProps, markSaved } = useNativeFormGuard()
+
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [committee, setCommittee] = useState('')
+  const releaseSaveProtection = useSaveProtection(busy)
+
   const canChoose =
     options.actor.isAdmin ||
     options.actor.committeeIds.includes(options.actor.operationsCommitteeId)
@@ -42,7 +50,7 @@ export function TaskCreateDialog({
             Describe the work and who is responsible. A project is optional.
           </DialogDescription>
         </DialogHeader>
-        <form
+        <form {...formProps}
           className="space-y-4"
           onSubmit={async (e) => {
             e.preventDefault()
@@ -63,6 +71,7 @@ export function TaskCreateDialog({
                   assigneeIds: f.getAll('assigneeIds'),
                 }),
               )
+              releaseSaveProtection(); markSaved()
               onOpenChange(false)
               setCommittee('')
               onCreated(r.id)
@@ -72,7 +81,7 @@ export function TaskCreateDialog({
               setBusy(false)
             }
           }}
-        >
+        ><fieldset disabled={busy} className="contents">
           <label className="block space-y-1 text-sm">
             Task
             <input
@@ -175,7 +184,7 @@ export function TaskCreateDialog({
           <Button type="submit" disabled={busy} className="w-full">
             {busy ? 'Creating…' : 'Create task'}
           </Button>
-        </form>
+        </fieldset></form>
       </DialogContent>
     </Dialog>
   )

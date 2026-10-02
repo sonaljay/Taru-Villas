@@ -1,7 +1,9 @@
 'use client'
 
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { ArrowLeft, Plus, Link2, UtensilsCrossed, Pencil, Power, Trash2, Settings2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -35,7 +37,7 @@ const SET_FOOTER =
   'Includes a selection of tea, coffee & petit fours. All prices are inclusive of government taxes & service charges.'
 
 export function MenusPageClient({ property, menus }: MenusPageClientProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [tab, setTab] = useState<'set' | 'alacarte'>('set')
   const [selectedDow, setSelectedDow] = useState<number>(1) // Monday
   const [busy, setBusy] = useState(false)

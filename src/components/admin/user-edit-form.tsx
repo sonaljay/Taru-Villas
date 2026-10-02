@@ -1,7 +1,11 @@
 'use client'
 
+import { useSaveProtection, usePortalRouter, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
+import { Field } from '@/components/ui/field'
+
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
@@ -32,15 +36,16 @@ interface UserEditFormProps {
 }
 
 export function UserEditForm({ user, properties, onSuccess }: UserEditFormProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const releaseSaveProtection = useSaveProtection(isSubmitting)
 
-  const {
+  const { reset, getValues,
     register,
     handleSubmit,
     watch,
     setValue,
-    formState: { errors },
+    formState: { errors , isDirty },
   } = useForm<UserEditFormValues>({
     defaultValues: {
       fullName: user.fullName,
@@ -48,6 +53,8 @@ export function UserEditForm({ user, properties, onSuccess }: UserEditFormProps)
       propertyIds: user.assignments?.map((a) => a.propertyId) ?? [],
     },
   })
+  const [submitError, setSubmitError] = useState('')
+  const { markSaved } = useUnsavedChanges(isDirty)
 
   const selectedRole = watch('role')
   const selectedPropertyIds = watch('propertyIds')
@@ -57,10 +64,10 @@ export function UserEditForm({ user, properties, onSuccess }: UserEditFormProps)
     if (current.includes(propertyId)) {
       setValue(
         'propertyIds',
-        current.filter((id) => id !== propertyId)
+        current.filter((id) => id !== propertyId), { shouldDirty: true }
       )
     } else {
-      setValue('propertyIds', [...current, propertyId])
+      setValue('propertyIds', [...current, propertyId], { shouldDirty: true })
     }
   }
 
@@ -78,10 +85,12 @@ export function UserEditForm({ user, properties, onSuccess }: UserEditFormProps)
         throw new Error(body.error ?? 'Failed to update user')
       }
 
+      reset(getValues()); releaseSaveProtection(); markSaved(); setSubmitError('')
       toast.success('User updated successfully')
       onSuccess?.()
       router.refresh()
     } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Failed to update user')
       toast.error(
         error instanceof Error ? error.message : 'Failed to update user'
       )
@@ -91,17 +100,18 @@ export function UserEditForm({ user, properties, onSuccess }: UserEditFormProps)
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form onSubmit={handleSubmit(onSubmit, () => setSubmitError('Check the highlighted details before saving.'))} className="space-y-5"><fieldset disabled={isSubmitting} className="contents">
+      {submitError && <p role="alert" className="portal-form-errors rounded-xl border border-destructive/40 p-4">{submitError}</p>}
       {/* Email (read-only) */}
-      <div className="space-y-2">
+      <Field className="space-y-2">
         <Label>Email Address</Label>
         <Input value={user.email} disabled className="bg-muted" />
-      </div>
+      </Field>
 
       {/* Full Name */}
       <div className="space-y-2">
         <Label htmlFor="edit-fullName">Full Name</Label>
-        <Input
+        <Input disabled={isSubmitting} aria-invalid={!!errors.fullName}
           id="edit-fullName"
           {...register('fullName', { required: 'Full name is required' })}
         />
@@ -111,12 +121,12 @@ export function UserEditForm({ user, properties, onSuccess }: UserEditFormProps)
       </div>
 
       {/* Role */}
-      <div className="space-y-2">
+      <Field className="space-y-2">
         <Label>Role</Label>
-        <Select
+        <Select disabled={isSubmitting}
           value={selectedRole}
           onValueChange={(value) =>
-            setValue('role', value as UserEditFormValues['role'])
+            setValue('role', value as UserEditFormValues['role'], { shouldDirty: true })
           }
         >
           <SelectTrigger className="w-full">
@@ -128,12 +138,12 @@ export function UserEditForm({ user, properties, onSuccess }: UserEditFormProps)
             <SelectItem value="staff">Staff</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </Field>
 
       {/* Property Assignments */}
       {selectedRole !== 'admin' && (
-        <div className="space-y-2">
-          <Label>Property Assignments</Label>
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-semibold">Property Assignments</legend>
           <p className="text-xs text-muted-foreground">
             Select the properties this user can access
           </p>
@@ -162,7 +172,7 @@ export function UserEditForm({ user, properties, onSuccess }: UserEditFormProps)
               ))}
             </div>
           )}
-        </div>
+        </fieldset>
       )}
 
       {/* Submit */}
@@ -178,6 +188,6 @@ export function UserEditForm({ user, properties, onSuccess }: UserEditFormProps)
           )}
         </Button>
       </div>
-    </form>
+    </fieldset></form>
   )
 }

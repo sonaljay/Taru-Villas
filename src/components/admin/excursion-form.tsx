@@ -1,7 +1,9 @@
 'use client'
 
+import { useSaveProtection, usePortalRouter, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { toast } from 'sonner'
@@ -60,16 +62,18 @@ interface ExcursionFormProps {
 }
 
 export function ExcursionForm({ propertyId, excursion, onSuccess }: ExcursionFormProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const releaseSaveProtection = useSaveProtection(isSubmitting)
+
   const isEditing = !!excursion
 
-  const {
+  const { reset, getValues,
     register,
     handleSubmit,
     watch,
     setValue,
-    formState: { errors },
+    formState: { errors , isDirty },
   } = useForm<ExcursionFormValues>({
     defaultValues: {
       title: excursion?.title ?? '',
@@ -86,6 +90,8 @@ export function ExcursionForm({ propertyId, excursion, onSuccess }: ExcursionFor
       isActive: excursion?.isActive ?? true,
     },
   })
+  const [submitError, setSubmitError] = useState('')
+  const { markSaved } = useUnsavedChanges(isDirty)
 
   const isActiveValue = watch('isActive')
 
@@ -128,10 +134,12 @@ export function ExcursionForm({ propertyId, excursion, onSuccess }: ExcursionFor
         throw new Error(body.message || body.error || 'Something went wrong')
       }
 
+      reset(getValues()); releaseSaveProtection(); markSaved(); setSubmitError('')
       toast.success(isEditing ? 'Excursion updated' : 'Excursion created')
       onSuccess?.()
       router.refresh()
     } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Failed to save excursion')
       toast.error(
         error instanceof Error ? error.message : 'Failed to save excursion'
       )
@@ -141,11 +149,12 @@ export function ExcursionForm({ propertyId, excursion, onSuccess }: ExcursionFor
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form onSubmit={handleSubmit(onSubmit, () => setSubmitError('Check the highlighted details before saving.'))} className="space-y-5"><fieldset disabled={isSubmitting} className="contents">
+      {submitError && <p role="alert" className="portal-form-errors rounded-xl border border-destructive/40 p-4">{submitError}</p>}
       {/* Title */}
       <div className="space-y-2">
         <Label htmlFor="title">Title</Label>
-        <Input
+        <Input disabled={isSubmitting} aria-invalid={!!errors.title}
           id="title"
           placeholder="e.g. Whale Watching Tour"
           {...register('title', { required: 'Title is required' })}
@@ -158,7 +167,7 @@ export function ExcursionForm({ propertyId, excursion, onSuccess }: ExcursionFor
       {/* Description */}
       <div className="space-y-2">
         <Label htmlFor="description">Description</Label>
-        <Textarea
+        <Textarea disabled={isSubmitting} aria-invalid={!!errors.description}
           id="description"
           placeholder="Describe the excursion..."
           rows={4}
@@ -169,7 +178,7 @@ export function ExcursionForm({ propertyId, excursion, onSuccess }: ExcursionFor
       {/* Experience */}
       <div className="space-y-2">
         <Label htmlFor="experience">Experience</Label>
-        <Textarea
+        <Textarea disabled={isSubmitting} aria-invalid={!!errors.experience}
           id="experience"
           placeholder="What the experience entails — itinerary, choices, duration options..."
           rows={4}
@@ -183,7 +192,7 @@ export function ExcursionForm({ propertyId, excursion, onSuccess }: ExcursionFor
       {/* What's included */}
       <div className="space-y-2">
         <Label htmlFor="whatsIncluded">What&rsquo;s included</Label>
-        <Textarea
+        <Textarea disabled={isSubmitting} aria-invalid={!!errors.whatsIncluded}
           id="whatsIncluded"
           placeholder="Transport, guide, equipment, refreshments..."
           rows={4}
@@ -194,7 +203,7 @@ export function ExcursionForm({ propertyId, excursion, onSuccess }: ExcursionFor
       {/* Image URL */}
       <div className="space-y-2">
         <Label htmlFor="imageUrl">Image URL</Label>
-        <Input
+        <Input disabled={isSubmitting} aria-invalid={!!errors.imageUrl}
           id="imageUrl"
           placeholder="https://example.com/image.jpg"
           {...register('imageUrl')}
@@ -205,7 +214,7 @@ export function ExcursionForm({ propertyId, excursion, onSuccess }: ExcursionFor
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="price">Price</Label>
-          <Input
+          <Input disabled={isSubmitting} aria-invalid={!!errors.price}
             id="price"
             placeholder="e.g. $50, From $25 pp"
             {...register('price')}
@@ -213,7 +222,7 @@ export function ExcursionForm({ propertyId, excursion, onSuccess }: ExcursionFor
         </div>
         <div className="space-y-2">
           <Label htmlFor="duration">Duration</Label>
-          <Input
+          <Input disabled={isSubmitting} aria-invalid={!!errors.duration}
             id="duration"
             placeholder="e.g. 2 hours, Half day"
             {...register('duration')}
@@ -224,7 +233,7 @@ export function ExcursionForm({ propertyId, excursion, onSuccess }: ExcursionFor
       {/* Tags */}
       <div className="space-y-2">
         <Label htmlFor="tagsText">Activity tags</Label>
-        <Input
+        <Input disabled={isSubmitting} aria-invalid={!!errors.tagsText}
           id="tagsText"
           placeholder="Culture, Nature, Adventure"
           {...register('tagsText')}
@@ -237,7 +246,7 @@ export function ExcursionForm({ propertyId, excursion, onSuccess }: ExcursionFor
       {/* Locations */}
       <div className="space-y-2">
         <Label htmlFor="locationsText">Locations</Label>
-        <Textarea
+        <Textarea disabled={isSubmitting} aria-invalid={!!errors.locationsText}
           id="locationsText"
           placeholder={'Lunuganga Estate Gardens | https://maps.app.goo.gl/...\nBrief Gardens | https://maps.app.goo.gl/...'}
           rows={3}
@@ -251,7 +260,7 @@ export function ExcursionForm({ propertyId, excursion, onSuccess }: ExcursionFor
       {/* Booking URL */}
       <div className="space-y-2">
         <Label htmlFor="bookingUrl">Booking URL</Label>
-        <Input
+        <Input disabled={isSubmitting} aria-invalid={!!errors.bookingUrl}
           id="bookingUrl"
           placeholder="https://wa.me/94... or booking link"
           {...register('bookingUrl')}
@@ -264,7 +273,7 @@ export function ExcursionForm({ propertyId, excursion, onSuccess }: ExcursionFor
       {/* Sort Order */}
       <div className="space-y-2">
         <Label htmlFor="sortOrder">Sort Order</Label>
-        <Input
+        <Input disabled={isSubmitting} aria-invalid={!!errors.sortOrder}
           id="sortOrder"
           type="number"
           min={0}
@@ -285,10 +294,10 @@ export function ExcursionForm({ propertyId, excursion, onSuccess }: ExcursionFor
             Inactive excursions are hidden from the public page
           </p>
         </div>
-        <Switch
+        <Switch disabled={isSubmitting}
           id="isActive"
           checked={isActiveValue}
-          onCheckedChange={(checked) => setValue('isActive', checked)}
+          onCheckedChange={(checked) => setValue('isActive', checked, { shouldDirty: true })}
         />
       </div>
 
@@ -304,6 +313,6 @@ export function ExcursionForm({ propertyId, excursion, onSuccess }: ExcursionFor
               : 'Create Excursion'}
         </Button>
       </div>
-    </form>
+    </fieldset></form>
   )
 }

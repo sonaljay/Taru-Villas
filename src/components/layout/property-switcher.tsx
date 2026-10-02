@@ -1,5 +1,7 @@
 'use client'
 
+import { useParams, usePathname } from 'next/navigation'
+import { useUnsavedChangesNavigation } from '@/hooks/use-unsaved-changes'
 import { useQueryState } from 'nuqs'
 import { Building2 } from 'lucide-react'
 
@@ -15,6 +17,9 @@ import {
 
 export function PropertySwitcher() {
   const { profile } = useAuth()
+  const params = useParams<{ propertyId?: string }>()
+  const pathname = usePathname()
+  const { confirmNavigation } = useUnsavedChangesNavigation()
   const [propertyId, setPropertyId] = useQueryState('propertyId', {
     defaultValue: '',
     shallow: false,
@@ -22,6 +27,13 @@ export function PropertySwitcher() {
 
   const isAdmin = profile.role === 'admin'
   const properties = profile.assignments ?? []
+
+  const routePropertyId = params.propertyId
+  if (routePropertyId) {
+    const property = properties.find(item => item.propertyId === routePropertyId)
+    return <span className="max-w-36 truncate text-sm font-medium sm:max-w-64" title={property?.propertyName}>{property?.propertyName ?? 'Property workspace'}</span>
+  }
+  if (!['/tasks', '/surveys'].includes(pathname)) return null
 
   // No properties assigned and not admin — nothing to show
   if (!isAdmin && properties.length === 0) {
@@ -43,11 +55,11 @@ export function PropertySwitcher() {
   }
 
   return (
-    <Select
+    <div className="flex flex-col gap-1"><span className="hidden text-xs text-muted-foreground sm:block">Filter by property</span><Select
       value={propertyId}
-      onValueChange={(value) => setPropertyId(value === 'all' ? '' : value)}
+      onValueChange={(value) => { if (confirmNavigation()) setPropertyId(value === 'all' ? '' : value) }}
     >
-      <SelectTrigger className="w-[140px] sm:w-[200px]" size="sm">
+      <SelectTrigger aria-label="Filter by property" className="w-[140px] sm:w-[200px]" size="sm">
         <div className="flex min-w-0 items-center gap-2">
           <Building2 className="size-4 shrink-0 text-muted-foreground" />
           <SelectValue placeholder="All Properties" />
@@ -66,6 +78,6 @@ export function PropertySwitcher() {
           </SelectItem>
         ))}
       </SelectContent>
-    </Select>
+    </Select></div>
   )
 }

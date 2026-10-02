@@ -1,7 +1,9 @@
 'use client'
 
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
 import { toast } from 'sonner'
 import { MoreVertical, Pencil, Copy, Power, Trash2 } from 'lucide-react'
 
@@ -30,7 +32,7 @@ interface TemplateActionsProps {
 }
 
 export function TemplateActions({ templateId, isActive }: TemplateActionsProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)

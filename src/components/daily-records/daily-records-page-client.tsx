@@ -1,6 +1,8 @@
 'use client'
 
-import { useRouter, useSearchParams } from 'next/navigation'
+import { usePortalRouter } from '@/hooks/use-unsaved-changes'
+
+import {  useSearchParams } from 'next/navigation'
 import { ArrowLeft, Droplets, Trash2, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -19,7 +21,7 @@ export function DailyRecordsPageClient({
   isAdmin,
   initialTab,
 }: DailyRecordsPageClientProps) {
-  const router = useRouter()
+  const router = usePortalRouter()
   const searchParams = useSearchParams()
 
   const handleTabChange = (tab: string) => {
@@ -27,7 +29,7 @@ export function DailyRecordsPageClient({
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => router.push('/daily-records')}>
           <ArrowLeft className="size-4" />
