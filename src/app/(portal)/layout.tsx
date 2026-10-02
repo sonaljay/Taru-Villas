@@ -1,3 +1,5 @@
+import { UnsavedChangesProvider } from "@/components/providers/unsaved-changes-provider"
+import { PortalThemeProvider } from "@/components/providers/portal-theme-provider"
 import { requireAuth } from '@/lib/auth/guards'
 import { AuthProvider } from '@/components/providers/auth-provider'
 import { AppSidebar } from '@/components/layout/app-sidebar'
@@ -25,22 +27,20 @@ export default async function PortalLayout({
       initialProfile={profile}
       enabledModules={[...getEnabledClientModules()]}
     >
-      <PwaProvider>
-        <SidebarProvider>
+      <PortalThemeProvider>
+      <UnsavedChangesProvider><PwaProvider>
+        <SidebarProvider className="portal-theme">
           <AppSidebar />
           <SidebarInset className="min-w-0">
             <Header />
             <main className="relative min-w-0 flex-1 p-4 sm:p-6">
-              <div
-                aria-hidden
-                className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(120%_120%_at_50%_-10%,color-mix(in_oklch,var(--primary)_7%,transparent),transparent_55%)]"
-              />
               {children}
             </main>
           </SidebarInset>
         </SidebarProvider>
-        <Toaster position="top-right" />
-      </PwaProvider>
+        <Toaster position="top-right" className="portal-theme" toastOptions={{ className: "portal-toast" }} />
+      </PwaProvider></UnsavedChangesProvider>
+      </PortalThemeProvider>
     </AuthProvider>
   )
 }
