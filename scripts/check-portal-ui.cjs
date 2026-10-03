@@ -83,12 +83,67 @@ async function main() {
       for (const route of ['/tasks', '/dashboard', '/fleet', '/admin/users', '/daily-records', '/assets', '/rostering', '/login']) {
         await go(route)
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)
+        const controls = await page.evaluate(() => [...document.querySelectorAll('.portal-theme select:not([aria-hidden="true"]):not([multiple]):not([size]), .portal-theme [data-slot="select-trigger"]')]
+          .filter(el => el.getBoundingClientRect().width > 0)
+          .map(el => {
+            const style = getComputedStyle(el)
+            const icon = el.tagName === 'SELECT' ? null : el.querySelector(':scope > svg')
+            return {
+              label: el.getAttribute('aria-label') || el.getAttribute('name') || el.textContent,
+              native: el.tagName === 'SELECT',
+              paddingRight: parseFloat(style.paddingRight),
+              fontSize: parseFloat(style.fontSize),
+              height: el.getBoundingClientRect().height,
+              arrowInset: icon ? el.getBoundingClientRect().right - icon.getBoundingClientRect().right : null,
+            }
+          }))
+        for (const control of controls) {
+          assert(control.height >= 44, `${route}: ${control.label} is too short to tap`)
+          assert(control.fontSize >= 16, `${route}: ${control.label} could trigger mobile input zoom`)
+          if (control.native) assert(control.paddingRight >= 40, `${route}: ${control.label} crowds its dropdown arrow`)
+          if (control.arrowInset !== null) assert(control.arrowInset >= 12, `${route}: ${control.label} arrow is too close to the edge`)
+        }
+        if (route !== '/login') {
+          assert.equal(await page.locator('main').count(), 1, `${route}: duplicated main landmarks`)
+          if (width < 640) {
+            const header = await page.locator('[data-portal-header]').boundingBox()
+            assert(header.x <= 1 && header.width >= width - 1, `${route}: mobile header is inset by page padding`)
+          }
+        }
+        if (route === '/fleet') {
+          const cards = page.locator('[aria-label="Ride requests"]')
+          await cards.waitFor({ state: 'attached' })
+          assert.equal(await cards.isVisible(), width < 1280, 'Fleet cards must cover phones and tablets')
+          assert.equal(await page.locator('table').isVisible(), width >= 1280, 'Fleet table must wait for a wide workspace')
+        }
         await page.screenshot({ path: path.join(output, `${route.slice(1).replaceAll('/', '-')}-${width}.png`), fullPage: true })
         if (overflow > 1) console.log('OVERFLOW', await page.evaluate(() => [...document.querySelectorAll('main *')].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 12).map(el => el.outerHTML.slice(0, 240))))
         assert(overflow <= 1, `${route} overflows ${overflow}px at ${width}px`)
       }
       console.log('PASS responsive surfaces', width)
     }
+    await page.setViewportSize({ width: 320, height: 568 })
+    await go('/tasks')
+    await check('Task dialog fits a small phone and reserves space for its close button', async () => {
+      await page.getByRole('button', { name: 'New task', exact: true }).first().click()
+      const dialog = page.getByRole('dialog')
+      const geometry = await dialog.evaluate(el => {
+        const rect = el.getBoundingClientRect()
+        const title = el.querySelector('[name="title"]').getBoundingClientRect()
+        const descriptionLabel = el.querySelector('[name="description"]').parentElement.getBoundingClientRect()
+        return {
+          left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom,
+          overflow: el.scrollWidth - el.clientWidth,
+          spaceAfterTitle: descriptionLabel.top - title.bottom,
+          fieldWidths: [...el.querySelectorAll('input:not([type="checkbox"]), select, textarea')].map(field => field.getBoundingClientRect().width),
+        }
+      })
+      assert(geometry.left >= 10 && geometry.right <= 310 && geometry.top >= 10 && geometry.bottom <= 558 && geometry.overflow <= 1, JSON.stringify(geometry))
+      assert(geometry.spaceAfterTitle >= 16, 'Task focus ring crowds the next label')
+      assert(geometry.fieldWidths.every(width => width >= 240), 'Task form keeps cramped columns on a small phone')
+      await page.keyboard.press('Escape')
+      await dialog.waitFor({ state: 'hidden' })
+    })
     if (process.env.PORTAL_UI_ROUTE_AUDIT === '1') {
       const routes = (await fs.readdir('src/app/(portal)', { recursive: true }))
         .filter(file => file.endsWith('/page.tsx') && !file.includes('['))

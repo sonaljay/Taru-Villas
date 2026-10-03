@@ -104,7 +104,7 @@ export function TaskWorkspace({
               : 'See what needs doing, who is responsible, and what comes next.'}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
           {(options.actor.isAdmin ||
             options.actor.committeeIds.includes(
               options.actor.operationsCommitteeId,
@@ -121,7 +121,7 @@ export function TaskWorkspace({
               </Link>
             </Button>
           )}
-          <Button onClick={() => setCreating(true)}>
+          <Button className="flex-1 sm:flex-none" onClick={() => setCreating(true)}>
             <Plus className="mr-2 size-4" />
             New task
           </Button>
@@ -147,8 +147,8 @@ export function TaskWorkspace({
       </nav>
       <section aria-label="Filter tasks" className="portal-panel bg-card p-4 space-y-3">
         <div className="flex flex-wrap gap-3">
-          <div className="relative min-w-60 flex-1">
-            <Search className="absolute left-3 top-3 size-4 text-muted-foreground" />
+          <div className="relative min-w-0 basis-full flex-1 sm:basis-60">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <input
               aria-label="Search tasks"
               placeholder="Search tasks…"
@@ -185,8 +185,7 @@ export function TaskWorkspace({
           </Button>
         </div>
         <Button variant="outline" aria-expanded={showFilters} aria-controls="task-advanced-filters" onClick={() => setShowFilters(value => !value)}><SlidersHorizontal className="mr-2 size-4" />Filters{activeFilterCount > 0 ? ` (${activeFilterCount} active)` : ''}</Button>
-        <div id="task-advanced-filters" hidden={!showFilters} className={showFilters ? "flex flex-wrap items-center gap-2" : "hidden"}>
-          <SlidersHorizontal className="mr-1 size-4 text-muted-foreground" />
+        <div id="task-advanced-filters" hidden={!showFilters} className={showFilters ? "grid grid-cols-1 gap-3 sm:flex sm:flex-wrap sm:items-center" : "hidden"}>
           {(
             [
               ['propertyId', 'All properties', options.properties],
@@ -220,7 +219,7 @@ export function TaskWorkspace({
             <select
               key={key}
               aria-label={label}
-              className={inputStyle + ' !w-auto max-w-full sm:max-w-52'}
+              className={inputStyle + ' w-full max-w-full sm:w-auto sm:max-w-52'}
               value={filters[key] ?? ''}
               onChange={(e) => setFilter(key, e.target.value)}
             >
@@ -381,7 +380,7 @@ export function TaskWorkspace({
                   </span>
                   <ArrowRight className="size-4 shrink-0" />
                 </div>
-                <h2 className="font-medium">{t.title}</h2>
+                <h2 className="break-words font-medium leading-snug">{t.title}</h2>
                 <div className="mt-3 flex flex-wrap gap-2 text-xs">
                   <Approval value={t.approval} />
                   <span>{statusLabel(t.status)}</span>
@@ -399,7 +398,7 @@ export function TaskWorkspace({
           </div>
         </>
       )}
-      <footer className="flex items-center justify-between">
+      <footer className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-muted-foreground">
           Page {page} of {Math.max(1, Math.ceil(data.total / 30))}
         </p>

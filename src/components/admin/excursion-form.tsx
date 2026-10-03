@@ -211,7 +211,7 @@ export function ExcursionForm({ propertyId, excursion, onSuccess }: ExcursionFor
       </div>
 
       {/* Price + Duration */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="price">Price</Label>
           <Input disabled={isSubmitting} aria-invalid={!!errors.price}

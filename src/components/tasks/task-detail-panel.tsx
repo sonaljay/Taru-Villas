@@ -137,7 +137,7 @@ export function TaskDetailPanel({
       }}
     >
       <SheetContent className="!w-full overflow-y-auto p-0 sm:!max-w-2xl">
-        <SheetHeader className="border-b p-6 pr-12">
+        <SheetHeader className="border-b p-4 pr-16 sm:p-6 sm:pr-16">
           <SheetTitle>{task?.title ?? 'Task details'}</SheetTitle>
           <SheetDescription>
             {task
@@ -145,7 +145,7 @@ export function TaskDetailPanel({
               : 'Loading task…'}
           </SheetDescription>
         </SheetHeader>
-        <div className="space-y-5 p-6">
+        <div className="min-w-0 space-y-5 p-4 sm:p-6">
           {error && (
             <div
               role="alert"
@@ -183,7 +183,7 @@ export function TaskDetailPanel({
                     : 'This request was rejected. Operations or an admin can request another review.'}
                 </div>
               )}
-              <nav className="flex border-b" aria-label="Task detail sections">
+              <nav className="flex overflow-x-auto border-b" aria-label="Task detail sections">
                 {['details', 'discussion', 'history'].map((t) => (
                   <button
                     key={t}
@@ -215,12 +215,12 @@ export function TaskDetailPanel({
                         },
                       })
                     }}
-                  ><fieldset disabled={busy} className="contents">
+                  ><fieldset disabled={busy} className="grid min-w-0 gap-4">
                     <fieldset
                       disabled={!editable || busy}
-                      className="space-y-4"
+                      className="grid min-w-0 gap-5"
                     >
-                      <label className="block space-y-1 text-sm">
+                      <label className="flex min-w-0 flex-col gap-2 text-sm">
                         Task
                         <input
                           name="title"
@@ -230,7 +230,7 @@ export function TaskDetailPanel({
                           className={inputStyle}
                         />
                       </label>
-                      <label className="block space-y-1 text-sm">
+                      <label className="flex min-w-0 flex-col gap-2 text-sm">
                         Description
                         <textarea
                           name="description"
@@ -239,7 +239,7 @@ export function TaskDetailPanel({
                           className={inputStyle + ' !h-auto py-2'}
                         />
                       </label>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                         {(
                           [
                             [
@@ -256,7 +256,7 @@ export function TaskDetailPanel({
                             ],
                           ] as const
                         ).map(([name, label, items, value]) => (
-                          <label className="space-y-1 text-sm" key={name}>
+                          <label className="flex min-w-0 flex-col gap-2 text-sm" key={name}>
                             {label}
                             <select
                               name={name}
@@ -272,7 +272,7 @@ export function TaskDetailPanel({
                             </select>
                           </label>
                         ))}
-                        <label className="space-y-1 text-sm">
+                        <label className="flex min-w-0 flex-col gap-2 text-sm">
                           Priority
                           <select
                             name="priority"
@@ -284,7 +284,7 @@ export function TaskDetailPanel({
                             ))}
                           </select>
                         </label>
-                        <label className="space-y-1 text-sm">
+                        <label className="flex min-w-0 flex-col gap-2 text-sm">
                           Deadline
                           <input
                             type="date"
@@ -296,7 +296,7 @@ export function TaskDetailPanel({
                       </div>
                       <fieldset className="rounded border p-3">
                         <legend className="px-1 text-sm">Responsibility</legend>
-                        <div className="grid max-h-40 grid-cols-2 gap-2 overflow-auto">
+                        <div className="grid max-h-48 grid-cols-1 gap-2 overflow-auto sm:grid-cols-2">
                           {options.users.map((u) => (
                             <label
                               key={u.id}
@@ -364,7 +364,7 @@ export function TaskDetailPanel({
                           note: f.get('note'),
                         })
                       }}
-                    ><fieldset disabled={busy} className="contents">
+                    ><fieldset disabled={busy} className="grid min-w-0 gap-4">
                       <h3 className="font-medium">Committee decision</h3>
                       <textarea
                         name="note"
@@ -410,7 +410,7 @@ export function TaskDetailPanel({
                               },
                         )
                       }}
-                    ><fieldset disabled={busy} className="contents">
+                    ><fieldset disabled={busy} className="grid min-w-0 gap-4">
                       <h3 className="font-medium">Committee ownership</h3>
                       <select
                         name="committee"
@@ -465,7 +465,7 @@ export function TaskDetailPanel({
                           reason: new FormData(e.currentTarget).get('reason'),
                         })
                       }}
-                    ><fieldset disabled={busy} className="contents">
+                    ><fieldset disabled={busy} className="grid min-w-0 gap-4">
                       <input
                         name="reason"
                         aria-label="Reason for reopening"
@@ -503,7 +503,7 @@ export function TaskDetailPanel({
                           setBusy(false)
                         }
                       }}
-                    ><fieldset disabled={busy} className="contents">
+                    ><fieldset disabled={busy} className="grid min-w-0 gap-4">
                       <textarea
                         name="body"
                         required

@@ -203,7 +203,7 @@ export function ProjectFormDialog({
           </div>
 
           {/* Status + Target Date */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field className="space-y-1.5">
               <Label>Status</Label>
               <Controller

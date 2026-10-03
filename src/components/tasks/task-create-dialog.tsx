@@ -51,7 +51,7 @@ export function TaskCreateDialog({
           </DialogDescription>
         </DialogHeader>
         <form {...formProps}
-          className="space-y-4"
+          className="space-y-5"
           onSubmit={async (e) => {
             e.preventDefault()
             setBusy(true)
@@ -81,8 +81,8 @@ export function TaskCreateDialog({
               setBusy(false)
             }
           }}
-        ><fieldset disabled={busy} className="contents">
-          <label className="block space-y-1 text-sm">
+        ><fieldset disabled={busy} className="grid min-w-0 gap-5">
+          <label className="flex min-w-0 flex-col gap-2 text-sm">
             Task
             <input
               autoFocus
@@ -93,7 +93,7 @@ export function TaskCreateDialog({
               placeholder="What needs to be done?"
             />
           </label>
-          <label className="block space-y-1 text-sm">
+          <label className="flex min-w-0 flex-col gap-2 text-sm">
             Description
             <textarea
               name="description"
@@ -102,14 +102,14 @@ export function TaskCreateDialog({
               className={inputStyle + ' !h-auto py-2'}
             />
           </label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             {(
               [
                 ['propertyId', 'Property', options.properties],
                 ['projectId', 'Project (optional)', options.projects],
               ] as const
             ).map(([name, label, items]) => (
-              <label key={name} className="space-y-1 text-sm">
+              <label key={name} className="flex min-w-0 flex-col gap-2 text-sm">
                 {label}
                 <select
                   name={name}
@@ -127,7 +127,7 @@ export function TaskCreateDialog({
                 </select>
               </label>
             ))}
-            <label className="space-y-1 text-sm">
+            <label className="flex min-w-0 flex-col gap-2 text-sm">
               Priority
               <select
                 name="priority"
@@ -139,12 +139,12 @@ export function TaskCreateDialog({
                 <option value="low">Low</option>
               </select>
             </label>
-            <label className="space-y-1 text-sm">
+            <label className="flex min-w-0 flex-col gap-2 text-sm">
               Deadline
               <input name="dueDate" type="date" className={inputStyle} />
             </label>
           </div>
-          <label className="block space-y-1 text-sm">
+          <label className="flex min-w-0 flex-col gap-2 text-sm">
             Committee
             <select
               value={committee}
@@ -167,9 +167,9 @@ export function TaskCreateDialog({
           </p>
           <fieldset className="rounded-md border p-3">
             <legend className="px-1 text-sm">Responsible users</legend>
-            <div className="grid max-h-36 grid-cols-2 gap-2 overflow-auto">
+            <div className="grid max-h-48 grid-cols-1 gap-2 overflow-auto sm:grid-cols-2">
               {options.users.map((u) => (
-                <label className="flex items-center gap-2 text-sm" key={u.id}>
+                <label className="flex min-h-11 min-w-0 items-center gap-3 rounded-lg px-2 text-sm" key={u.id}>
                   <input type="checkbox" name="assigneeIds" value={u.id} />
                   {u.name}
                 </label>

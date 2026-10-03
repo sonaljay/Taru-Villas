@@ -21,8 +21,8 @@ export function ConsolidatedTrendChart({ trends, categories }: {trends:Summary['
   return <Card>
     <CardHeader className="flex flex-wrap items-center justify-between gap-3 sm:flex-row">
       <CardTitle className="text-base">Score trends over time</CardTitle>
-      <label className="flex items-center gap-2 text-sm"><span className="text-muted-foreground">Measure</span>
-        <select value={category} onChange={event=>setCategory(event.target.value)} className="max-w-52 rounded-md border bg-background px-2 py-1.5" aria-label="Trend measure">
+      <label className="flex w-full min-w-0 flex-col gap-1.5 text-sm sm:w-auto sm:flex-row sm:items-center sm:gap-3"><span className="text-muted-foreground">Measure</span>
+        <select value={category} onChange={event=>setCategory(event.target.value)} className="w-full min-w-0 rounded-md border bg-background sm:w-52" aria-label="Trend measure">
           <option value="overall">Overall score</option>
           {categories.map(item=><option key={item.key} value={item.key}>{item.label}</option>)}
         </select>
