@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ArrowUpRight } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { buttonVariants } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { getConsolidatedFeedback } from '@/lib/db/queries/consolidated-reviews'
 import { getProperties } from '@/lib/db/queries/properties'
 import { dashboardSource, feedbackGroup, categoryScoreColors, consolidateFeedback, filterFeedback, SOURCE_LABELS, SOURCES, type ReviewPeriod } from '@/lib/reviews/consolidated'
@@ -32,14 +32,14 @@ export async function ConsolidatedDashboard({orgId,property,filters,showPortfoli
         <h1 className="text-2xl font-bold tracking-tight">{property?.name??'Quality overview'}</h1>
         <p className="text-sm text-muted-foreground">See how your properties are doing, then explore the feedback behind the scores.</p>
       </div>
-      <form action={base} className="flex flex-wrap items-end gap-2">
-        <label className="space-y-1 text-xs text-muted-foreground"><span className="block">Source</span><select name="source" defaultValue={source} className="h-9 rounded-md border bg-background px-2 text-sm text-foreground">
+      <form action={base} aria-label="Filter feedback" className="grid w-full grid-cols-1 items-end gap-3 min-[400px]:grid-cols-2 sm:flex sm:w-auto sm:flex-wrap">
+        <label className="min-w-0 space-y-1.5 text-sm text-muted-foreground"><span className="block">Source</span><select name="source" defaultValue={source} className="w-full rounded-md border bg-background text-foreground sm:w-44">
           <option value="all">All sources</option>{SOURCES.map(item=><option key={item} value={item}>{SOURCE_LABELS[item]}</option>)}
         </select></label>
-        <label className="space-y-1 text-xs text-muted-foreground"><span className="block">Period</span><select name="period" defaultValue={period} className="h-9 rounded-md border bg-background px-2 text-sm text-foreground">
+        <label className="min-w-0 space-y-1.5 text-sm text-muted-foreground"><span className="block">Period</span><select name="period" defaultValue={period} className="w-full rounded-md border bg-background text-foreground sm:w-44">
           <option value="all">All time</option><option value="3m">Last 3 months</option><option value="6m">Last 6 months</option><option value="12m">Last 12 months</option>
         </select></label>
-        <button className={buttonVariants({variant:'outline',size:'sm'})} type="submit">Apply</button>
+        <Button variant="outline" className="min-[400px]:col-span-2 sm:w-auto" type="submit">Apply</Button>
       </form>
     </div>
 

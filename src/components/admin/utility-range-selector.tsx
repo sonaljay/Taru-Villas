@@ -80,7 +80,7 @@ export function UtilityRangeSelector({ onChange }: Props) {
 
       {/* Mobile: compact dropdown */}
       <Select value={active} onValueChange={(v) => clickPreset(v as RangePreset)}>
-        <SelectTrigger size="sm" className="w-full sm:hidden">
+        <SelectTrigger aria-label="Reading period" size="sm" className="w-full sm:hidden">
           <SelectValue>{activeLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent>
@@ -104,7 +104,7 @@ export function UtilityRangeSelector({ onChange }: Props) {
 
       {active === 'custom' && (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-end">
+          <div className="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 sm:flex sm:items-end">
             <div className="space-y-1">
               <Label htmlFor="util-from" className="text-xs">From</Label>
               <Input id="util-from" type="date" value={customFrom} max={customTo}

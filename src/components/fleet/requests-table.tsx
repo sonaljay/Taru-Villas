@@ -404,7 +404,7 @@ export function RequestsTable({
       {/* Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="w-full sm:w-48">
+          <SelectTrigger aria-label="Filter requests by status" className="w-full sm:w-48">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -418,7 +418,7 @@ export function RequestsTable({
 
         {isFleetAdmin && (
           <Select value={scope} onValueChange={setScope}>
-            <SelectTrigger className="w-full sm:w-48">
+            <SelectTrigger aria-label="Filter request ownership" className="w-full sm:w-48">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -480,8 +480,35 @@ export function RequestsTable({
         </div>
       ) : (
         <>
+          <div className="grid gap-3 lg:grid-cols-2 xl:hidden" aria-label="Ride requests">
+            {table.getRowModel().rows.length === 0 && <p className="portal-panel bg-card p-6 text-center text-muted-foreground">No requests match the current filters.</p>}
+            {table.getRowModel().rows.map(row => {
+              const ride = row.original
+              const reportCell = row.getVisibleCells().find(cell => cell.column.id === 'tripReport')
+              const reportStatus = getRowReportStatus(ride)
+              return <article key={ride.id} className="portal-panel min-w-0 space-y-4 bg-card p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm text-muted-foreground">{TYPE_LABELS[ride.requestType]}</span>
+                  <Badge variant="outline" className={statusColors[ride.status]}>{STATUS_LABELS[ride.status]}</Badge>
+                </div>
+                <h2 className="break-words text-lg font-semibold leading-snug">{formatTripRoute(ride)}</h2>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                  <div><dt className="text-muted-foreground">Dates</dt><dd className="mt-1 font-medium">{formatDayMonth(ride.startDate)}–{formatDayMonth(ride.endDate)}</dd></div>
+                  <div><dt className="text-muted-foreground">Passengers</dt><dd className="mt-1 font-medium">{ride.paxCount}{ride.cargoRequired ? ' · Cargo required' : ''}</dd></div>
+                  <div className="col-span-2 min-w-0"><dt className="text-muted-foreground">Requested by</dt><dd className="mt-1 break-words">{ride.requesterName ?? 'Unknown'}</dd></div>
+                  {ride.taskTitle && <div className="col-span-2 min-w-0"><dt className="text-muted-foreground">Task reason</dt><dd className="mt-1 break-words">{ride.taskTitle}</dd></div>}
+                </dl>
+                {ride.purpose && <p className="break-words text-sm text-muted-foreground">{ride.purpose}</p>}
+                {reportStatus && reportCell && <div className="space-y-2 border-t pt-3"><p className="text-sm font-medium">Visit report</p>{flexRender(reportCell.column.columnDef.cell, reportCell.getContext())}</div>}
+                {(canEditRow(ride, currentUserId, isFleetAdmin) || canCancelRow(ride, currentUserId, isFleetAdmin)) && <div className="flex flex-wrap gap-2 border-t pt-3">
+                  {canEditRow(ride, currentUserId, isFleetAdmin) && <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEdit(ride)}><Pencil className="size-4" />Edit request</Button>}
+                  {canCancelRow(ride, currentUserId, isFleetAdmin) && <DiscardButton variant="ghost" size="sm" className="flex-1" onClick={() => handleCancelClick(ride)}>Cancel request</DiscardButton>}
+                </div>}
+              </article>
+            })}
+          </div>
           {/* Table */}
-          <div className="rounded-lg border">
+          <div className="hidden rounded-lg border xl:block">
             <Table>
               <TableHeader>
                 {table.getHeaderGroups().map((headerGroup) => (
@@ -520,11 +547,11 @@ export function RequestsTable({
 
           {/* Pagination */}
           {table.getPageCount() > 1 && (
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-muted-foreground">
                 Showing {table.getRowModel().rows.length} of {filtered.length} requests
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <Button
                   variant="outline"
                   size="sm"

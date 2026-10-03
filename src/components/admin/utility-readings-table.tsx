@@ -67,6 +67,12 @@ interface ReadingsTableProps {
   onRefresh: () => void
 }
 
+function ReadingKpi({ row }: { row: DailyRow }) {
+  if (row.penalty === 'missed') return <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700">Missed</span>
+  if (row.achieved === null) return <span className="text-muted-foreground">—</span>
+  return <span className={`rounded-full px-2 py-1 text-xs font-medium ${row.achieved ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{row.achieved ? 'Met' : 'Over'}</span>
+}
+
 export function UtilityReadingsTable({ readings, dailyRows, utilityType, isAdmin, onRefresh }: ReadingsTableProps) {
   const { formProps, markSaved } = useNativeFormGuard()
 
@@ -135,7 +141,28 @@ export function UtilityReadingsTable({ readings, dailyRows, utilityType, isAdmin
         </CardHeader>
         <CardContent>
           {displayRows.length > 0 ? (
-            <div className="rounded-md border">
+            <>
+            <div className="grid gap-3 lg:grid-cols-2 xl:hidden" aria-label="Daily readings">
+              {displayRows.map(row => {
+                const reading = idByDate.get(row.date)
+                const num = (value: number | null) => value === null ? '—' : value.toFixed(1)
+                return <article key={row.date} className="min-w-0 rounded-xl border bg-background p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="font-semibold">{formatDate(row.date)}{isAdmin && row.penalty === 'edited' && <span className="ml-2 text-sm font-normal text-amber-700 dark:text-amber-400">Late edit</span>}</h3>
+                    {isAdmin && <ReadingKpi row={row} />}
+                  </div>
+                  <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                    <div><dt className="text-muted-foreground">Meter reading</dt><dd className="mt-1 break-words font-medium tabular-nums">{row.readingValue?.toLocaleString() ?? '—'}</dd></div>
+                    <div><dt className="text-muted-foreground">Consumption</dt><dd className="mt-1 font-medium tabular-nums">{row.pending ? 'Pending' : num(row.total)}</dd></div>
+                    {utilityType === 'electricity' && <><div><dt className="text-muted-foreground">Day</dt><dd className="mt-1 tabular-nums">{num(row.day)}</dd></div><div><dt className="text-muted-foreground">Peak</dt><dd className="mt-1 tabular-nums">{num(row.peak)}</dd></div><div><dt className="text-muted-foreground">Off-peak</dt><dd className="mt-1 tabular-nums">{num(row.offPeak)}</dd></div></>}
+                    {isAdmin && <div><dt className="text-muted-foreground">Target</dt><dd className="mt-1 tabular-nums">{num(row.target)}</dd></div>}
+                    <div><dt className="text-muted-foreground">Guests</dt><dd className="mt-1 tabular-nums">{row.guestCount ?? '—'}</dd></div><div><dt className="text-muted-foreground">Staff</dt><dd className="mt-1 tabular-nums">{row.staffCount ?? '—'}</dd></div>
+                  </dl>
+                  {reading && <div className="mt-4 flex flex-wrap gap-2 border-t pt-3"><Button variant="outline" size="sm" className="flex-1" onClick={() => { setEditReading(reading); setEditValue(reading.readingValue ?? '') }}><Pencil className="size-4" />Edit reading</Button><Button variant="ghost" size="sm" className="flex-1" onClick={() => setDeleteReading(reading)}><Trash2 className="size-4" />Delete</Button></div>}
+                </article>
+              })}
+            </div>
+            <div className="hidden rounded-md border xl:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -192,21 +219,7 @@ export function UtilityReadingsTable({ readings, dailyRows, utilityType, isAdmin
                         )}
                         {isAdmin && (
                           <TableCell className="text-center">
-                            {row.penalty === 'missed' ? (
-                              <span className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
-                                Missed
-                              </span>
-                            ) : row.achieved === null ? (
-                              <span className="text-muted-foreground text-xs">—</span>
-                            ) : row.achieved ? (
-                              <span className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                                Met
-                              </span>
-                            ) : (
-                              <span className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
-                                Over
-                              </span>
-                            )}
+                            <ReadingKpi row={row} />
                           </TableCell>
                         )}
                         <TableCell className="text-right tabular-nums">
@@ -219,6 +232,7 @@ export function UtilityReadingsTable({ readings, dailyRows, utilityType, isAdmin
                           <div className="flex gap-1">
                             <Button
                               variant="ghost" size="icon" className="size-8"
+                              aria-label={`Edit reading for ${formatDate(row.date)}`}
                               disabled={!reading}
                               onClick={() => {
                                 if (!reading) return
@@ -230,6 +244,7 @@ export function UtilityReadingsTable({ readings, dailyRows, utilityType, isAdmin
                             </Button>
                             <Button
                               variant="ghost" size="icon" className="size-8"
+                              aria-label={`Delete reading for ${formatDate(row.date)}`}
                               disabled={!reading}
                               onClick={() => reading && setDeleteReading(reading)}
                             >
@@ -243,6 +258,7 @@ export function UtilityReadingsTable({ readings, dailyRows, utilityType, isAdmin
                 </TableBody>
               </Table>
             </div>
+            </>
           ) : (
             <p className="text-sm text-muted-foreground text-center py-8">
               No readings recorded for this month.

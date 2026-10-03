@@ -33,7 +33,7 @@ export default async function PortalLayout({
           <AppSidebar />
           <SidebarInset className="min-w-0">
             <Header />
-            <main className="relative min-w-0 flex-1 p-4 sm:p-6">
+            <main data-portal-main className="relative min-w-0 flex-1 p-4 sm:p-6">
               {children}
             </main>
           </SidebarInset>

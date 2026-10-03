@@ -96,7 +96,17 @@ export function WasteLogTable({ logs, propertyId, onRefresh }: WasteLogTableProp
         </CardHeader>
         <CardContent>
           {displayLogs.length > 0 ? (
-            <div className="rounded-md border overflow-x-auto">
+            <>
+            <div className="grid gap-3 lg:grid-cols-2 xl:hidden" aria-label="Daily waste entries">
+              {displayLogs.map(log => <article key={log.id} className="min-w-0 rounded-xl border bg-background p-4">
+                <div className="flex flex-wrap items-baseline justify-between gap-2"><h3 className="font-semibold">{formatDate(log.logDate)}</h3><span className="font-semibold tabular-nums">{rowTotal(log).toFixed(1)} kg total</span></div>
+                <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">{WASTE_CATEGORIES.map(category => <div key={category.key}><dt className="text-muted-foreground">{category.label}</dt><dd className="mt-1 tabular-nums">{parseFloat(log[category.key] || '0').toFixed(1)} kg</dd></div>)}</dl>
+                <p className="mt-4 break-words text-sm text-muted-foreground">Recorded by {log.recorderName ?? '—'}</p>
+                {log.note && <p className="mt-2 break-words text-sm text-muted-foreground">{log.note}</p>}
+                <div className="mt-4 flex flex-wrap gap-2 border-t pt-3"><Button variant="outline" size="sm" className="flex-1" onClick={() => setEditLog(log)}><Pencil className="size-4" />Edit entry</Button><Button variant="ghost" size="sm" className="flex-1" onClick={() => setDeleteLog(log)}><Trash2 className="size-4" />Delete</Button></div>
+              </article>)}
+            </div>
+            <div className="hidden rounded-md border overflow-x-auto xl:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -132,6 +142,7 @@ export function WasteLogTable({ logs, propertyId, onRefresh }: WasteLogTableProp
                             variant="ghost"
                             size="icon"
                             className="size-8"
+                            aria-label={`Edit waste entry for ${formatDate(log.logDate)}`}
                             onClick={() => setEditLog(log)}
                           >
                             <Pencil className="size-3.5" />
@@ -140,6 +151,7 @@ export function WasteLogTable({ logs, propertyId, onRefresh }: WasteLogTableProp
                             variant="ghost"
                             size="icon"
                             className="size-8"
+                            aria-label={`Delete waste entry for ${formatDate(log.logDate)}`}
                             onClick={() => setDeleteLog(log)}
                           >
                             <Trash2 className="size-3.5" />
@@ -151,6 +163,7 @@ export function WasteLogTable({ logs, propertyId, onRefresh }: WasteLogTableProp
                 </TableBody>
               </Table>
             </div>
+            </>
           ) : (
             <p className="text-sm text-muted-foreground text-center py-8">
               No waste logged for this month.

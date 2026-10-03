@@ -213,7 +213,7 @@ export function UtilityTierForm({ propertyId, utilityType, onRefresh }: TierForm
             {editTiers.map((tier, index) => (
               <div
                 key={tier.tierNumber}
-                className="grid grid-cols-4 gap-3 items-end"
+                className="grid grid-cols-1 gap-3 rounded-xl border p-4 sm:grid-cols-4 sm:items-end"
               >
                 <div>
                   <Label className="text-xs text-muted-foreground">

@@ -30,11 +30,11 @@ export function DailyRecordsPageClient({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => router.push('/daily-records')}>
+      <div className="flex items-start gap-3">
+        <Button variant="ghost" size="icon" aria-label="Back to Daily Records" className="shrink-0" onClick={() => router.push('/daily-records')}>
           <ArrowLeft className="size-4" />
         </Button>
-        <div>
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight">Daily Records — {property.name}</h1>
           <p className="text-sm text-muted-foreground">
             Track water, electricity, and daily wastage records
@@ -43,18 +43,18 @@ export function DailyRecordsPageClient({
       </div>
 
       <Tabs value={initialTab} onValueChange={handleTabChange}>
-        <TabsList>
-          <TabsTrigger value="water" className="gap-2">
-            <Droplets className="size-4" />
+        <TabsList className="grid w-full grid-cols-3 sm:w-fit">
+          <TabsTrigger value="water" className="gap-1 px-2 sm:gap-2 sm:px-3">
+            <Droplets className="hidden size-4 min-[400px]:block" />
             Water
           </TabsTrigger>
-          <TabsTrigger value="electricity" className="gap-2">
-            <Zap className="size-4" />
+          <TabsTrigger value="electricity" className="gap-1 px-2 sm:gap-2 sm:px-3">
+            <Zap className="hidden size-4 min-[400px]:block" />
             Electricity
           </TabsTrigger>
-          <TabsTrigger value="waste" className="gap-2">
-            <Trash2 className="size-4" />
-            Daily Wastage
+          <TabsTrigger value="waste" className="gap-1 px-2 sm:gap-2 sm:px-3">
+            <Trash2 className="hidden size-4 min-[400px]:block" />
+            <span className="sm:hidden">Wastage</span><span className="hidden sm:inline">Daily Wastage</span>
           </TabsTrigger>
         </TabsList>
 
