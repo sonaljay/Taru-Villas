@@ -236,8 +236,33 @@
 .portal-theme :is([data-slot='card-title'], [data-slot='dialog-title']) { font-size: 20px; line-height: 1.35; }
 .portal-theme :is([data-slot='label'], label) { color: var(--foreground); font-size: 14px; font-weight: 600; line-height: 1.4; }
 .portal-theme :is([data-slot='input'], [data-slot='select-trigger'], .portal-field, input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='hidden'], [type='submit'], [type='button']), select:not([aria-hidden='true'])) {
-  min-height: 46px; background: var(--portal-field-background); border: 1px solid var(--input);
+  min-height: max(46px, calc(1.5em + 22px)); background: var(--portal-field-background); border: 1px solid var(--input);
   border-radius: 12px; font-size: 16px; font-weight: 400; color: var(--foreground); box-shadow: none; min-width: 0; max-width: 100%;
+}
+/* Native temporal controls must be allowed to shrink inside grid/form cells. */
+.portal-theme input:is([type='date'], [type='time'], [type='datetime-local'], [type='month'], [type='week']) {
+  display: block; box-sizing: border-box; width: 100%; min-inline-size: 0;
+}
+/* iOS WebKit adds host padding outside a 100% temporal control (WebKit #301648).
+   Move the text inset into its value rather than clipping the native picker. */
+@supports (-webkit-touch-callout: none) {
+  .portal-theme input:is([type='date'], [type='time'], [type='datetime-local'], [type='month'], [type='week']) {
+    -webkit-appearance: none; appearance: none; padding-inline: 0;
+  }
+  .portal-theme input:is([type='date'], [type='time'], [type='datetime-local'], [type='month'], [type='week'])::-webkit-date-and-time-value {
+    min-height: 1.5em; margin-inline: 12px; text-align: left;
+  }
+}
+.portal-theme [data-report-actions] {
+  padding: 12px max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+.portal-theme main > [data-visit-report] { max-width: 64rem; }
+.portal-theme [data-visit-report] :is(input, textarea, select, summary) {
+  scroll-margin-block: 24px calc(var(--report-actions-height, 128px) + 24px);
+}
+@media (min-width: 768px) {
+  .portal-theme:has([data-slot='sidebar'][data-state='expanded']) [data-report-actions] { left: var(--sidebar-width); }
+  .portal-theme:has([data-slot='sidebar'][data-state='collapsed'][data-collapsible='icon']) [data-report-actions] { left: var(--sidebar-width-icon); }
 }
 /* Reserve a real icon gutter. Native menus retain the platform picker on phones. */
 .portal-theme select:not([aria-hidden='true']):not([multiple]):is(:not([size]), [size='1']) {
@@ -277,8 +302,8 @@
 .portal-theme :is(input, textarea)[readonly] { background: var(--muted); border-style: dashed; }
 .portal-theme [aria-invalid='true'] { border-color: var(--destructive); }
 .portal-theme :is(input, textarea, select, button, a, [tabindex]):focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; }
-.portal-theme :is([data-slot='button'], [data-slot='tabs-trigger']) { min-height: 44px; border-radius: 10px; }
-.portal-theme button:not([role='checkbox'], [role='switch'], [role='radio'], [data-slot='sidebar-rail']) { min-height: 44px; }
+.portal-theme :is([data-slot='button'], [data-slot='tabs-trigger']) { min-height: max(44px, calc(1.5em + 18px)); border-radius: 10px; }
+.portal-theme button:not([role='checkbox'], [role='switch'], [role='radio'], [data-slot='sidebar-rail']) { min-height: max(44px, calc(1.5em + 18px)); }
 .portal-theme [data-slot='button'][data-size^='icon'] { min-width: 44px; }
 .portal-theme summary { min-height: 44px; align-content: center; }
 .portal-theme [data-slot='sheet-content'], .portal-theme[data-slot='sheet-content'] { max-height: 100dvh; overscroll-behavior: contain; }
@@ -310,7 +335,7 @@
   .portal-theme [data-slot='dialog-footer'] > * { width: 100%; }
   .portal-theme [data-slot='tabs-list'] { max-width: 100%; }
   .portal-theme [data-slot='sidebar'][data-mobile='true'], .portal-theme[data-slot='sidebar'][data-mobile='true'] { max-width: calc(100vw - 48px); }
-  .portal-theme .portal-dense-field { min-height: 44px; font-size: 16px; }
+  .portal-theme .portal-dense-field { min-height: max(44px, calc(1.5em + 18px)); font-size: 16px; }
 }
 @media (forced-colors: active) {
   .portal-theme select:not([aria-hidden='true']):not([multiple]):is(:not([size]), [size='1']) { appearance: auto; background-image: none; padding-right: 14px; }
