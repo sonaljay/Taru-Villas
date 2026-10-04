@@ -1,7 +1,7 @@
 "use client";
 
 import { useSaveProtection, useUnsavedChanges } from '@/hooks/use-unsaved-changes'
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,19 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
   const [content, setContent] = useState<ReportContent | null>(null),
     [answers, setAnswers] = useState<Answer[]>([]),
     [property, setProperty] = useState("");
+  const reportRef = useRef<HTMLDivElement>(null);
+  const actionsRef = useRef<HTMLDivElement>(null);
+  // Reserve the actual toolbar height, including wrapped text and the safe area.
+  useEffect(() => {
+    const actions = actionsRef.current;
+    const report = reportRef.current;
+    if (!actions || !report) return;
+    const observer = new ResizeObserver(() => {
+      report.style.setProperty("--report-actions-height", `${actions.getBoundingClientRect().height}px`);
+    });
+    observer.observe(actions);
+    return () => observer.disconnect();
+  }, [data?.canEdit, data?.template]);
   const base = `/api/fleet/reports/${requestId}`,
     url = base + "/structured";
   function apply(d: Data) {
@@ -144,7 +157,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
     return <VisitReportClient requestId={requestId} />;
   if (!data.template)
     return (
-      <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-8">
+      <div className="mx-auto min-w-0 max-w-4xl space-y-6">
         <h1 className="text-2xl font-semibold">Choose your visit report</h1>
         <p className="text-muted-foreground">
           Each category has its own inspection questions and scorecard. The
@@ -233,7 +246,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
         </div>
         <fieldset disabled={disabled} className="space-y-3">
           {q.kind !== "inspection" ? (
-            <label className="block space-y-1">
+            <label className="flex min-w-0 flex-col gap-2">
               <span className="text-sm">Rating</span>
               <select
                 aria-label={`${q.label} rating`}
@@ -274,7 +287,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
               Not applicable
             </label>
           )}
-          <label className="block space-y-1">
+          <label className="flex min-w-0 flex-col gap-2">
             <span className="text-sm">
               {q.kind !== "inspection" ? "Score notes (optional)" : "Findings"}
             </span>
@@ -287,7 +300,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
             />
           </label>
           <div className="rounded-lg bg-muted/40 p-3 space-y-3">
-            <label className="block space-y-1">
+            <label className="flex min-w-0 flex-col gap-2">
               <span className="text-sm font-medium">
                 Follow-up task (optional)
               </span>
@@ -357,15 +370,15 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
               </>
             )}
             {a.task.kind === "new" && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="space-y-1 sm:col-span-2">
+              <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+                <label className="flex min-w-0 flex-col gap-2 sm:col-span-2">
                   <span className="text-sm">Task title</span>
                   <Input disabled={pending}
                     value={a.task.title}
                     onChange={(e) => taskPatch(a, { title: e.target.value })}
                   />
                 </label>
-                <label className="space-y-1">
+                <label className="flex min-w-0 flex-col gap-2">
                   <span className="text-sm">Project</span>
                   <select
                     className={selectClass}
@@ -382,7 +395,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
                     ))}
                   </select>
                 </label>
-                <label className="space-y-1">
+                <label className="flex min-w-0 flex-col gap-2">
                   <span className="text-sm">Priority</span>
                   <select
                     className={selectClass}
@@ -398,7 +411,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
                     ))}
                   </select>
                 </label>
-                <label className="space-y-1">
+                <label className="flex min-w-0 flex-col gap-2">
                   <span className="text-sm">Due date</span>
                   <Input disabled={pending}
                     type="date"
@@ -408,7 +421,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
                     }
                   />
                 </label>
-                <label className="space-y-1">
+                <label className="flex min-w-0 flex-col gap-2">
                   <span className="text-sm">Assignees</span>
                   <select
                     multiple
@@ -430,7 +443,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
                     ))}
                   </select>
                 </label>
-                <label className="space-y-1 sm:col-span-2">
+                <label className="flex min-w-0 flex-col gap-2 sm:col-span-2">
                   <span className="text-sm">Task details</span>
                   <Textarea disabled={pending}
                     value={a.task.description}
@@ -523,7 +536,12 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
     );
   }
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-4 pb-28 md:p-8 md:pb-28">
+    <div
+      ref={reportRef}
+      data-visit-report
+      className="mx-auto min-w-0 max-w-5xl space-y-6"
+      style={data.canEdit ? { paddingBottom: "calc(var(--report-actions-height, 128px) + 24px)" } : undefined}
+    >
       <header className="space-y-2">
         <a className="text-sm text-muted-foreground underline" href="/fleet">
           Back to Fleet
@@ -563,8 +581,8 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
           <CardTitle>Visit details & summary</CardTitle>
         </CardHeader>
         <CardContent>
-          <fieldset disabled={disabled} className="grid gap-4 sm:grid-cols-2">
-            <label className="space-y-1">
+          <fieldset disabled={disabled} className="grid min-w-0 gap-5 sm:grid-cols-2">
+            <label className="flex min-w-0 flex-col gap-2">
               <span className="text-sm">Visit type</span>
               <select
                 className={selectClass}
@@ -577,7 +595,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
                 ))}
               </select>
             </label>
-            <label className="space-y-1">
+            <label className="flex min-w-0 flex-col gap-2">
               <span className="text-sm">Visit date</span>
               <Input disabled={pending}
                 type="date"
@@ -586,7 +604,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
               />
             </label>
             {(["timeIn", "timeOut"] as const).map((key, i) => (
-              <label className="space-y-1" key={key}>
+              <label className="flex min-w-0 flex-col gap-2" key={key}>
                 <span className="text-sm">
                   {i ? "Time out" : "Time in"} (optional)
                 </span>
@@ -602,7 +620,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
                 <p className="text-sm sm:col-span-2">
                   Visiting HQ HR representative: {String(data.authorName)}
                 </p>
-                <label className="space-y-1 sm:col-span-2">
+                <label className="flex min-w-0 flex-col gap-2 sm:col-span-2">
                   <span className="text-sm">
                     Co-evaluated with (Property Head / 2nd IC)
                   </span>
@@ -614,7 +632,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
               </>
             )}
             {template.key === "security" && (
-              <label className="space-y-1 sm:col-span-2">
+              <label className="flex min-w-0 flex-col gap-2 sm:col-span-2">
                 <span className="text-sm">Third-party security firm</span>
                 <Input disabled={pending}
                   value={content?.thirdPartyFirm || ""}
@@ -622,7 +640,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
                 />
               </label>
             )}
-            <label className="space-y-1 sm:col-span-2">
+            <label className="flex min-w-0 flex-col gap-2 sm:col-span-2">
               <span className="text-sm">Executive summary</span>
               <Textarea disabled={pending}
                 value={content?.summary || ""}
@@ -686,7 +704,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
                     className="space-y-3 rounded-xl bg-muted/40 p-3"
                   >
                     <div className="flex items-end gap-3">
-                      <label className="flex-1 space-y-1">
+                      <label className="flex min-w-0 flex-1 flex-col gap-2">
                         <span className="text-sm font-medium">
                           {employee ? "Employee name" : "Room or area"}
                         </span>
@@ -729,9 +747,9 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
                     {employee && (
                       <fieldset
                         disabled={disabled}
-                        className="grid gap-3 sm:grid-cols-2"
+                        className="grid min-w-0 gap-3 sm:grid-cols-2"
                       >
-                        <label className="space-y-1">
+                        <label className="flex min-w-0 flex-col gap-2">
                           <span className="text-sm font-medium">
                             Department
                           </span>
@@ -780,7 +798,7 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
                               : "Evaluation incomplete"}
                           </strong>
                         </div>
-                        <label className="space-y-1 sm:col-span-2">
+                        <label className="flex min-w-0 flex-col gap-2 sm:col-span-2">
                           <span className="text-sm font-medium">
                             Key feedback / agreed action plan
                           </span>
@@ -920,10 +938,10 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
         </ol>
       </details>
       {data.canEdit && (
-        <div className="fixed bottom-0 left-0 right-0 z-20 border-t bg-background/95 p-3 backdrop-blur">
-          <div className="mx-auto flex max-w-5xl items-center justify-end gap-3">
+        <div ref={actionsRef} data-report-actions className="fixed bottom-0 left-0 right-0 z-20 border-t bg-background/95 backdrop-blur">
+          <div className="mx-auto grid min-w-0 max-w-5xl gap-2 sm:flex sm:items-center sm:justify-end sm:gap-4">
             <span
-              className="mr-auto text-sm text-muted-foreground"
+              className="min-w-0 text-sm text-muted-foreground sm:mr-auto"
               role="status"
             >
               {pending
@@ -934,33 +952,35 @@ export function StructuredVisitReport({ requestId }: { requestId: string }) {
                     ? "Shared report saved"
                     : "All changes saved"}
             </span>
-            <Button
-              variant="outline"
-              disabled={pending}
-              onClick={() =>
-                run(async () => {
-                  await save();
-                  toast.success("Report saved");
-                })
-              }
-            >
-              {data.report.submittedAt ? "Save changes" : "Save draft"}
-            </Button>
-            {!data.report.submittedAt && (
-              <Button
-                disabled={pending || !data.canSubmit}
+            <div className={`grid min-w-0 gap-3 sm:flex ${data.report.submittedAt ? "grid-cols-1" : "grid-cols-2"}`}>
+              <Button className="h-auto min-w-0 whitespace-normal px-3 py-2 text-center"
+                variant="outline"
+                disabled={pending}
                 onClick={() =>
                   run(async () => {
-                    await save(true);
-                    toast.success(
-                      "Report submitted; property managers notified",
-                    );
+                    await save();
+                    toast.success("Report saved");
                   })
                 }
               >
-                Submit report
+                {data.report.submittedAt ? "Save changes" : "Save draft"}
               </Button>
-            )}
+              {!data.report.submittedAt && (
+                <Button className="h-auto min-w-0 whitespace-normal px-3 py-2 text-center"
+                  disabled={pending || !data.canSubmit}
+                  onClick={() =>
+                    run(async () => {
+                      await save(true);
+                      toast.success(
+                        "Report submitted; property managers notified",
+                      );
+                    })
+                  }
+                >
+                  Submit report
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -9,6 +9,7 @@ if (!['localhost', '127.0.0.1', '[::1]'].includes(base.hostname)) throw Error('U
 const output = process.env.PORTAL_UI_OUTPUT || '/private/tmp/taru-portal-ui-checks'
 
 async function main() {
+  const { measureReportLayout, assertReportLayout } = await import('./portal-report-layout.mjs')
   await fs.mkdir(output, { recursive: true })
   const browser = await chromium.launch({ channel: 'chrome', headless: true })
   const results = []
@@ -19,6 +20,10 @@ async function main() {
       return route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: 'UI verification: server writes are blocked' }) })
     })
     const page = await context.newPage()
+    const breadcrumbErrors = []
+    page.on('console', message => {
+      if (message.type() === 'error' && /same key/.test(message.text())) breadcrumbErrors.push(message.text())
+    })
     async function go(route) {
       const hydrated = route === '/login' ? Promise.resolve(true) : page.waitForResponse(response => response.url().includes('/api/notifications'), { timeout: 10000 }).then(() => true, () => false)
       await page.goto(new URL(route, base).href, { waitUntil: 'domcontentloaded' })
@@ -30,6 +35,21 @@ async function main() {
       await action()
       results.push(name)
       console.log('PASS', name)
+    }
+    // Supply a disposable structured-report fixture; dynamic record pages must
+    // be measured too, rather than relying on the list route's viewport width.
+    if (process.env.PORTAL_UI_REPORT_ID) {
+      assert(/^[0-9a-f-]{36}$/i.test(process.env.PORTAL_UI_REPORT_ID), 'Expected a report UUID')
+      await go(`/fleet/reports/${process.env.PORTAL_UI_REPORT_ID}`)
+      await page.locator('[data-visit-report]').waitFor()
+      for (const width of [320, 375, 390, 440, 568, 768, 1024, 1440]) {
+        await page.setViewportSize({ width, height: width === 568 ? 320 : 900 })
+        await check(`Structured report fields and save actions fit ${width}px`, async () => {
+          assertReportLayout(await page.evaluate(measureReportLayout))
+          assert.equal(breadcrumbErrors.length, 0, 'Report breadcrumb nodes share React keys')
+        })
+      }
+      if (process.env.PORTAL_UI_REPORT_ONLY === '1') return
     }
     await page.setViewportSize({ width: 1440, height: 1000 })
     await go('/tasks')

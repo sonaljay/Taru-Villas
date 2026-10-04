@@ -125,7 +125,7 @@ export function Header() {
               const isLast = index === breadcrumbs.length - 1
               return (
                 <div
-                  key={crumb.href}
+                  key={`${crumb.href}:${index}`}
                   className={cn(
                     'items-center gap-1',
                     // On mobile only the current (last) crumb shows — the
