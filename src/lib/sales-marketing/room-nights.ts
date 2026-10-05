@@ -5,6 +5,7 @@ export interface BookingReport {
   months: MonthlyBookings[]; totalRoomNights: number; excludedQualityRecords: number
   rows: { reservationId: string; confirmationNumber: string | null; arrivalDate: string; departureDate: string; roomType: string | null; roomQuantity: number | null; stayState: string; channelCode: string | null; monthlyNights: Record<string, number> }[]
 }
+export class ReportRangeError extends Error {}
 export interface ReportRange { fromDate: string; toDateExclusive: string }
 const day = (iso: string) => Date.parse(`${iso}T00:00:00Z`) / 86400000
 function nextMonth(month: string): string {
@@ -13,13 +14,13 @@ function nextMonth(month: string): string {
   return d.toISOString().slice(0,10)
 }
 export function inclusiveLastDate(exclusiveEnd: string): string {
-  if (!validOracleDate(exclusiveEnd)) throw Error('Invalid report range')
+  if (!validOracleDate(exclusiveEnd)) throw new ReportRangeError('Invalid report range')
   return new Date((day(exclusiveEnd) - 1) * 86400000).toISOString().slice(0,10)
 }
 function validateBounds(range: ReportRange): void {
-  if (!validOracleDate(range.fromDate) || !validOracleDate(range.toDateExclusive) || range.toDateExclusive <= range.fromDate) throw Error('Invalid report range')
+  if (!validOracleDate(range.fromDate) || !validOracleDate(range.toDateExclusive) || range.toDateExclusive <= range.fromDate) throw new ReportRangeError('Invalid report range')
   const [sy,sm] = range.fromDate.split('-').map(Number), [ey,em] = inclusiveLastDate(range.toDateExclusive).split('-').map(Number)
-  if ((ey - sy) * 12 + em - sm >= 24) throw Error('Select at most 24 calendar months')
+  if ((ey - sy) * 12 + em - sm >= 24) throw new ReportRangeError('Select at most 24 calendar months')
 }
 export function defaultFutureRange(now: Date): ReportRange {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Colombo', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now)
@@ -31,7 +32,7 @@ export function defaultFutureRange(now: Date): ReportRange {
 }
 export function validateReportRange(range: ReportRange, now = new Date()): void {
   validateBounds(range)
-  if (range.fromDate < defaultFutureRange(now).fromDate) throw Error('Select future stay dates')
+  if (range.fromDate < defaultFutureRange(now).fromDate) throw new ReportRangeError('Select future stay dates')
 }
 export function aggregateRoomNights(bookings: OracleBooking[], range: ReportRange): BookingReport {
   validateBounds(range)
