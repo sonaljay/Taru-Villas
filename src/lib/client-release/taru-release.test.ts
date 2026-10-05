@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import config from '../../../next.config'
 import deploymentProfile from '../../../deployment-profile.json'
+import { getBuildModuleEnvironment } from './build-policy'
 import { getClientModuleRequestStatus, getEnabledClientModules, isPathEnabled, moduleForPath } from './modules'
 
 const modules = 'dashboard,tasks,fleet,daily-records,guest-profiles,sales-marketing,guest-portal,menus,excursions'
@@ -43,7 +44,7 @@ describe('Taru release', () => {
 
 describe('LO full portal release policy',()=>{
  const finalModules='dashboard,tasks,fleet,daily-records,guest-profiles,sales-marketing,guest-portal,menus,excursions'
- it('pins the final approved product modules',()=>{expect(config.env?.CLIENT_ENABLED_MODULES).toBe(finalModules)})
+ it('pins the final approved product modules on release and preserves development policy',()=>{expect(getBuildModuleEnvironment('taru-release').CLIENT_ENABLED_MODULES).toBe(finalModules);expect(getBuildModuleEnvironment('development')).toEqual({})})
  it.each(['/stay/example','/api/guest-portal/example/requests','/api/guest-portal/example/questionnaire','/api/guest-portal/example/uploads','/api/guest-profiles/requests','/api/guest-profiles/questions','/api/guest-profiles/example/link','/api/guest-profiles/example/email','/api/guest-profiles/email-settings','/api/cron/guest-portal','/menus','/api/menus/items/example','/excursions','/api/excursions/example'])('explicitly maps and allows %s',path=>{expect(moduleForPath(path)).toBeDefined();expect(getClientModuleRequestStatus(path,finalModules)).toBeNull()})
  it('maps the email worker to the guest portal gate',()=>{expect(moduleForPath('/api/cron/guest-portal')).toBe('guest-portal');expect(moduleForPath('/api/guest-profiles/email-settings')).toBe('guest-portal');expect(moduleForPath('/api/guest-profiles/example/link')).toBe('guest-portal')})
  it.each(['/surveys','/sops','/rostering','/assets','/utilities','/u/example','/g/example'])('keeps %s disabled',path=>expect(getClientModuleRequestStatus(path,finalModules)).toBe(404))
