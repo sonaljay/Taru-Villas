@@ -109,7 +109,7 @@ export function MenuCategoryList({
                   {/* Name row with dotted leader + price */}
                   <div className="flex items-baseline gap-2">
                     <span
-                      className="text-base font-medium text-foreground shrink-0"
+                      className="text-base font-medium text-foreground min-w-0 break-words"
                       style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
                     >
                       {item.title}

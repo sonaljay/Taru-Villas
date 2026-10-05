@@ -40,3 +40,15 @@ export async function findAccessById(id: string) {
   const source = await sourceById(db, access.orgId, access.guestProfileId)
   return source ? { access, source } : undefined
 }
+
+export async function readGuestPortalRows(scope: import('./types').GuestScope) {
+  const { preArrivalQuestions, guestRequests } = await import('@/lib/db/schema')
+  const { asc } = await import('drizzle-orm')
+  const [[profile], [property], questions, requests] = await Promise.all([
+    db.select().from(guestProfiles).where(and(eq(guestProfiles.id, scope.guestProfileId), eq(guestProfiles.orgId, scope.orgId), eq(guestProfiles.propertyId, scope.propertyId))).limit(1),
+    db.select().from(properties).where(and(eq(properties.id, scope.propertyId), eq(properties.orgId, scope.orgId), eq(properties.isActive, true))).limit(1),
+    db.select().from(preArrivalQuestions).where(and(eq(preArrivalQuestions.orgId, scope.orgId), eq(preArrivalQuestions.propertyId, scope.propertyId), eq(preArrivalQuestions.isActive, true))).orderBy(asc(preArrivalQuestions.sortOrder), asc(preArrivalQuestions.id)),
+    db.select().from(guestRequests).where(and(eq(guestRequests.orgId, scope.orgId), eq(guestRequests.propertyId, scope.propertyId), eq(guestRequests.guestProfileId, scope.guestProfileId))).orderBy(desc(guestRequests.createdAt)),
+  ])
+  return profile && property ? { profile, property, questions, requests } : undefined
+}

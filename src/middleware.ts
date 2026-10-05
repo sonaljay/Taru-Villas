@@ -58,6 +58,8 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname === '/login' ||
     request.nextUrl.pathname.startsWith('/callback') ||
     request.nextUrl.pathname.startsWith('/api/auth') ||
+    request.nextUrl.pathname.startsWith('/stay/') ||
+    request.nextUrl.pathname.startsWith('/api/guest-portal/') ||
     request.nextUrl.pathname.startsWith('/g/') ||
     request.nextUrl.pathname.startsWith('/e/') ||
     request.nextUrl.pathname.startsWith('/m/') ||
