@@ -70,3 +70,20 @@ The network-enabled `npm run build` completed successfully on 2026-10-05.
 Live GET diagnostics returned only the safe summary described above. Deployment
 still requires secret provisioning, additive migration review, and the verified
 LO mapping; no deployment, scheduler or guest email was activated.
+
+## Sales & Marketing
+
+The separate Sales & Marketing area shows future LO room nights by stay month,
+channel and contributing reservations. Checkout day is excluded; two-room stays
+multiply the number of nights by two. Reservation counts overlap across months
+and must not be added together. Unknown quantity/status/date/share inventory is
+reported as excluded quality records. Rates and occupancy percentages are not
+estimated. Select at most 24 calendar months; incomplete cached coverage is
+explicitly shown and requires a longer import or a narrower reporting period.
+
+Synthetic browser validation at 390px and 1440px on 2026-10-05 confirmed a
+one-room 30 October–2 November stay shows two October nights and one November
+night in chart, table and drill-down. Mobile document width stayed at 390px.
+Keyboard month controls, empty bookings, missing import and partial coverage
+states were checked. Temporary fixture routes were removed before committing.
+Safe report payloads contain no guest contacts or private links.

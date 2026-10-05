@@ -3,7 +3,7 @@ import config from '../../../next.config'
 import deploymentProfile from '../../../deployment-profile.json'
 import { getClientModuleRequestStatus, getEnabledClientModules, isPathEnabled } from './modules'
 
-const modules = 'dashboard,tasks,fleet,daily-records,guest-profiles'
+const modules = 'dashboard,tasks,fleet,daily-records,guest-profiles,sales-marketing'
 
 describe('Taru release', () => {
   it('applies the checked-in deployment profile to the build', () => {

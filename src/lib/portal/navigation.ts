@@ -1,4 +1,4 @@
-import { Building2, CalendarClock, CalendarDays, ClipboardCheck, ClipboardList, Compass, LayoutDashboard, ListChecks, ListTodo, Package, Settings, ShieldCheck, UserCheck, Users, UtensilsCrossed, type LucideIcon } from 'lucide-react'
+import { Building2, ChartColumn, CalendarClock, CalendarDays, ClipboardCheck, ClipboardList, Compass, LayoutDashboard, ListChecks, ListTodo, Package, Settings, ShieldCheck, UserCheck, Users, UtensilsCrossed, type LucideIcon } from 'lucide-react'
 import { isPathEnabled, type ClientModule } from '@/lib/client-release/modules'
 import { getFleetNavigationItems } from '@/lib/fleet/navigation'
 
@@ -18,6 +18,7 @@ export function getPortalNavigationGroups({ profile, enabledModules }: { profile
     { title: 'Overview', items: admin ? [item('Dashboard', '/dashboard', LayoutDashboard)] : [] },
     { title: 'Daily work', items: [item('Tasks', '/tasks', ListTodo), item('Surveys', '/surveys', ClipboardCheck), item('SOPs', '/sops', ListChecks), item('Daily records', '/daily-records', ClipboardList), item('My roster', '/my-roster', CalendarDays)] },
     { title: 'Property operations', items: [item('Asset registry', '/assets', Package), ...(manager ? [item('Rostering', '/rostering', CalendarClock), item('Guest profiles', '/guest-profiles', UserCheck), item('Menus', '/menus', UtensilsCrossed), item('Excursions', '/excursions', Compass)] : [])] },
+    { title: 'Sales & Marketing', items: manager ? [item('Future bookings', '/sales-marketing', ChartColumn)] : [] },
     { title: 'Transport', items: fleet.filter(entry => !entry.href.startsWith('/admin/')) },
     { title: 'Administration', items: [...(admin ? [item('Properties', '/admin/properties', Building2), item('Users', '/admin/users', Users), item('Allowed emails', '/admin/allowed-emails', ShieldCheck)] : []), ...fleet.filter(entry => entry.href.startsWith('/admin/'))] },
     { title: 'Account', items: [item('Settings', '/settings', Settings)] },

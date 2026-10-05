@@ -43,3 +43,11 @@ it('respects both configured release module lists for every role', () => {
     expect(taru).not.toContain('/sops')
   }
 })
+it('shows a separate Sales & Marketing area for managers and admins only', () => {
+  for (const role of ['admin', 'property_manager'] as const) {
+    const groups = getPortalNavigationGroups({ profile: { role, isFleetAdmin: false, canBookFleet: false }, enabledModules: ['sales-marketing'] })
+    expect(groups.find(group => group.title === 'Sales & Marketing')?.items.map(item => item.href)).toContain('/sales-marketing')
+  }
+  expect(paths('staff', ['sales-marketing'])).not.toContain('/sales-marketing')
+  expect(paths('admin', ['tasks'])).not.toContain('/sales-marketing')
+})

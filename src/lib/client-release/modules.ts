@@ -10,6 +10,7 @@ export type ClientModule =
   | 'menus'
   | 'excursions'
   | 'guest-profiles'
+  | 'sales-marketing'
   | 'utilities'
   | 'settings'
   | 'allowed-emails'
@@ -27,6 +28,7 @@ const clientModules: readonly ClientModule[] = [
   'menus',
   'excursions',
   'guest-profiles',
+  'sales-marketing',
   'utilities',
   'settings',
   'allowed-emails',
@@ -97,6 +99,8 @@ const moduleRoutes: readonly [string, ClientModule][] = [
   ['/api/guest-profiles', 'guest-profiles'],
   ['/api/oracle', 'guest-profiles'],
   ['/guest-profiles', 'guest-profiles'],
+  ['/sales-marketing', 'sales-marketing'],
+  ['/api/sales-marketing', 'sales-marketing'],
   ['/settings', 'settings'],
   ['/api/cron/fleet-optimize', 'fleet'],
   ['/api/cron/vehicle-renewals', 'fleet'],

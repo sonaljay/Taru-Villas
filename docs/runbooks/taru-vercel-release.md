@@ -7,7 +7,7 @@ Vercel team/project: `taru-vi-llas/taru-villas`.
 
 `next.config.ts` reads the profile and bakes the release policy into server,
 middleware, and client bundles. Release pins `CLIENT_ENABLED_MODULES` to
-`dashboard,tasks,fleet,daily-records,guest-profiles`, regardless of environment overrides.
+`dashboard,tasks,fleet,daily-records,guest-profiles,sales-marketing`, regardless of environment overrides.
 Development leaves the existing environment policy available; leave
 `CLIENT_ENABLED_MODULES` unset for all modules (invite-only deployments still
 require an explicit valid module list).
@@ -43,6 +43,7 @@ Enabled products:
 - Fleet Management, including dispatch, vehicles, drivers, distances, driver
   links, and fleet APIs, subject to existing role permissions
 - Daily Records: water, electricity, and wastage, including their backing APIs
+- Sales & Marketing: future LO room nights split by stay month
 - Guest Profiles: scoped LO read-only imports and pre-arrival status; see
   [LO activation runbook](lo-oracle.md) before enabling database-backed routes.
 

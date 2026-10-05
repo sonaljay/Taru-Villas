@@ -34,6 +34,7 @@ const segmentLabels: Record<string, string> = {
   waste: 'Daily Wastage',
   'daily-records': 'Daily Records',
   'guest-profiles': 'Guest Profiles',
+  'sales-marketing': 'Sales & Marketing',
   tasks: 'Task Manager',
   teams: 'Committees',
   committees: 'Committees',

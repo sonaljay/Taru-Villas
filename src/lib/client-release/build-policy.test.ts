@@ -7,7 +7,7 @@ describe('deployment profile', () => {
   })
   it('pins release builds to the approved modules', () => {
     expect(getBuildModuleEnvironment('taru-release')).toEqual({
-      CLIENT_ENABLED_MODULES: 'dashboard,tasks,fleet,daily-records,guest-profiles',
+      CLIENT_ENABLED_MODULES: 'dashboard,tasks,fleet,daily-records,guest-profiles,sales-marketing',
     })
   })
   it('rejects an unknown profile instead of releasing unrestricted features', () => {
