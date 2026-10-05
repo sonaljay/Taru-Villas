@@ -1,7 +1,7 @@
 # LO Oracle data, Sales & Marketing, and guest portal
 
 Date: 2026-10-05
-Status: Draft for user review; product implementation has not started.
+Status: Approved by the user on 2026-10-05; product implementation has not started.
 Target branch: `taru-release` in the existing `.worktrees/taru-release` checkout.
 
 ## Intent and confirmed decisions
@@ -38,7 +38,7 @@ The release currently enables `dashboard,tasks,fleet,daily-records`. Guest profi
 
 Alternative: have each page fetch directly from Oracle. This reduces local persistence but makes page latency, token handling, outages, and repeated API calls part of every guest/report visit. It also gives the two consumers inconsistent snapshots. Do not select this approach for the first release.
 
-Deliver the common data layer first, monthly reporting second, and the guest portal/request workflow third. These are separate implementation milestones within the same approved release scope.
+Deliver the common data layer first, monthly reporting second, and the guest portal/request workflow third. These are separate implementation milestones within the same approved release scope, each with its own implementation plan.
 
 ## 1. Read-only LO connection and reservation synchronization
 
@@ -102,7 +102,7 @@ One transactional welcome/pre-arrival email presents the property, stay dates, a
 
 The confirmed timing is seven days before arrival, with immediate eligibility for a newly imported booking inside that window. Calculate the due date in Asia/Colombo; process eligible jobs promptly after sync and through the protected worker. This provides immediate delivery eligibility after discovery, rather than claiming a push notification at Oracle booking creation. Already checked-in guests are not eligible for this pre-arrival email. At initial enablement, reconcile the current LO import, show the eligible recipients/count to staff, and activate sending prospectively at a recorded enablement time; existing imported bookings require an explicit reviewed catch-up action rather than a bulk send caused by deployment.
 
-Use dedicated guest email enablement, sender, canonical HTTPS portal origin, and link-encryption configuration. Do not reuse `TASK_EMAIL_ENABLED` or send guests the Task Manager's internal URL. Missing configuration keeps manual sharing available and shows a setup-needed state to staff. The verified sender/domain and live email-provider credentials are deployment inputs to check before activation.
+Use dedicated guest email enablement, sender, canonical HTTPS portal origin, and link-encryption configuration. Do not reuse `TASK_EMAIL_ENABLED` or send guests the Task Manager's internal URL. Missing email-provider configuration keeps manual sharing available and shows a setup-needed state to staff; missing link-encryption configuration blocks issuance until configured. The verified sender/domain and live email-provider credentials are deployment inputs to check before activation.
 
 Queue each booking/link-version/message kind once. Use database leases, bounded retries, provider idempotency keys, and an explicit reconciliation state when an uncertain outcome outlives the provider's idempotency window. A successful Oracle sync can make a booking eligible, but importing or refreshing the same booking cannot produce repeated welcome emails. Record queued/provider-accepted/failed/skipped states, attempt times, and safe errors for staff; provider acceptance is not proof of inbox delivery.
 
@@ -131,7 +131,7 @@ Release acceptance: LO reports reflect complete synchronized bookings, room nigh
 
 ## Review assumptions
 
-Manual private-link access initially, automatic portal-link email capability, and seven-day/last-minute timing are confirmed. Proposed defaults are the next 12 calendar buckets, admins/assigned property managers for internal access, and staff-confirmed dining/experience requests. The full written design remains for user review; these are design decisions, not completed implementation.
+Manual private-link access initially, automatic portal-link email capability, and seven-day/last-minute timing are confirmed. The approved defaults are the next 12 calendar buckets, admins/assigned property managers for internal access, and staff-confirmed dining/experience requests. These are approved design decisions, not completed implementation.
 
 ## Sources
 
