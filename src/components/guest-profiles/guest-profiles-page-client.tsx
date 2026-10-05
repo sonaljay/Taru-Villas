@@ -9,24 +9,10 @@ import { Card, CardContent } from '@/components/ui/card'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
+import { QuestionBuilder } from './question-builder'
+import { QuestionnaireReview } from './questionnaire-review'
 import { cn } from '@/lib/utils'
 import type { GuestProfile } from '@/lib/db/schema'
-
-const STATUS_LABEL: Record<GuestProfile['status'], string> = {
-  pending_questionnaire: 'Pending Pre-Arrival Questionnaire',
-  pending_approval: 'Pending Approval',
-  pending_checkin: 'Pending Check-In',
-  checked_in: 'Checked-In',
-  cancelled: 'Cancelled',
-}
-
-const STATUS_CLASS: Record<GuestProfile['status'], string> = {
-  pending_questionnaire: 'bg-yellow-100 text-yellow-800',
-  pending_approval: 'bg-blue-100 text-blue-800',
-  pending_checkin: 'bg-purple-100 text-purple-800',
-  checked_in: 'bg-green-100 text-green-800',
-  cancelled: 'bg-gray-100 text-gray-700',
-}
 
 interface Props {
   property: { id: string; name: string; oracleHotelId: string | null }
@@ -37,6 +23,10 @@ interface Props {
 
 export function GuestProfilesPageClient({ property, profiles, isAdmin, syncStatus }: Props) {
   const router = useRouter()
+  const [tab,setTab]=useState<'bookings'|'questions'>('bookings')
+  const [reviewId,setReviewId]=useState<string|null>(null)
+  const [privateLink,setPrivateLink]=useState<string|null>(null)
+  const [linkBusy,setLinkBusy]=useState<string|null>(null)
   const [pulling, setPulling] = useState(false)
   const [testing, setTesting] = useState(false)
   const [status, setStatus] = useState(syncStatus)
@@ -93,6 +83,8 @@ export function GuestProfilesPageClient({ property, profiles, isAdmin, syncStatu
     } finally { setPulling(false) }
   }
 
+  async function guestLink(id:string,regenerate=false){setLinkBusy(id);try{if(regenerate){const revoked=await fetch(`/api/guest-profiles/${id}/link`,{method:'DELETE'});if(!revoked.ok)throw Error('Unable to revoke link')}const response=await fetch(`/api/guest-profiles/${id}/link`,{method:'POST'});const data=await response.json();if(!response.ok)throw Error(data.error??'Unable to issue link');setPrivateLink(data.url)}catch(error){toast.error(error instanceof Error?error.message:'Unable to issue link')}finally{setLinkBusy(null)}}
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
@@ -132,7 +124,10 @@ export function GuestProfilesPageClient({ property, profiles, isAdmin, syncStatu
         </CardContent></Card>
       )}
 
-      {profiles.length === 0 ? (
+      {property.oracleHotelId==='LO'&&<div className="flex gap-2"><Button variant={tab==='bookings'?'default':'outline'} onClick={()=>setTab('bookings')}>Bookings</Button><Button variant={tab==='questions'?'default':'outline'} onClick={()=>setTab('questions')}>Questions</Button></div>}
+      {privateLink&&<Card><CardContent className="space-y-3 py-4"><p className="text-sm">Private guest link · share only with this reservation’s guests</p><input readOnly aria-label="Private guest link" value={privateLink} className="w-full rounded-md border p-2 text-sm"/><div className="flex gap-3"><Button variant="outline" onClick={()=>{void navigator.clipboard.writeText(privateLink).then(()=>toast.success('Link copied')).catch(()=>toast.error('Select the link to copy it'))}}>Copy link</Button><Button variant="ghost" onClick={()=>setPrivateLink(null)}>Close</Button></div></CardContent></Card>}
+      {reviewId&&<QuestionnaireReview key={reviewId} guestProfileId={reviewId} onClose={()=>setReviewId(null)}/>}
+      {tab==='questions'?<QuestionBuilder propertyId={property.id} isAdmin={isAdmin}/>:profiles.length === 0 ? (
         <Card><CardContent className="py-16 text-center text-sm text-muted-foreground">
           No guest profiles yet. Click &ldquo;Refresh bookings&rdquo; to import upcoming reservations.
         </CardContent></Card>
@@ -147,6 +142,7 @@ export function GuestProfilesPageClient({ property, profiles, isAdmin, syncStatu
                 <TableHead>Room</TableHead>
                 <TableHead>Stay</TableHead>
                 <TableHead>Pre-arrival</TableHead>
+                <TableHead>Guest link</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -158,10 +154,10 @@ export function GuestProfilesPageClient({ property, profiles, isAdmin, syncStatu
                   <TableCell>{p.roomNumber ?? p.roomType ?? '—'}</TableCell>
                   <TableCell>{p.stayState.replaceAll('_', ' ')}<span className="block text-xs text-muted-foreground">{p.oracleReservationStatus}</span></TableCell>
                   <TableCell>
-                    <span className={cn('inline-flex rounded-full px-2 py-0.5 text-xs font-medium', STATUS_CLASS[p.status])}>
-                      {STATUS_LABEL[p.status]}
-                    </span>
+                    <span className="inline-flex rounded-full bg-muted px-2 py-0.5 text-xs font-medium">{p.questionnaireStatus.replaceAll('_',' ')}</span>
+                    {p.questionnaireStatus!=='not_started'&&<Button variant="ghost" size="sm" onClick={()=>setReviewId(p.id)}>Review answers</Button>}
                   </TableCell>
+                  <TableCell>{['reserved','in_house'].includes(p.stayState)&&<div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={linkBusy===p.id} onClick={()=>void guestLink(p.id)}>Private link</Button><Button variant="ghost" size="sm" disabled={linkBusy===p.id} onClick={()=>void guestLink(p.id,true)}>Regenerate link</Button></div>}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

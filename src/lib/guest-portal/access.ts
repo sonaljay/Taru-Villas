@@ -39,7 +39,7 @@ export function scopeFromSource(access: AccessRow, source: BookingSource, now = 
   if (access.revokedAt || access.orgId !== source.orgId || access.propertyId !== source.propertyId || access.guestProfileId !== source.id || access.expiresAt <= now || !source.propertyActive || source.oracleHotelId !== 'LO' || source.oracleEnvironment !== 'production' || !source.lastSyncedRunId || source.syncComplete === false || !['reserved', 'in_house'].includes(source.stayState) || !validOracleDate(source.arrivalDate) || !validOracleDate(source.departureDate) || source.departureDate! <= source.arrivalDate! || departureExpiry(source.departureDate!) <= now || source.isPseudoRoom || source.isRoomReservation === false) unavailable()
   return { accessId: access.id, guestProfileId: source.id, orgId: source.orgId, propertyId: source.propertyId, version: access.version, stayState: source.stayState, arrivalDate: source.arrivalDate!, departureDate: source.departureDate!, expiresAt: new Date(Math.min(access.expiresAt.getTime(), departureExpiry(source.departureDate!).getTime())).toISOString(), fresh: !!source.lastPulledAt && now.getTime() - source.lastPulledAt.getTime() <= 86_400_000 }
 }
-async function staffBooking<T>(id: string, fn: Parameters<typeof withGuestBookingLock<T>>[2]) {
+export async function withStaffGuestBooking<T>(id: string, fn: Parameters<typeof withGuestBookingLock<T>>[2]) {
   const profile = await getProfile(); if (!profile) throw new GuestInputError('Unauthorized', 401)
   return withGuestBookingLock(profile.orgId, id, async (source, writer, tx) => {
     const access = await requireLoPropertyAccess(source.propertyId)
@@ -49,7 +49,7 @@ async function staffBooking<T>(id: string, fn: Parameters<typeof withGuestBookin
 }
 export async function issueGuestLink(guestProfileId: string): Promise<{ url: string; version: number; expiresAt: string }> {
   linkKey(); const origin = guestPortalOrigin()
-  return staffBooking(guestProfileId, async (source, writer) => {
+  return withStaffGuestBooking(guestProfileId, async (source, writer) => {
     let row = await writer.active()
     if (!row) {
       const actor = await getProfile(); const token = randomBytes(32).toString('base64url'); const id = randomUUID(); const version = (await writer.latestVersion?.() ?? 0) + 1
@@ -61,7 +61,7 @@ export async function issueGuestLink(guestProfileId: string): Promise<{ url: str
     return { url: `${origin}/stay/${decryptGuestSecret(row.encryptedToken, `${row.id}:${row.version}`)}`, version: row.version, expiresAt: scope.expiresAt }
   })
 }
-export async function revokeGuestLink(guestProfileId: string): Promise<void> { await staffBooking(guestProfileId, async (_source, writer) => writer.revoke()) }
+export async function revokeGuestLink(guestProfileId: string): Promise<void> { await withStaffGuestBooking(guestProfileId, async (_source, writer) => writer.revoke()) }
 export async function resolveGuestScope(token: string): Promise<GuestScope> {
   if (!/^[A-Za-z0-9_-]{43}$/.test(token)) unavailable()
   const row = await findGuestAccess(guestTokenHash(token)); if (!row) unavailable()

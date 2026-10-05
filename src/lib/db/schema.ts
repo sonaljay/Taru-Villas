@@ -623,6 +623,7 @@ export const guestPortalUploads = pgTable('guest_portal_uploads', {
   objectPath: text('object_path').notNull().unique(),
   mime: text('mime').notNull(),
   byteSize: integer('byte_size').notNull(),
+  cleanedAt: timestamp('cleaned_at', { withTimezone: true }),
   state: text('state').notNull().default('draft'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -669,7 +670,7 @@ export const preArrivalQuestions = pgTable('pre_arrival_questions', {
   isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-})
+}, (table) => [uniqueIndex('pre_arrival_one_active_eta').on(table.propertyId).where(sql`${table.isActive} AND ${table.mapsToEta}`)])
 
 export const preArrivalAnswers = pgTable('pre_arrival_answers', {
   id: uuid('id').defaultRandom().primaryKey(),

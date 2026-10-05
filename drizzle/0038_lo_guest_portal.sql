@@ -143,6 +143,7 @@ CREATE TABLE IF NOT EXISTS guest_portal_uploads (
   CONSTRAINT guest_portal_uploads_access_scope FOREIGN KEY (access_id,org_id,property_id,guest_profile_id) REFERENCES guest_portal_access(id,org_id,property_id,guest_profile_id)
 );
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='guest_portal_uploads'::regclass AND conname='guest_portal_uploads_property_scope') THEN ALTER TABLE guest_portal_uploads ADD CONSTRAINT guest_portal_uploads_property_scope FOREIGN KEY (property_id,org_id) REFERENCES properties(id,org_id) ON DELETE CASCADE; END IF; END $$;
+ALTER TABLE guest_portal_uploads ADD COLUMN IF NOT EXISTS cleaned_at timestamptz;
 ALTER TABLE guest_portal_uploads ENABLE ROW LEVEL SECURITY;
 CREATE INDEX IF NOT EXISTS guest_portal_uploads_property ON guest_portal_uploads(org_id, property_id);
 CREATE TABLE IF NOT EXISTS pre_arrival_submissions (

@@ -11,6 +11,7 @@ export type ClientModule =
   | 'excursions'
   | 'guest-profiles'
   | 'sales-marketing'
+  | 'guest-portal'
   | 'utilities'
   | 'settings'
   | 'allowed-emails'
@@ -29,6 +30,7 @@ const clientModules: readonly ClientModule[] = [
   'excursions',
   'guest-profiles',
   'sales-marketing',
+  'guest-portal',
   'utilities',
   'settings',
   'allowed-emails',
@@ -96,6 +98,8 @@ const moduleRoutes: readonly [string, ClientModule][] = [
   ['/api/excursions', 'excursions'],
   ['/e/', 'excursions'],
   ['/excursions', 'excursions'],
+  ['/stay', 'guest-portal'],
+  ['/api/guest-portal', 'guest-portal'],
   ['/api/guest-profiles', 'guest-profiles'],
   ['/api/oracle', 'guest-profiles'],
   ['/guest-profiles', 'guest-profiles'],

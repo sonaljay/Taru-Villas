@@ -29,6 +29,7 @@ export async function getGuestPortalView(token: string) {
     stay: { guestName: rows.profile.guestName, arrivalDate: scope.arrivalDate, departureDate: scope.departureDate, roomType: rows.profile.roomType, roomNumber: rows.profile.roomNumber, stayState: scope.stayState, fresh: scope.fresh },
     property: { name: rows.property.name, imageUrl: safeGuestUrl(rows.property.imageUrl), location: rows.property.location }, menus, excursions, questions,
     questionnaireStatus: rows.profile.questionnaireStatus,
+    questionnaireAnswers: (rows.answers ?? []).map(a => ({ prompt: a.prompt, type: a.type, text: a.text, options: a.options, uploadId: a.uploadId })),
     requests: rows.requests.filter(r => r.orgId === scope.orgId && r.propertyId === scope.propertyId && r.guestProfileId === scope.guestProfileId).map(publicGuestRequest),
   }
 }
