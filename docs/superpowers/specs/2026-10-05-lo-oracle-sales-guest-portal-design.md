@@ -13,7 +13,7 @@ Implement Oracle hotel `LO` on the Taru release branch for two purposes:
 
 The user selected **room nights split by stay month**, rather than counting a booking only in its arrival month. Oracle remains read-only, preserving the earlier explicit restriction. Application writes persist imported data, questionnaires, and guest requests inside Taru only.
 
-Guest access is an open preference question. The proposed default is a private link for each booking, shared manually by staff. Automatic delivery is not assumed.
+Guest access is confirmed: one private booking link opens the entire portal, and staff share it manually initially. The user also requests automatic guest email containing this same link. Include that delivery capability in the implementation, with manual delivery remaining available and automatic sending disabled during the initial manual rollout. The user confirmed the trigger: seven days before arrival, or immediately after import for an eligible last-minute booking.
 
 ## Evidence and reusable work
 
@@ -26,6 +26,7 @@ Existing code includes:
 - Staff guest-profile pages and per-property Oracle hotel-ID settings.
 - Pre-arrival question/answer tables, but no questionnaire builder, guest form, or staff review implementation.
 - Property menu and excursion catalogues and public presentation components.
+- A Resend HTTP email transport and durable notification delivery/retry pattern under `src/lib/tasks/`; reuse the provider conventions, with a separate guest-delivery queue and configuration.
 
 The current Oracle client uses the obsolete-for-this-environment password grant, omits the hotel authorization header, and reads different response envelopes from the verified production payloads. The sync does not paginate and only refreshes profiles in `pending_checkin`. Its write-back function is a stub and must be disabled for this release.
 
@@ -83,9 +84,9 @@ Guest-facing sections:
 
 Reuse existing catalogue data, images, prices-as-displayed, and presentation patterns. Empty catalogues have an honest unavailable state. A request is confirmed by staff, not automatically guaranteed by submission. Checkout, cancelled, and no-show bookings cannot submit new requests. Future guests may submit pre-arrival/dining/experience requests; in-stay service actions depend on the reservation's actual stay state.
 
-Private links have high-entropy secrets, server-side lookup, explicit issuance/revocation, and expiry linked to the reservation's departure. Requests and pages derive organization/property/reservation scope from that credential; they never trust a client-supplied guest or property ID. Store a token hash for public access and return the raw link only to authorized staff when issued. Guest pages/API responses are not publicly cached; guest responses expose only the fields needed for that stay. No internal notes, contact lists, financial balances, or raw Oracle payloads are exposed.
+Private links have high-entropy secrets, server-side lookup, explicit issuance/revocation, and expiry linked to the reservation's departure. Requests and pages derive organization/property/reservation scope from that credential; they never trust a client-supplied guest or property ID. Store a token hash for public lookup. Because staff sharing and automatic delivery need the same URL, keep its recoverable bearer secret encrypted server-side with a dedicated deployment secret; never persist it as plaintext in logs or delivery metadata. Only authorized staff and the guest email worker may recover it. Repeated synchronization/delivery does not rotate the link; an explicit revoke/regenerate action changes the link version and invalidates pending delivery of the old version. Guest pages/API responses are not publicly cached; guest responses expose only the fields needed for that stay. No internal notes, contact lists, financial balances, or raw Oracle payloads are exposed.
 
-Automatic email/SMS, payment processing, Oracle charges, check-in operations, and KOT integrations require separate scope. The first portal uses local requests reviewed by staff, preserving the Oracle read-only requirement.
+Automatic portal-link email is included below. SMS, payment processing, Oracle charges, check-in operations, and KOT integrations require separate scope. The first portal uses local requests reviewed by staff, preserving the Oracle read-only requirement.
 
 ## 4. Staff guest-request workflow
 
@@ -95,11 +96,25 @@ Admins and assigned property managers handle the initial inbox. Guests see only 
 
 Use transactional local writes, submission idempotency, bounded text/quantity validation, and per-token request limits. Request status changes are audited with the acting staff member. A dedicated guest-request table/inbox is the initial workflow; do not bypass the newer Task Manager's audited command model by directly inserting guest-origin tasks.
 
+## 5. Automatic guest email
+
+One transactional welcome/pre-arrival email presents the property, stay dates, and a single **Open your guest portal** link. Describe the portal's pre-arrival form, menus, excursions, and guest requests in the message; do not send separate credentials or links for each feature. Provide HTML and plain-text versions, following existing Taru branding and Resend transport conventions. This is a service email for the booking, not a marketing campaign.
+
+The confirmed timing is seven days before arrival, with immediate eligibility for a newly imported booking inside that window. Calculate the due date in Asia/Colombo; process eligible jobs promptly after sync and through the protected worker. This provides immediate delivery eligibility after discovery, rather than claiming a push notification at Oracle booking creation. Already checked-in guests are not eligible for this pre-arrival email. At initial enablement, reconcile the current LO import, show the eligible recipients/count to staff, and activate sending prospectively at a recorded enablement time; existing imported bookings require an explicit reviewed catch-up action rather than a bulk send caused by deployment.
+
+Use dedicated guest email enablement, sender, canonical HTTPS portal origin, and link-encryption configuration. Do not reuse `TASK_EMAIL_ENABLED` or send guests the Task Manager's internal URL. Missing configuration keeps manual sharing available and shows a setup-needed state to staff. The verified sender/domain and live email-provider credentials are deployment inputs to check before activation.
+
+Queue each booking/link-version/message kind once. Use database leases, bounded retries, provider idempotency keys, and an explicit reconciliation state when an uncertain outcome outlives the provider's idempotency window. A successful Oracle sync can make a booking eligible, but importing or refreshing the same booking cannot produce repeated welcome emails. Record queued/provider-accepted/failed/skipped states, attempt times, and safe errors for staff; provider acceptance is not proof of inbox delivery.
+
+Before sending, revalidate the booking's property scope, latest successful sync freshness, current primary guest email, active reservation, email schedule, portal expiry, and link version. Missing/invalid addresses, cancelled/no-show/checked-out bookings, revoked links, or stale reservation data are skipped or held with an actionable staff state. Rescheduled arrivals move pending delivery; successful delivery is not repeated automatically after a minor reservation change. Staff may intentionally resend with an audited action.
+
+Tests use a fake provider or an explicitly configured internal test recipient. Do not email real guests during implementation, fixture tests, or preview verification. Oracle API access remains read-only throughout; the email side effect belongs solely to Taru's configured guest-delivery worker.
+
 ## Release integration and schema
 
 Reuse the clean `taru-release` checkout. Keep its deployment profile and existing modules. Add explicit route/API module mappings for Sales & Marketing and the guest portal; enable Guest Profiles and the catalogue management needed for LO. Preserve gates on unrelated modules.
 
-Use additive migrations for reservation extensions, sync metadata, portal access, and guest requests. Keep Drizzle schema, relations, org/property foreign keys, and indexes aligned with those migrations. Inspect existing migration history before allocating a migration filename. The shared database requires an explicit rollout order: migration before code that reads added columns; do not apply a migration during the design review.
+Use additive migrations for reservation extensions, sync metadata, portal access, guest requests, and guest email deliveries/activation state. Keep Drizzle schema, relations, org/property foreign keys, and indexes aligned with those migrations. Inspect existing migration history before allocating a migration filename. The shared database requires an explicit rollout order: migration before code that reads added columns; do not apply a migration during the design review.
 
 ## Validation and acceptance
 
@@ -107,15 +122,16 @@ Use additive migrations for reservation extensions, sync metadata, portal access
 - Auth/header tests, token expiry/config isolation, GET-only transport enforcement, pagination, empty/malformed responses, failures, and cancellation/date-change reconciliation.
 - Room-night tests for month/year boundaries, leap years, multi-room bookings, checkout exclusion, current in-house stays, cancellations, shared-room deduplication, and incomplete snapshots.
 - Organization/property access tests for staff/report endpoints; guest token expiry/revocation, cross-booking isolation, inactive catalogues, submission idempotency, and request-state permissions.
+- Email scheduling, last-minute bookings, arrival-date changes, missing addresses, cancelled/revoked/stale bookings, enablement without bulk backfill, repeated syncs, retries, provider idempotency, encrypted link recovery, and manual/automatic link consistency. No test sends to a real guest.
 - TypeScript, focused Vitest suites, lint for changed code, and a production build with the Taru profile. Verify unrelated disabled routes remain blocked.
 - Browser verification of the monthly view, mobile guest flows, questionnaire submission, request creation/history, staff handling, and empty/error states using isolated fixtures.
 - Bounded live production GET verification of the finished Oracle client, without logging guest identities. Application smoke tests that write requests/answers use isolated test data.
 
-Release acceptance: LO reports reflect complete synchronized bookings, room nights follow the chosen month rule, a private guest link exposes only its own booking, guests can browse LO catalogues and submit local requests, staff can process those requests, and Oracle property requests remain GET-only.
+Release acceptance: LO reports reflect complete synchronized bookings, room nights follow the chosen month rule, a private guest link exposes only its own booking and all portal features, guests can browse LO catalogues and submit local requests, staff can process those requests, configured automatic email queues the same portal link once at the agreed time, manual sharing works independently, and Oracle property requests remain GET-only.
 
 ## Review assumptions
 
-Confirm the pending guest-access preference. Proposed defaults are manual booking links, the next 12 calendar buckets, admins/assigned property managers for internal access, and staff-confirmed dining/experience requests. These are design proposals, not completed implementation.
+Manual private-link access initially, automatic portal-link email capability, and seven-day/last-minute timing are confirmed. Proposed defaults are the next 12 calendar buckets, admins/assigned property managers for internal access, and staff-confirmed dining/experience requests. The full written design remains for user review; these are design decisions, not completed implementation.
 
 ## Sources
 
