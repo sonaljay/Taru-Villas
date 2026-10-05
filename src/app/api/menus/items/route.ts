@@ -1,6 +1,7 @@
+import { canAccessCatalogueCategory } from '@/lib/catalogues/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getProfile, getUserProperties } from '@/lib/auth/guards'
+import { getProfile } from '@/lib/auth/guards'
 import { getMenuCategoryById } from '@/lib/db/queries/menus'
 import {
   getMenuItemsForCategory,
@@ -18,18 +19,6 @@ const createItemSchema = z.object({
   isActive: z.boolean().default(true),
 })
 
-async function checkPropertyAccess(
-  profile: { id: string; role: string },
-  propertyId: string
-) {
-  if (profile.role === 'admin') return true
-  const userProps = await getUserProperties(
-    profile.id,
-    profile.role as 'admin' | 'property_manager' | 'staff'
-  )
-  if (!userProps) return true
-  return userProps.includes(propertyId)
-}
 
 // ---------------------------------------------------------------------------
 // GET /api/menus/items?categoryId=xxx
@@ -61,7 +50,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 })
     }
 
-    const hasAccess = await checkPropertyAccess(profile, category.propertyId)
+    const hasAccess = await canAccessCatalogueCategory(profile, category)
     if (!hasAccess) {
       return NextResponse.json(
         { error: 'Forbidden: no access to this property' },
@@ -111,7 +100,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 })
     }
 
-    const hasAccess = await checkPropertyAccess(profile, category.propertyId)
+    const hasAccess = await canAccessCatalogueCategory(profile, category)
     if (!hasAccess) {
       return NextResponse.json(
         { error: 'Forbidden: no access to this property' },

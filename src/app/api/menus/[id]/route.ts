@@ -1,6 +1,7 @@
+import { canAccessCatalogueProperty } from '@/lib/catalogues/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getProfile, getUserProperties } from '@/lib/auth/guards'
+import { getProfile } from '@/lib/auth/guards'
 import { getMenuById, updateMenu, deleteMenu } from '@/lib/db/queries/menus'
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -14,18 +15,6 @@ const updateMenuSchema = z.object({
   isActive: z.boolean().optional(),
 })
 
-async function canAccessProperty(
-  profile: { id: string; role: string },
-  propertyId: string
-) {
-  if (profile.role === 'admin') return true
-  const userProps = await getUserProperties(
-    profile.id,
-    profile.role as 'admin' | 'property_manager' | 'staff'
-  )
-  if (!userProps) return true
-  return userProps.includes(propertyId)
-}
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
@@ -38,7 +27,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     const menu = await getMenuById(id)
     if (!menu) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    if (!(await canAccessProperty(profile, menu.propertyId)))
+    if (!(await canAccessCatalogueProperty(profile, menu.propertyId)))
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const body = await request.json()
@@ -68,7 +57,7 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
 
     const menu = await getMenuById(id)
     if (!menu) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    if (!(await canAccessProperty(profile, menu.propertyId)))
+    if (!(await canAccessCatalogueProperty(profile, menu.propertyId)))
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     await deleteMenu(id)

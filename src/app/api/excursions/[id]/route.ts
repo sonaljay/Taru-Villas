@@ -1,6 +1,7 @@
+import { canAccessCatalogueProperty } from '@/lib/catalogues/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getProfile, getUserProperties } from '@/lib/auth/guards'
+import { getProfile } from '@/lib/auth/guards'
 import {
   getExcursionById,
   updateExcursion,
@@ -29,18 +30,6 @@ const updateExcursionSchema = z.object({
 
 type RouteContext = { params: Promise<{ id: string }> }
 
-async function checkPropertyAccess(
-  profile: { id: string; role: string },
-  propertyId: string
-) {
-  if (profile.role === 'admin') return true
-  const userProps = await getUserProperties(
-    profile.id,
-    profile.role as 'admin' | 'property_manager' | 'staff'
-  )
-  if (!userProps) return true
-  return userProps.includes(propertyId)
-}
 
 // ---------------------------------------------------------------------------
 // PATCH /api/excursions/[id]
@@ -65,7 +54,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Excursion not found' }, { status: 404 })
     }
 
-    const hasAccess = await checkPropertyAccess(profile, existing.propertyId)
+    const hasAccess = await canAccessCatalogueProperty(profile, existing.propertyId)
     if (!hasAccess) {
       return NextResponse.json(
         { error: 'Forbidden: no access to this property' },
@@ -122,7 +111,7 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Excursion not found' }, { status: 404 })
     }
 
-    const hasAccess = await checkPropertyAccess(profile, existing.propertyId)
+    const hasAccess = await canAccessCatalogueProperty(profile, existing.propertyId)
     if (!hasAccess) {
       return NextResponse.json(
         { error: 'Forbidden: no access to this property' },

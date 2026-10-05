@@ -1,6 +1,7 @@
+import { canAccessCatalogueProperty } from '@/lib/catalogues/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getProfile, getUserProperties } from '@/lib/auth/guards'
+import { getProfile } from '@/lib/auth/guards'
 import { createMenu, getMenusForProperty } from '@/lib/db/queries/menus'
 
 const createMenuSchema = z.object({
@@ -15,18 +16,6 @@ const createMenuSchema = z.object({
   isActive: z.boolean().default(true),
 })
 
-async function checkPropertyAccess(
-  profile: { id: string; role: string },
-  propertyId: string
-) {
-  if (profile.role === 'admin') return true
-  const userProps = await getUserProperties(
-    profile.id,
-    profile.role as 'admin' | 'property_manager' | 'staff'
-  )
-  if (!userProps) return true
-  return userProps.includes(propertyId)
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -41,7 +30,7 @@ export async function GET(request: NextRequest) {
     if (!propertyId)
       return NextResponse.json({ error: 'propertyId query parameter is required' }, { status: 400 })
 
-    if (!(await checkPropertyAccess(profile, propertyId)))
+    if (!(await canAccessCatalogueProperty(profile, propertyId)))
       return NextResponse.json({ error: 'Forbidden: no access to this property' }, { status: 403 })
 
     const data = await getMenusForProperty(propertyId)
@@ -69,7 +58,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
 
-    if (!(await checkPropertyAccess(profile, parsed.data.propertyId)))
+    if (!(await canAccessCatalogueProperty(profile, parsed.data.propertyId)))
       return NextResponse.json({ error: 'Forbidden: no access to this property' }, { status: 403 })
 
     const { dayOfWeek, ...rest } = parsed.data

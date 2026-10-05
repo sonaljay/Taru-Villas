@@ -51,3 +51,8 @@ it('shows a separate Sales & Marketing area for managers and admins only', () =>
   expect(paths('staff', ['sales-marketing'])).not.toContain('/sales-marketing')
   expect(paths('admin', ['tasks'])).not.toContain('/sales-marketing')
 })
+it('offers full LO catalogue management to managers and admins only',()=>{
+ const modules=['dashboard','tasks','fleet','daily-records','guest-profiles','sales-marketing','guest-portal','menus','excursions']
+ for(const role of ['admin','property_manager'] as const)expect(paths(role,modules)).toEqual(expect.arrayContaining(['/guest-profiles','/menus','/excursions','/sales-marketing']))
+ for(const route of ['/guest-profiles','/menus','/excursions','/sales-marketing'])expect(paths('staff',modules)).not.toContain(route)
+})

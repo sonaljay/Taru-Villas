@@ -1,6 +1,7 @@
+import { canAccessCatalogueProperty } from '@/lib/catalogues/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getProfile, getUserProperties } from '@/lib/auth/guards'
+import { getProfile } from '@/lib/auth/guards'
 import {
   getExcursionsForProperty,
   createExcursion,
@@ -27,18 +28,6 @@ const createExcursionSchema = z.object({
   isActive: z.boolean().default(true),
 })
 
-async function checkPropertyAccess(
-  profile: { id: string; role: string },
-  propertyId: string
-) {
-  if (profile.role === 'admin') return true
-  const userProps = await getUserProperties(
-    profile.id,
-    profile.role as 'admin' | 'property_manager' | 'staff'
-  )
-  if (!userProps) return true
-  return userProps.includes(propertyId)
-}
 
 // ---------------------------------------------------------------------------
 // GET /api/excursions?propertyId=xxx
@@ -65,7 +54,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const hasAccess = await checkPropertyAccess(profile, propertyId)
+    const hasAccess = await canAccessCatalogueProperty(profile, propertyId)
     if (!hasAccess) {
       return NextResponse.json(
         { error: 'Forbidden: no access to this property' },
@@ -110,7 +99,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const hasAccess = await checkPropertyAccess(profile, parsed.data.propertyId)
+    const hasAccess = await canAccessCatalogueProperty(profile, parsed.data.propertyId)
     if (!hasAccess) {
       return NextResponse.json(
         { error: 'Forbidden: no access to this property' },

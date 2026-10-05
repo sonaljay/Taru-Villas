@@ -17,13 +17,13 @@ export async function middleware(request: NextRequest) {
     return new NextResponse('Client modules are not configured', { status: 503 })
   }
 
+  if (moduleRequestStatus === 404) {
+    return new NextResponse('Not Found', { status: 404 })
+  }
+
   // --- DEV BYPASS: skip all auth checks for testing ---
   if (process.env.DEV_BYPASS_AUTH === 'true') {
     return NextResponse.next()
-  }
-
-  if (moduleRequestStatus === 404) {
-    return new NextResponse('Not Found', { status: 404 })
   }
 
   // Skip if Supabase env vars are not configured

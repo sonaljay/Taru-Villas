@@ -43,6 +43,7 @@ export type ClientModulePolicy =
   | { status: 'configuration-error'; enabledModules: Set<ClientModule> }
 
 const nestedPropertyRoutes: readonly [RegExp, ClientModule][] = [
+  [/^\/api\/guest-profiles\/[^/]+\/(?:link|email|review)(?:\/|$)/, 'guest-portal'],
   [/^\/properties\/[^/]+\/daily-records(?:\/|$)/, 'daily-records'],
   [/^\/properties\/[^/]+\/(?:utilities|waste)(?:\/|$)/, 'daily-records'],
   [/^\/properties\/[^/]+\/menus(?:\/|$)/, 'menus'],
@@ -100,6 +101,10 @@ const moduleRoutes: readonly [string, ClientModule][] = [
   ['/excursions', 'excursions'],
   ['/stay', 'guest-portal'],
   ['/api/guest-portal', 'guest-portal'],
+  ['/api/guest-profiles/email-settings', 'guest-portal'],
+  ['/api/guest-profiles/requests', 'guest-portal'],
+  ['/api/guest-profiles/questions', 'guest-portal'],
+  ['/api/cron/guest-portal', 'guest-portal'],
   ['/api/guest-profiles', 'guest-profiles'],
   ['/api/oracle', 'guest-profiles'],
   ['/guest-profiles', 'guest-profiles'],

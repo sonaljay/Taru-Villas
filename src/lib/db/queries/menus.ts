@@ -29,12 +29,13 @@ async function attachCategories(
 
   const catConds = [inArray(menuCategories.menuId, menuIds)]
   if (opts.activeOnly) catConds.push(eq(menuCategories.isActive, true))
-  const categories = await db
+  const candidateCategories = await db
     .select()
     .from(menuCategories)
     .where(and(...catConds))
     .orderBy(asc(menuCategories.sortOrder), asc(menuCategories.createdAt))
 
+  const categories = candidateCategories.filter(category => menuRows.some(menu => menu.id === category.menuId && menu.propertyId === category.propertyId))
   const categoryIds = categories.map((c) => c.id)
   const items =
     categoryIds.length === 0
@@ -151,7 +152,7 @@ export async function updateMenu(
 }
 
 export async function deleteMenu(id: string): Promise<void> {
-  await db.delete(menus).where(eq(menus.id, id))
+  await db.delete(menus).where(eq(menus.id, id)).returning()
 }
 
 // ---------------------------------------------------------------------------
@@ -203,7 +204,7 @@ export async function updateMenuCategory(
  * Delete a menu category (items cascade-delete).
  */
 export async function deleteMenuCategory(id: string): Promise<void> {
-  await db.delete(menuCategories).where(eq(menuCategories.id, id))
+  await db.delete(menuCategories).where(eq(menuCategories.id, id)).returning()
 }
 
 // ---------------------------------------------------------------------------
@@ -266,5 +267,5 @@ export async function updateMenuItem(
  * Delete a menu item.
  */
 export async function deleteMenuItem(id: string): Promise<void> {
-  await db.delete(menuItems).where(eq(menuItems.id, id))
+  await db.delete(menuItems).where(eq(menuItems.id, id)).returning()
 }

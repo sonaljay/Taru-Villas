@@ -1,10 +1,11 @@
+import { canAccessCatalogueProperty } from '@/lib/catalogues/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getProfile, getUserProperties } from '@/lib/auth/guards'
+import { getProfile } from '@/lib/auth/guards'
 import { getMenuById, createMenuCategory } from '@/lib/db/queries/menus'
 import { db } from '@/lib/db'
 import { menuCategories, menuItems } from '@/lib/db/schema'
-import { eq, asc, inArray } from 'drizzle-orm'
+import { eq, and, asc, inArray } from 'drizzle-orm'
 
 const createCategorySchema = z.object({
   propertyId: z.string().uuid(),
@@ -16,18 +17,6 @@ const createCategorySchema = z.object({
   isActive: z.boolean().default(true),
 })
 
-async function checkPropertyAccess(
-  profile: { id: string; role: string },
-  propertyId: string
-) {
-  if (profile.role === 'admin') return true
-  const userProps = await getUserProperties(
-    profile.id,
-    profile.role as 'admin' | 'property_manager' | 'staff'
-  )
-  if (!userProps) return true
-  return userProps.includes(propertyId)
-}
 
 // ---------------------------------------------------------------------------
 // GET /api/menus/categories?menuId=xxx
@@ -51,14 +40,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'menuId query parameter is required' }, { status: 400 })
     const menu = await getMenuById(menuId)
     if (!menu) return NextResponse.json({ error: 'Menu not found' }, { status: 404 })
-    const hasAccess = await checkPropertyAccess(profile, menu.propertyId)
+    const hasAccess = await canAccessCatalogueProperty(profile, menu.propertyId)
     if (!hasAccess)
       return NextResponse.json({ error: 'Forbidden: no access to this property' }, { status: 403 })
 
     const cats = await db
       .select()
       .from(menuCategories)
-      .where(eq(menuCategories.menuId, menuId))
+      .where(and(eq(menuCategories.menuId, menuId), eq(menuCategories.propertyId, menu.propertyId)))
       .orderBy(asc(menuCategories.sortOrder), asc(menuCategories.createdAt))
     const ids = cats.map((c) => c.id)
     const items = ids.length
@@ -107,7 +96,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const hasAccess = await checkPropertyAccess(profile, parsed.data.propertyId)
+    const hasAccess = await canAccessCatalogueProperty(profile, parsed.data.propertyId)
     if (!hasAccess) {
       return NextResponse.json(
         { error: 'Forbidden: no access to this property' },
@@ -115,6 +104,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const menu = await getMenuById(parsed.data.menuId)
+    if (!menu || menu.propertyId !== parsed.data.propertyId) return NextResponse.json({ error: 'Menu does not belong to this property' }, { status: 400 })
     const category = await createMenuCategory(parsed.data)
     return NextResponse.json(category, { status: 201 })
   } catch (error) {
