@@ -17,7 +17,7 @@ suite('isolated staff refresh endpoint', () => {
     sql = postgres(url, { prepare: false, onnotice: () => {} })
     await sql`insert into properties(id,org_id,name,slug,code,oracle_hotel_id) values(${propertyId},${orgId},'Route Fixture','route-fixture','ROUTE-LO','LO')`
     vi.mocked(getProfile).mockResolvedValue({ id: '00000000-0000-4000-8000-000000000015', orgId, role: 'admin', isActive: true } as never)
-    const page = parseReservationPage({ reservations: { reservationInfo: [{ reservationIdList: [{ type: 'Reservation', id: 'route-synthetic' }], roomStay: { arrivalDate: '2026-10-05', departureDate: '2026-10-07', numberOfRooms: 2 }, reservationStatus: 'Reserved' }], hasMore: false, offset: 0, totalResults: 1 } })
+    const page = parseReservationPage({ reservations: { reservationInfo: [{ reservationIdList: [{ type: 'Reservation', id: 'route-synthetic' }], roomStay: { arrivalDate: '2026-10-05', departureDate: '2026-10-07', numberOfRooms: 2 }, reservationStatus: 'Reserved' }], hasMore: false, offset: 1, totalResults: 1 } }, { offset: 0, limit: 1 })
     vi.mocked(listReservationPage).mockImplementation(async (_hotel, search) => ({ ok: true, data: search.searchType ? { bookings: [], offset: 0, hasMore: false, totalResults: 0 } : page }))
   })
   afterAll(async () => { if (sql) { await sql`delete from properties where id=${propertyId}`; await sql.end() } })

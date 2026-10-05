@@ -18,7 +18,7 @@ const sql = postgres(url, { prepare: false, max: 1, onnotice: () => {} })
 try {
   await sql.unsafe('DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; CREATE SCHEMA IF NOT EXISTS auth; CREATE TABLE IF NOT EXISTS auth.users(id uuid PRIMARY KEY);')
   await sql.unsafe(exported.stdout)
-  for (const migration of ['drizzle/0037_lo_oracle_reservations.sql', 'drizzle/0038_lo_guest_portal.sql']) {
+  for (const migration of ['drizzle/0037_lo_oracle_reservations.sql', 'drizzle/0038_lo_guest_portal.sql', 'drizzle/0039_lo_delivery_review.sql']) {
     const text = readFileSync(migration, 'utf8')
     await sql.unsafe(text)
     await sql.unsafe(text)

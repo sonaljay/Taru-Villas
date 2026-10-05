@@ -1,8 +1,8 @@
 // Server-only durable guest mail. Never invoked by a page render.
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { guestEmailDeliveries, guestEmailSettings, guestProfiles, properties } from '@/lib/db/schema'
+import { guestEmailDeliveries, guestEmailSettings, guestProfiles, properties, type GuestEmailPreviewRecipient } from '@/lib/db/schema'
 import { requireLoPropertyAccess } from '@/lib/oracle/access'
 import { validOracleDate } from '@/lib/oracle/reservations'
 import { decryptGuestSecret, departureExpiry, encryptGuestSecret, guestPortalOrigin, guestTokenHash, scopeFromSource } from './access'
@@ -40,8 +40,10 @@ async function candidates(propertyId?: string) {
     .innerJoin(properties, and(eq(properties.id, guestProfiles.propertyId), eq(properties.orgId, guestProfiles.orgId)))
     .where(and(eq(properties.oracleHotelId, 'LO'), eq(properties.isActive, true), eq(guestProfiles.oracleEnvironment, 'production'), ...(propertyId ? [eq(guestProfiles.propertyId, propertyId)] : [])))
 }
-async function queueBooking(candidate: { id: string; orgId: string }, kind: 'welcome' | 'catch_up' | 'resend', now: Date, enabledAt: Date | null, actor: string | null) {
+function reviewedSourceHash(source: BookingSource) { return hash(JSON.stringify([source.id, source.guestName, validGuestEmail(source.guestEmail), source.arrivalDate, source.departureDate])) }
+async function queueBooking(candidate: { id: string; orgId: string }, kind: 'welcome' | 'catch_up' | 'resend', now: Date, enabledAt: Date | null, actor: string | null, reviewed?: GuestEmailPreviewRecipient) {
   return withGuestBookingLock(candidate.orgId, candidate.id, async (source, writer, tx) => {
+    if (reviewed && reviewed.fingerprint !== reviewedSourceHash(source)) return { queued: 0, held: 1 }
     const reason = emailEligibility(source, now, kind === 'welcome' ? enabledAt : null)
     if (reason) return { queued: 0, held: reason === 'Primary email is missing or invalid' ? 1 : 0 }
     if (kind === 'welcome' && dueAt(source.arrivalDate!) > now) return { queued: 0, held: 0 }
@@ -56,24 +58,58 @@ async function queueBooking(candidate: { id: string; orgId: string }, kind: 'wel
     }
     try { scopeFromSource(access, source, now) } catch { return { queued: 0, held: 1 } }
     const eventKey = kind === 'resend' ? `guest:${source.id}:${access.version}:resend:${randomUUID()}` : `guest:${source.id}:${access.version}:${kind}`
-    const inserted = await tx.insert(guestEmailDeliveries).values({ orgId: source.orgId, propertyId: source.propertyId, guestProfileId: source.id, accessId: access.id, accessVersion: access.version, eventKey, kind, dueAt: kind === 'resend' ? now : dueAt(source.arrivalDate!), requestedBy: actor }).onConflictDoNothing().returning()
+    const inserted = await tx.insert(guestEmailDeliveries).values({ orgId: source.orgId, propertyId: source.propertyId, guestProfileId: source.id, accessId: access.id, accessVersion: access.version, eventKey, kind, dueAt: kind === 'resend' ? now : dueAt(source.arrivalDate!), requestedBy: actor, reviewedSourceHash: reviewed?.fingerprint ?? null, recipientHash: reviewed ? hash(reviewed.email) : null }).onConflictDoNothing().returning()
     return { queued: inserted.length, held: 0 }
-  })
+  }, { bounded: true })
+}
+async function refreshPendingEmailDates() {
+  // Only jobs with no uncertain attempt can change their schedule.
+  await db.execute(sql`with changed as (
+    select d.id, ((g.arrival_date - 7)::timestamp at time zone 'Asia/Colombo') as due
+    from guest_email_deliveries d join guest_profiles g on g.id=d.guest_profile_id and g.org_id=d.org_id and g.property_id=d.property_id
+    join properties p on p.id=g.property_id and p.org_id=g.org_id
+    where d.state='queued' and d.started_at is null and d.kind<>'resend'
+      and g.oracle_environment='production' and p.oracle_hotel_id='LO' and p.is_active and g.stay_state='reserved'
+      and g.arrival_date is not null and g.departure_date>g.arrival_date
+      and d.due_at<>((g.arrival_date - 7)::timestamp at time zone 'Asia/Colombo')
+    order by d.id for update of d skip locked limit 200
+  ) update guest_email_deliveries d set due_at=changed.due,updated_at=now() from changed where d.id=changed.id returning d.id`)
 }
 export async function enqueueGuestEmails(now: Date): Promise<{ queued: number; held: number }> {
   const result = { queued: 0, held: 0 }; if (!guestMailEnabled()) return result
-  configured()
-  for (const setting of await db.select().from(guestEmailSettings)) {
-    if (!setting.enabledAt) continue
-    for (const candidate of await candidates(setting.propertyId)) {
-      const counts = await queueBooking(candidate, 'welcome', now, setting.enabledAt, null)
-      result.queued += counts.queued; result.held += counts.held
+  configured(); const deadline = Date.now() + 8000
+  await refreshPendingEmailDates()
+  const settings = await db.select().from(guestEmailSettings).where(isNotNull(guestEmailSettings.enabledAt)).orderBy(asc(guestEmailSettings.id))
+  for (const setting of settings) {
+    if (!setting.enabledAt || Date.now() >= deadline) break
+    let cursor = setting.enqueueCursor
+    while (Date.now() < deadline) {
+      const rows = await db.select({ id: guestProfiles.id, orgId: guestProfiles.orgId }).from(guestProfiles)
+        .innerJoin(properties, and(eq(properties.id, guestProfiles.propertyId), eq(properties.orgId, guestProfiles.orgId)))
+        .where(and(eq(guestProfiles.orgId, setting.orgId), eq(guestProfiles.propertyId, setting.propertyId), eq(properties.isActive, true), eq(properties.oracleHotelId, 'LO'), eq(guestProfiles.oracleEnvironment, 'production'), eq(guestProfiles.stayState, 'reserved'),
+          sql`${guestProfiles.firstImportedAt} >= ${setting.enabledAt.toISOString()}::timestamptz`,
+          sql`${guestProfiles.lastPulledAt} >= ${new Date(now.getTime()-86400000).toISOString()}::timestamptz`,
+          sql`${guestProfiles.arrivalDate} between ${localDate(now)}::date and ${localDate(now)}::date + 7`,
+          ...(cursor ? [sql`${guestProfiles.id} > ${cursor}::uuid`] : []),
+          sql`not exists (select 1 from guest_email_deliveries d where d.guest_profile_id=${guestProfiles.id})`
+        )).orderBy(asc(guestProfiles.id)).limit(50)
+      if (!rows.length) {
+        await db.update(guestEmailSettings).set({ enqueueCursor: null, updatedAt: now }).where(and(eq(guestEmailSettings.id, setting.id), cursor ? eq(guestEmailSettings.enqueueCursor, cursor) : isNull(guestEmailSettings.enqueueCursor))).returning()
+        break
+      }
+      for (const candidate of rows) {
+        if (Date.now() >= deadline) return result
+        const counts = await queueBooking(candidate, 'welcome', now, setting.enabledAt, null).catch(() => ({ queued: 0, held: 1 }))
+        result.queued += counts.queued; result.held += counts.held
+        await db.update(guestEmailSettings).set({ enqueueCursor: candidate.id, updatedAt: now }).where(and(eq(guestEmailSettings.id, setting.id), cursor ? eq(guestEmailSettings.enqueueCursor, cursor) : isNull(guestEmailSettings.enqueueCursor))).returning()
+        cursor = candidate.id
+      }
     }
   }
   return result
 }
 async function previewRows(propertyId: string, now: Date) {
-  const counts = { eligible: 0, missingEmail: 0, excluded: 0 }, ids: string[] = []
+  const counts = { eligible: 0, missingEmail: 0, excluded: 0 }, recipients: GuestEmailPreviewRecipient[] = []
   for (const candidate of await candidates(propertyId)) {
     await withGuestBookingLock(candidate.orgId, candidate.id, async (source, writer, tx) => {
       const reason = emailEligibility(source, now, null)
@@ -83,35 +119,36 @@ async function previewRows(propertyId: string, now: Date) {
       if (active) { try { scopeFromSource(active, source, now) } catch { linkInvalid = true } }
       if (reason === 'Primary email is missing or invalid') counts.missingEmail++
       else if (reason || linkInvalid || prior.length) counts.excluded++
-      else { counts.eligible++; ids.push(`${source.id}:${sourceHash(source, active?.id ?? '', active?.version ?? 0)}`) }
+      else { counts.eligible++; recipients.push({ guestProfileId: source.id, guestName: source.guestName ?? 'Reservation', email: validGuestEmail(source.guestEmail)!, arrivalDate: source.arrivalDate!, departureDate: source.departureDate!, fingerprint: reviewedSourceHash(source) }) }
     })
   }
-  return { counts, digest: hash(ids.sort().join('\n')) }
+  return { counts, recipients, digest: hash(recipients.map(r => `${r.guestProfileId}:${r.fingerprint}`).sort().join('\n')) }
 }
-export async function previewGuestEmailActivation(propertyId: string): Promise<{ eligible: number; missingEmail: number; excluded: number }> {
-  const actor = await requireLoPropertyAccess(propertyId), now = new Date(), preview = await previewRows(propertyId, now)
-  await db.insert(guestEmailSettings).values({ orgId: actor.orgId, propertyId, previewVersion: randomUUID(), previewCount: preview.counts.eligible, previewHash: preview.digest, previewAt: now, previewKind: 'activation' }).onConflictDoUpdate({ target: guestEmailSettings.propertyId, set: { previewVersion: randomUUID(), previewCount: preview.counts.eligible, previewHash: preview.digest, previewAt: now, previewKind: 'activation', updatedAt: now } }).returning()
-  return preview.counts
+export async function previewGuestEmailActivation(propertyId: string): Promise<{ eligible: number; missingEmail: number; excluded: number; version: string; recipients: GuestEmailPreviewRecipient[] }> {
+  const actor = await requireLoPropertyAccess(propertyId), now = new Date(), preview = await previewRows(propertyId, now), version = randomUUID()
+  await db.insert(guestEmailSettings).values({ orgId: actor.orgId, propertyId, previewVersion: version, previewCount: preview.counts.eligible, previewHash: preview.digest, previewRecipients: preview.recipients, previewAt: now, previewKind: 'activation' }).onConflictDoUpdate({ target: guestEmailSettings.propertyId, set: { previewVersion: version, previewCount: preview.counts.eligible, previewHash: preview.digest, previewRecipients: preview.recipients, previewAt: now, previewKind: 'activation', updatedAt: now } }).returning()
+  return { ...preview.counts, recipients: preview.recipients, version }
 }
-async function reviewedSetting(propertyId: string, reviewedCount: number) {
+async function reviewedSetting(propertyId: string, reviewedCount: number, version: string) {
   const actor = await requireLoPropertyAccess(propertyId), now = new Date(), preview = await previewRows(propertyId, now)
   const [setting] = await db.select().from(guestEmailSettings).where(and(eq(guestEmailSettings.orgId, actor.orgId), eq(guestEmailSettings.propertyId, propertyId)))
-  if (!Number.isInteger(reviewedCount) || !setting?.previewAt || now.getTime() - setting.previewAt.getTime() > 15 * 60000 || setting.previewCount !== reviewedCount || preview.counts.eligible !== reviewedCount || setting.previewHash !== preview.digest) throw new GuestInputError('Booking list changed. Preview it again before confirming.', 409)
+  if (!version || !Number.isInteger(reviewedCount) || setting?.previewVersion !== version || !setting?.previewAt || now.getTime() - setting.previewAt.getTime() > 15 * 60000 || setting.previewCount !== reviewedCount || preview.counts.eligible !== reviewedCount || setting.previewHash !== preview.digest) throw new GuestInputError('Booking list changed. Preview it again before confirming.', 409)
   return { actor, now, setting }
 }
-export async function activateGuestEmails(propertyId: string, reviewedCount: number): Promise<void> {
+export async function activateGuestEmails(propertyId: string, reviewedCount: number, version: string): Promise<void> {
   if (!guestMailEnabled()) throw new GuestInputError('Production guest email sending is disabled', 503)
-  configured(); const { actor, now, setting } = await reviewedSetting(propertyId, reviewedCount)
+  configured(); const { actor, now, setting } = await reviewedSetting(propertyId, reviewedCount, version)
   // Preserve the original boundary if staff review activation again.
-  await db.update(guestEmailSettings).set({ enabledAt: setting.enabledAt ?? now, enabledBy: setting.enabledBy ?? actor.actorId, previewAt: null, updatedAt: now }).where(and(eq(guestEmailSettings.id, setting.id), eq(guestEmailSettings.previewVersion, setting.previewVersion!))).returning()
+  const changed = await db.update(guestEmailSettings).set({ enabledAt: setting.enabledAt ?? now, enabledBy: setting.enabledBy ?? actor.actorId, previewAt: null, updatedAt: now }).where(and(eq(guestEmailSettings.id, setting.id), eq(guestEmailSettings.previewVersion, setting.previewVersion!))).returning()
+  if (!changed.length) throw new GuestInputError('Email preview changed. Review it again.', 409)
 }
-export async function catchUpGuestEmails(propertyId: string, reviewedCount: number) {
+export async function catchUpGuestEmails(propertyId: string, reviewedCount: number, version: string) {
   if (!guestMailEnabled()) throw new GuestInputError('Production guest email sending is disabled', 503)
-  configured(); const { actor, now, setting } = await reviewedSetting(propertyId, reviewedCount)
+  configured(); const { actor, now, setting } = await reviewedSetting(propertyId, reviewedCount, version)
   if (!setting.enabledAt) throw new GuestInputError('Activate prospective emails first', 409)
   const result = { queued: 0, held: 0 }
-  for (const candidate of await candidates(propertyId)) { const count = await queueBooking(candidate, 'catch_up', now, null, actor.actorId); result.queued += count.queued; result.held += count.held }
-  await db.update(guestEmailSettings).set({ previewAt: null, previewKind: 'catch_up', updatedAt: now }).where(eq(guestEmailSettings.id, setting.id)).returning()
+  for (const recipient of setting.previewRecipients) { const count = await queueBooking({ id: recipient.guestProfileId, orgId: actor.orgId }, 'catch_up', now, null, actor.actorId, recipient); result.queued += count.queued; result.held += count.held }
+  await db.update(guestEmailSettings).set({ previewAt: null, previewKind: 'catch_up', updatedAt: now }).where(and(eq(guestEmailSettings.id, setting.id), eq(guestEmailSettings.previewVersion, version))).returning()
   return result
 }
 export async function resendGuestEmail(guestProfileId: string, reviewedCount: number) {
@@ -154,6 +191,7 @@ export async function deliverGuestEmails(options: { now: Date; limit: number; bu
   const now = options.now, result = { accepted: 0, held: 0, failed: 0 }, deadline = Date.now() + Math.min(options.budgetMs, 45000)
   if (!guestMailEnabled()) return result
   configured()
+  await refreshPendingEmailDates()
   for (let i = 0; i < Math.min(options.limit, 50) && Date.now() + 16000 < deadline; i++) {
     const owner = randomUUID()
     const rows = await db.execute(sql`with pick as (select id from guest_email_deliveries where (state='queued' and due_at<=${now.toISOString()}::timestamptz and (next_attempt_at is null or next_attempt_at<=${now.toISOString()}::timestamptz)) or (state='sending' and lease_until<=${now.toISOString()}::timestamptz) order by due_at,id for update skip locked limit 1) update guest_email_deliveries d set state='sending',lease_owner=${owner}::uuid,lease_until=${new Date(now.getTime()+120000).toISOString()}::timestamptz,updated_at=${now.toISOString()}::timestamptz from pick where d.id=pick.id returning d.id`)
@@ -169,6 +207,7 @@ export async function deliverGuestEmails(options: { now: Date; limit: number; bu
         if (reason || !active || active.id !== job.accessId || active.version !== job.accessVersion) return { hold: reason ?? 'Private link changed or was revoked' }
         try { scopeFromSource(active, source, now) } catch { return { hold: 'Private link expired or booking changed' } }
         if (retryRequiresReconciliation(job.startedAt, now)) return { hold: 'Provider outcome requires reconciliation' }
+        if (job.kind === 'catch_up' && (!job.reviewedSourceHash || job.reviewedSourceHash !== reviewedSourceHash(source))) return { hold: 'Reviewed catch-up recipient or stay changed; review again' }
         const currentHash = sourceHash(source, active.id, active.version)
         if (job.encryptedPayload) {
           const frozen = JSON.parse(decryptGuestSecret(job.encryptedPayload, `email:${job.id}`)) as Frozen

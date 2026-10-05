@@ -39,6 +39,7 @@ export async function advanceLoSync(scope: { orgId: string; propertyId: string }
         const page = result.data
         const newFingerprint = createHash('sha256').update(page.bookings.map(b => b.oracleReservationId).join('\n')).digest('hex')
         if (page.offset !== offset || (page.hasMore && !page.bookings.length) || (page.bookings.length && newFingerprint === fingerprint)) throw new OracleProtocolError('Oracle pagination made no progress')
+        if (page.totalResults !== null && (offset + page.bookings.length > page.totalResults || (!page.hasMore && offset + page.bookings.length !== page.totalResults) || (page.hasMore && offset + page.bookings.length >= page.totalResults))) throw new OracleProtocolError('Contradictory Oracle pagination')
         if (page.totalResults !== null && page.totalResults > 20_000) throw new OracleProtocolError('Oracle sync record limit exceeded')
         await stageLoPage(run.id, page.bookings, owner)
         processed += page.bookings.length

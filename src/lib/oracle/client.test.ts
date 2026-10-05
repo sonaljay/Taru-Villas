@@ -17,6 +17,11 @@ beforeEach(() => {
 })
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.useRealTimers() })
 describe('read-only Oracle transport', () => {
+  it.each([0, 100])('normalizes Oracle next-page offset for a short terminal page requested at %s', async offset => {
+    fetcher.mockResolvedValueOnce(token()).mockResolvedValueOnce(Response.json({ reservations: { reservationInfo: [{ reservationIdList: [{ type: 'Reservation', id: 'synthetic' }], roomStay: { arrivalDate: '2026-10-08', departureDate: '2026-10-10' } }], offset: offset + 100, limit: 100, hasMore: false, totalResults: offset + 1 } }))
+    const { listReservationPage } = await import('./client')
+    expect(await listReservationPage('LO', { offset, limit: 100 })).toMatchObject({ ok: true, data: { offset, hasMore: false, totalResults: offset + 1, bookings: [{ oracleReservationId: 'synthetic' }] } })
+  })
   it('uses client credentials and scopes every reservation GET to LO', async () => {
     fetcher.mockResolvedValueOnce(token()).mockResolvedValueOnce(empty())
     const { listReservationPage } = await import('./client')

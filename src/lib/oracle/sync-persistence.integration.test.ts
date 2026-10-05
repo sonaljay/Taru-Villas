@@ -60,4 +60,25 @@ suite('isolated LO sync transactions', () => {
     const [state] = await sql`select state from oracle_sync_runs where id=${second.id}`
     expect(state.state).toBe('running')
   })
+  it('rejects an aged publish-only run and acquires a new run without refreshing its old staged booking', async () => {
+    const run=await acquireLoRun(scope,options)
+    await stageLoPage(run.id,[booking],run.leaseOwner!)
+    await advanceLoPhase(run.id,'publish',run.leaseOwner!)
+    await sql`update oracle_sync_runs set created_at=now()-interval '25 hours' where id=${run.id}`
+    await expect(publishLoSync(run.id,run.leaseOwner!)).rejects.toThrow('lease unavailable')
+    expect(await getOracleBookingsForProperty(scope.orgId,scope.propertyId)).toEqual([])
+    const fresh=await acquireLoRun(scope,options)
+    expect(fresh.id).not.toBe(run.id)
+    expect(fresh.phase).toBe('arrivals:0')
+    expect((await sql`select state from oracle_sync_runs where id=${run.id}`)[0].state).toBe('failed')
+  })
+  it('preserves staging observation time as canonical freshness instead of publication time',async()=>{
+    const run=await acquireLoRun(scope,options)
+    await stageLoPage(run.id,[booking],run.leaseOwner!)
+    const observed=new Date(Date.now()-15*60000)
+    await sql`update oracle_sync_staging set updated_at=${observed} where run_id=${run.id}`
+    await advanceLoPhase(run.id,'publish',run.leaseOwner!);await publishLoSync(run.id,run.leaseOwner!)
+    expect((await sql`select last_pulled_at from guest_profiles where property_id=${scope.propertyId}`)[0].last_pulled_at.toISOString()).toBe(observed.toISOString())
+  })
+
 })

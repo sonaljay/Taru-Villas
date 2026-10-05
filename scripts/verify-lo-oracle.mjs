@@ -1,6 +1,7 @@
 import { createInterface } from 'node:readline'
 import { execFileSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
+import { parseReservationPage, parseReservationDetail } from '../src/lib/oracle/reservations.ts'
 /**
  * Production GET diagnostics only; returns no bearer token, guest values or reservation IDs.
  * @param {{environment:string,gateway:string,clientId:string,clientSecret:string,appKey:string,enterpriseId:string}} config
@@ -24,21 +25,32 @@ export async function verifyLoOracle(config, fetcher = fetch) {
   const count = rows.length
   const first = rows[0]
   const id = first?.reservationIdList?.find(i => i.type === 'Reservation')?.id
+  let normalizedList = false
+  try { parseReservationPage(result, { offset: 0, limit: 2 }); normalizedList = true } catch { /* Safe diagnostic only. */ }
+  // Only typed pagination counters; never serialize arbitrary upstream values.
+  const pagination = (value) => ({
+    hasMore: typeof value?.hasMore === 'boolean' ? value.hasMore : null,
+    offset: typeof value?.offset === 'number' || /^\d+$/.test(String(value?.offset)) ? Number(value.offset) : null,
+    totalResults: typeof value?.totalResults === 'number' || /^\d+$/.test(String(value?.totalResults)) ? Number(value.totalResults) : null,
+  })
   const safe = {
     authentication: { status: auth.status },
     hotel: { status: hotel.status, hotelId: metadata?.hotelId === 'LO' ? 'LO' : null, hotelName: typeof metadata?.hotelName === 'string' ? metadata.hotelName : null },
-    arrivals: { status: arrivals.status, count, fields: {
+    arrivals: { status: arrivals.status, count, normalized: normalizedList, pagination: { envelope: pagination(result?.reservations), root: pagination(result) }, fields: {
       typedReservationId: !!id, name: !!(first?.reservationGuest?.givenName || first?.reservationGuest?.surname),
       email: !!first?.reservationGuest?.email, phone: !!first?.reservationGuest?.phoneNumber,
       arrival: !!first?.roomStay?.arrivalDate, departure: !!first?.roomStay?.departureDate,
       roomQuantity: first?.roomStay?.numberOfRooms != null, status: !!first?.reservationStatus,
     } },
-    detail: /** @type {{status:number, fields:{stay:boolean, guests:boolean}} | null} */ (null),
+    detail: /** @type {{status:number, normalized:boolean, fields:{stay:boolean, guests:boolean}} | null} */ (null),
   }
   if (typeof id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(id)) {
     const detail = await get(`/rsv/v1/hotels/LO/reservations/${encodeURIComponent(id)}`)
-    const row = detail.ok ? (await detail.json())?.reservations?.reservation?.[0] : null
-    safe.detail = { status: detail.status, fields: { stay: !!row?.roomStay, guests: Array.isArray(row?.reservationGuests) } }
+    const detailBody = detail.ok ? await detail.json() : null
+    const row = detailBody?.reservations?.reservation?.[0]
+    let normalizedDetail = false
+    try { parseReservationDetail(detailBody); normalizedDetail = true } catch { /* Safe diagnostic only. */ }
+    safe.detail = { status: detail.status, normalized: normalizedDetail, fields: { stay: !!row?.roomStay, guests: Array.isArray(row?.reservationGuests) } }
   }
   return safe
 }

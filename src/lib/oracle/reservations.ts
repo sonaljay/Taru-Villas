@@ -84,14 +84,24 @@ function normalize(raw: unknown): OracleBooking {
     inventoryDisposition,
   }
 }
-export function parseReservationPage(raw: unknown): OraclePage {
+export function parseReservationPage(raw: unknown, requested: { offset: number; limit: number }): OraclePage {
   const envelope = record(record(raw).reservations)
   let rows = envelope.reservationInfo
   if (rows === undefined && integer(envelope.totalResults) === 0 && envelope.hasMore !== true) rows = []
   if (!Array.isArray(rows)) throw new OracleParseError('Unexpected reservation list envelope')
-  if (envelope.hasMore !== undefined && typeof envelope.hasMore !== 'boolean') throw new OracleParseError('Unexpected pagination')
-  const offset = integer(envelope.offset) ?? 0
+  const offset = requested.offset, nextOffset = integer(envelope.offset)
   const totalResults = integer(envelope.totalResults)
+  const hasMore = envelope.hasMore
+  if (!Number.isInteger(offset) || offset < 0 || !Number.isInteger(requested.limit) || requested.limit < 1 || (envelope.offset !== undefined && nextOffset === null) || (envelope.totalResults !== undefined && totalResults === null) || (hasMore !== undefined && typeof hasMore !== 'boolean')) throw new OracleParseError('Unexpected pagination')
+  const end = offset + rows.length
+  // OPERA returns the next page boundary (request offset + limit), even for
+  // a short final page. Keep the normalized offset as this page's start.
+  const explicitZero = totalResults === 0 && rows.length === 0 && offset === 0
+  if (rows.length > requested.limit || (!explicitZero && nextOffset !== offset + requested.limit) || (envelope.limit !== undefined && integer(envelope.limit) !== requested.limit)) throw new OracleParseError('Unexpected pagination boundary')
+  // Explicit zero is the one envelope that can safely omit pagination flags.
+  if (typeof hasMore !== 'boolean' && !explicitZero) throw new OracleParseError('Missing pagination metadata')
+  if (hasMore === true && rows.length !== requested.limit) throw new OracleParseError('Incomplete pagination page')
+  if (totalResults !== null && (end > totalResults || (hasMore === false && end !== totalResults) || (hasMore === true && end >= totalResults))) throw new OracleParseError('Contradictory pagination metadata')
   return { bookings: rows.map(normalize), offset, hasMore: envelope.hasMore === true, totalResults }
 }
 export function parseReservationDetail(raw: unknown): OracleBooking {

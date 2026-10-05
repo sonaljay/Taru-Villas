@@ -87,7 +87,7 @@ export async function listReservationPage(hotelId: string, search: { fromDate?: 
   const result = await read(hotelId, `/rsv/v1/hotels/${hotelId}/reservations?${qs}`)
   if (!result.ok) return result
   if (result.data === null) return { ok: true, data: { bookings: [], offset: search.offset, hasMore: false, totalResults: 0 } }
-  try { return { ok: true, data: parseReservationPage(result.data) } }
+  try { return { ok: true, data: parseReservationPage(result.data, search) } }
   catch { return fail('OHIP invalid reservation list') }
 }
 export async function readReservation(hotelId: string, reservationId: string): Promise<OhipResult<OracleBooking>> {

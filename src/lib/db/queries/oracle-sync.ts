@@ -7,7 +7,7 @@ type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
 type Run = typeof oracleSyncRuns.$inferSelect
 export class OracleLeaseError extends Error { constructor() { super('Oracle sync lease unavailable') } }
 async function lockedRun(tx: Transaction, runId: string, owner: string): Promise<Run> {
-  const [run] = await tx.select().from(oracleSyncRuns).where(and(eq(oracleSyncRuns.id, runId), eq(oracleSyncRuns.state, 'running'), eq(oracleSyncRuns.leaseOwner, owner), sql`${oracleSyncRuns.leaseUntil} > now()`)).for('update')
+  const [run] = await tx.select().from(oracleSyncRuns).where(and(eq(oracleSyncRuns.id, runId), eq(oracleSyncRuns.state, 'running'), eq(oracleSyncRuns.leaseOwner, owner), sql`${oracleSyncRuns.leaseUntil} > now()`, sql`${oracleSyncRuns.createdAt} > now() - interval '1 hour'`)).for('update')
   if (!run) throw new OracleLeaseError()
   return run
 }
@@ -15,7 +15,12 @@ export async function acquireLoRun(scope: { orgId: string; propertyId: string },
   return db.transaction(async tx => {
     const [property] = await tx.select().from(properties).where(and(eq(properties.id, scope.propertyId), eq(properties.orgId, scope.orgId), eq(properties.oracleHotelId, 'LO'), eq(properties.isActive, true))).for('update')
     if (!property) throw Error('LO property unavailable')
-    const [existing] = await tx.select().from(oracleSyncRuns).where(and(eq(oracleSyncRuns.propertyId, property.id), eq(oracleSyncRuns.orgId, scope.orgId), eq(oracleSyncRuns.state, 'running'))).for('update')
+    const [candidate] = await tx.select().from(oracleSyncRuns).where(and(eq(oracleSyncRuns.propertyId, property.id), eq(oracleSyncRuns.orgId, scope.orgId), eq(oracleSyncRuns.state, 'running'))).for('update')
+    let existing: Run | undefined = candidate
+    if (existing && existing.createdAt.getTime() <= Date.now() - 3600000) {
+      await tx.update(oracleSyncRuns).set({ state: 'failed', error: 'Import exceeded its observation window; a new refresh is required', leaseOwner: null, leaseUntil: null, updatedAt: new Date() }).where(eq(oracleSyncRuns.id, existing.id)).returning()
+      existing = undefined
+    }
     if (existing?.leaseUntil && existing.leaseUntil > new Date()) return { ...existing, acquired: false }
     const owner = randomUUID()
     if (existing) {
@@ -77,14 +82,14 @@ export async function publishLoSync(runId: string, owner: string): Promise<void>
     if (staged.length > 20_000) throw Error('Oracle sync record limit exceeded')
     const now = new Date()
     for (let i = 0; i < staged.length; i += 200) {
-      const rows = staged.slice(i, i + 200).map(({ booking: b }) => ({
+      const rows = staged.slice(i, i + 200).map(({ booking: b, updatedAt: observedAt }) => ({
         orgId: run.orgId, propertyId: run.propertyId, oracleReservationId: b.oracleReservationId,
         confirmationNumber: b.confirmationNumber, guestName: b.guestName, guestEmail: b.guestEmail, guestPhone: b.guestPhone,
         arrivalDate: b.arrivalDate, departureDate: b.departureDate, roomType: b.roomType, roomNumber: b.roomNumber,
         roomQuantity: b.roomQuantity, adultCount: b.adultCount, childCount: b.childCount,
         oracleReservationStatus: b.reservationStatus, stayState: b.stayState, channelCode: b.channelCode, sourceCode: b.sourceCode, marketCode: b.marketCode,
         isRoomReservation: b.isRoomReservation, isPseudoRoom: b.isPseudoRoom, inventoryGroupId: b.inventoryGroupId, inventoryDisposition: b.inventoryDisposition,
-        oracleEnvironment: 'production', lastSyncedRunId: run.id, lastPulledAt: now, updatedAt: now,
+        oracleEnvironment: 'production', lastSyncedRunId: run.id, lastPulledAt: observedAt, updatedAt: now,
         token: randomBytes(32).toString('base64url'),
       }))
       await tx.insert(guestProfiles).values(rows).onConflictDoUpdate({ target: [guestProfiles.propertyId, guestProfiles.oracleReservationId], set: {
@@ -94,7 +99,7 @@ export async function publishLoSync(runId: string, owner: string): Promise<void>
         oracleReservationStatus: sql`excluded.oracle_reservation_status`, stayState: sql`excluded.stay_state`,
         channelCode: sql`excluded.channel_code`, sourceCode: sql`excluded.source_code`, marketCode: sql`excluded.market_code`,
         isRoomReservation: sql`excluded.is_room_reservation`, isPseudoRoom: sql`excluded.is_pseudo_room`, inventoryGroupId: sql`excluded.inventory_group_id`, inventoryDisposition: sql`excluded.inventory_disposition`,
-        oracleEnvironment: 'production', lastSyncedRunId: run.id, lastPulledAt: now, updatedAt: now,
+        oracleEnvironment: 'production', lastSyncedRunId: run.id, lastPulledAt: sql`excluded.last_pulled_at`, updatedAt: now,
       }, setWhere: eq(guestProfiles.orgId, run.orgId) }).returning()
     }
     await tx.update(guestPortalAccess).set({

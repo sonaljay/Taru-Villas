@@ -87,3 +87,7 @@ night in chart, table and drill-down. Mobile document width stayed at 390px.
 Keyboard month controls, empty bookings, missing import and partial coverage
 states were checked. Temporary fixture routes were removed before committing.
 Safe report payloads contain no guest contacts or private links.
+
+Pagination uses the request start offset for completeness checks. OPERA returns the next page boundary (`offset + limit`), even for a short final page; see [Oracle reservation response examples](https://docs.oracle.com/en/industries/hospitality/integration-platform/pcpig/t_inquire_to_reservation_information_post_inquiry.htm). This was verified with a bounded LO GET (two rows, response offset 2, total 63). Missing or contradictory pagination fails closed.
+
+The bounded `scripts/verify-lo-oracle.mjs` diagnostic uses native TypeScript loading and requires Node 22.18+ (verified on Node 26). It prints only status, hotel mapping, pagination counters, field-presence and normalization booleans. It never prints guest values, reservation IDs or credentials.

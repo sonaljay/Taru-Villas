@@ -71,3 +71,4 @@ describe('complete resumable Oracle sync', () => {
     expect(persistence.acquireLoRun).not.toHaveBeenCalled()
   })
 })
+it('never publishes a terminal page short of its advertised count',async()=>{vi.mocked(listReservationPage).mockResolvedValueOnce({ok:true,data:{bookings:[],offset:0,totalResults:12,hasMore:false}});expect(await advanceLoSync(scope,options)).toMatchObject({state:'failed'});expect(persistence.publishLoSync).not.toHaveBeenCalled()})

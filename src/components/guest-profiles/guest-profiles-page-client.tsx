@@ -88,18 +88,18 @@ export function GuestProfilesPageClient({ property, profiles, isAdmin, syncStatu
   async function guestLink(id:string,regenerate=false){setLinkBusy(id);try{if(regenerate){const revoked=await fetch(`/api/guest-profiles/${id}/link`,{method:'DELETE'});if(!revoked.ok)throw Error('Unable to revoke link')}const response=await fetch(`/api/guest-profiles/${id}/link`,{method:'POST'});const data=await response.json();if(!response.ok)throw Error(data.error??'Unable to issue link');setPrivateLink(data.url)}catch(error){toast.error(error instanceof Error?error.message:'Unable to issue link')}finally{setLinkBusy(null)}}
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => router.push('/guest-profiles')}>
+    <div className="min-w-0 space-y-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <Button className="shrink-0" variant="ghost" size="icon" onClick={() => router.push('/guest-profiles')}>
             <ArrowLeft className="size-4" />
           </Button>
-          <div>
+          <div className="min-w-0">
             <h1 className="text-2xl font-bold tracking-tight">Guest Profiles — {property.name}</h1>
             <p className="text-sm text-muted-foreground">Upcoming arrivals and pre-arrival status</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           {isAdmin && (
             <Button variant="outline" onClick={testConnection} disabled={testing}>
               <PlugZap className={cn('size-4', testing && 'animate-pulse')} />
@@ -126,7 +126,7 @@ export function GuestProfilesPageClient({ property, profiles, isAdmin, syncStatu
         </CardContent></Card>
       )}
 
-      {property.oracleHotelId==='LO'&&<div className="flex gap-2"><Button variant={tab==='bookings'?'default':'outline'} onClick={()=>setTab('bookings')}>Bookings</Button><Button variant={tab==='questions'?'default':'outline'} onClick={()=>setTab('questions')}>Questions</Button><Button variant={tab==='requests'?'default':'outline'} onClick={()=>setTab('requests')}>Guest requests</Button><Button variant={tab==='email'?'default':'outline'} onClick={()=>setTab('email')}>Guest emails</Button></div>}
+      {property.oracleHotelId==='LO'&&<div className="flex flex-wrap gap-2"><Button variant={tab==='bookings'?'default':'outline'} onClick={()=>setTab('bookings')}>Bookings</Button><Button variant={tab==='questions'?'default':'outline'} onClick={()=>setTab('questions')}>Questions</Button><Button variant={tab==='requests'?'default':'outline'} onClick={()=>setTab('requests')}>Guest requests</Button><Button variant={tab==='email'?'default':'outline'} onClick={()=>setTab('email')}>Guest emails</Button></div>}
       {privateLink&&<Card><CardContent className="space-y-3 py-4"><p className="text-sm">Private guest link · share only with this reservation’s guests</p><input readOnly aria-label="Private guest link" value={privateLink} className="w-full rounded-md border p-2 text-sm"/><div className="flex gap-3"><Button variant="outline" onClick={()=>{void navigator.clipboard.writeText(privateLink).then(()=>toast.success('Link copied')).catch(()=>toast.error('Select the link to copy it'))}}>Copy link</Button><Button variant="ghost" onClick={()=>setPrivateLink(null)}>Close</Button></div></CardContent></Card>}
       {reviewId&&<QuestionnaireReview key={reviewId} guestProfileId={reviewId} onClose={()=>setReviewId(null)}/>}
       {tab==='email'?<EmailSetup key={property.id} propertyId={property.id} guestNames={Object.fromEntries(profiles.map(p=>[p.id,p.guestName??'Reservation']))}/>:tab==='requests'?<RequestInbox propertyId={property.id}/>:tab==='questions'?<QuestionBuilder propertyId={property.id} isAdmin={isAdmin}/>:profiles.length === 0 ? (

@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { parseReservationPage, parseReservationDetail, classifyStayState } from './reservations'
+import { parseReservationPage as parsePage, parseReservationDetail, classifyStayState } from './reservations'
+const parseReservationPage = (raw: unknown) => parsePage(raw, { offset: 0, limit: 1 })
 const row = (overrides: Record<string, unknown> = {}) => ({
   reservationIdList: [{ type: 'Confirmation', id: 'CONF-1' }, { type: 'Reservation', id: 'synthetic-1' }],
   roomStay: { arrivalDate: '2028-02-28', departureDate: '2028-03-02', numberOfRooms: 2, roomType: 'DLX', roomId: '101', adultCount: 2, childCount: 0 },
   reservationGuest: { givenName: 'Test', surname: 'Guest', email: 'test@example.invalid', phoneNumber: 'synthetic' },
   reservationStatus: 'Reserved', ...overrides,
 })
-const page = (r: unknown) => ({ reservations: { reservationInfo: [r], totalResults: 1, offset: 0, hasMore: false } })
+const page = (r: unknown) => ({ reservations: { reservationInfo: [r], totalResults: 1, offset: 1, hasMore: false } })
 describe('Oracle reservation normalization', () => {
   it('selects typed IDs and normalizes list contacts and inventory', () => {
     expect(parseReservationPage(page(row())).bookings[0]).toMatchObject({ oracleReservationId: 'synthetic-1', confirmationNumber: 'CONF-1', guestName: 'Test Guest', guestEmail: 'test@example.invalid', guestPhone: 'synthetic', roomQuantity: 2, stayState: 'reserved', adultCount: 2, childCount: 0 })
@@ -45,3 +46,9 @@ describe('Oracle reservation normalization', () => {
   })
   it.each([['InHouse','in_house'], ['CheckedOut','checked_out'], ['Cancelled','cancelled'], ['NoShow','no_show'], ['Waitlist','waitlist'], ['Reserved','reserved'], ['future-unknown','unknown']])('classifies %s', (raw,want) => expect(classifyStayState(raw)).toBe(want))
 })
+it.each([
+ {reservationInfo:[],totalResults:12,offset:1,hasMore:false},
+ {reservationInfo:[row()],totalResults:12,offset:1},
+ {reservationInfo:[row()],totalResults:1,offset:1,hasMore:true},
+ {reservationInfo:[row()],totalResults:'invalid',offset:1,hasMore:false},
+])('rejects contradictory or incomplete pagination metadata',reservations=>expect(()=>parseReservationPage({reservations})).toThrow('pagination'))

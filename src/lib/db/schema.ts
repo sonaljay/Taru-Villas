@@ -566,6 +566,8 @@ export const guestRequestEvents = pgTable('guest_request_events', {
   ,foreignKey({ name: 'guest_request_events_request_scope', columns: [table.requestId, table.orgId, table.propertyId, table.guestProfileId], foreignColumns: [guestRequests.id, guestRequests.orgId, guestRequests.propertyId, guestRequests.guestProfileId] }).onDelete('cascade')
 ])
 
+export type GuestEmailPreviewRecipient = { guestProfileId: string; guestName: string; email: string; arrivalDate: string; departureDate: string; fingerprint: string }
+
 export const guestEmailSettings = pgTable('guest_email_settings', {
   id: uuid('id').defaultRandom().primaryKey(),
   orgId: uuid('org_id').notNull().references(() => organizations.id),
@@ -577,6 +579,8 @@ export const guestEmailSettings = pgTable('guest_email_settings', {
   previewAt: timestamp('preview_at', { withTimezone: true }),
   previewKind: text('preview_kind'),
   previewHash: text('preview_hash'),
+  previewRecipients: jsonb('preview_recipients').$type<GuestEmailPreviewRecipient[]>().default(sql`'[]'::jsonb`).notNull(),
+  enqueueCursor: uuid('enqueue_cursor'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
@@ -602,6 +606,7 @@ export const guestEmailDeliveries = pgTable('guest_email_deliveries', {
   startedAt: timestamp('started_at', { withTimezone: true }),
   encryptedPayload: text('encrypted_payload'),
   recipientHash: text('recipient_hash'),
+  reviewedSourceHash: text('reviewed_source_hash'),
   providerId: text('provider_id'),
   acceptedAt: timestamp('accepted_at', { withTimezone: true }),
   lastError: text('last_error'),

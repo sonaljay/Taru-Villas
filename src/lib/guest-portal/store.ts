@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { guestPortalAccess, guestProfiles, properties, oracleSyncRuns } from '@/lib/db/schema'
 import { GuestInputError } from './types'
@@ -14,8 +14,12 @@ async function sourceById(tx: GuestTransaction | typeof db, orgId: string, id: s
   const [row] = lock ? await query.for('update', { of: guestProfiles }) : await query.limit(1)
   return row ? { ...row.profile, propertyActive: row.propertyActive, oracleHotelId: row.oracleHotelId, syncComplete: row.syncState === 'complete' } : undefined
 }
-export async function withGuestBookingLock<T>(orgId: string, id: string, fn: (source: BookingSource, writer: AccessWriter, tx: GuestTransaction) => Promise<T>): Promise<T> {
+export async function withGuestBookingLock<T>(orgId: string, id: string, fn: (source: BookingSource, writer: AccessWriter, tx: GuestTransaction) => Promise<T>, options?: { bounded: boolean }): Promise<T> {
   return db.transaction(async tx => {
+    if (options?.bounded) {
+      await tx.execute(sql`set local lock_timeout = '750ms'`)
+      await tx.execute(sql`set local statement_timeout = '2500ms'`)
+    }
     const source = await sourceById(tx, orgId, id, true)
     if (!source) throw new GuestInputError('Booking unavailable', 404)
     const where = and(eq(guestPortalAccess.guestProfileId, id), eq(guestPortalAccess.orgId, orgId), eq(guestPortalAccess.propertyId, source.propertyId))
