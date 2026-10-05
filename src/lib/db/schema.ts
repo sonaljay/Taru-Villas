@@ -406,6 +406,8 @@ export const oracleSyncRuns = pgTable('oracle_sync_runs', {
   toDate: date('to_date').notNull(),
   phase: text('phase').default('arrivals:0').notNull(),
   offset: integer('offset').default(0).notNull(),
+  detailIds: jsonb('detail_ids').$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+  lastPageFingerprint: text('last_page_fingerprint'),
   state: varchar('state', { length: 20 }).default('running').notNull(),
   leaseOwner: uuid('lease_owner'),
   leaseUntil: timestamp('lease_until', { withTimezone: true }),

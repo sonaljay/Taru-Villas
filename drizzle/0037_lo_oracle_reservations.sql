@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS oracle_sync_runs (
   created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT oracle_sync_runs_range CHECK (to_date >= from_date AND "offset" >= 0)
 );
+ALTER TABLE oracle_sync_runs ADD COLUMN IF NOT EXISTS detail_ids jsonb NOT NULL DEFAULT '[]'::jsonb, ADD COLUMN IF NOT EXISTS last_page_fingerprint text;
 CREATE UNIQUE INDEX IF NOT EXISTS oracle_sync_runs_one_running ON oracle_sync_runs(property_id) WHERE state='running';
 CREATE TABLE IF NOT EXISTS oracle_sync_staging (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

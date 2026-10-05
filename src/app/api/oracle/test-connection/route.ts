@@ -1,23 +1,13 @@
-import { NextResponse } from 'next/server'
-import { getProfile } from '@/lib/auth/guards'
-import { testConnection } from '@/lib/oracle/client'
-
-// POST /api/oracle/test-connection — admin-only OHIP credential check
-export async function POST() {
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod/v4'
+import { requireLoPropertyAccess, OracleAccessError } from '@/lib/oracle/access'
+import { readHotel } from '@/lib/oracle/client'
+export async function POST(request: NextRequest) {
   try {
-    const profile = await getProfile()
-    if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    if (profile.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const result = await testConnection()
-    if (!result.ok) {
-      return NextResponse.json({ ok: false, error: result.error })
-    }
-    return NextResponse.json({ ok: true })
-  } catch (error) {
-    console.error('POST /api/oracle/test-connection error:', error)
-    return NextResponse.json({ ok: false, error: 'Connection test failed' })
-  }
+    const input = z.object({ propertyId: z.string().uuid() }).safeParse(await request.json())
+    if (!input.success) return NextResponse.json({ error: 'Property required' }, { status: 400 })
+    const scope = await requireLoPropertyAccess(input.data.propertyId)
+    const result = await readHotel(scope.oracleHotelId)
+    return NextResponse.json(result.ok ? { ok: true, hotelId: result.data.hotelId, hotelName: result.data.hotelName } : result, { status: result.ok ? 200 : result.status, headers: { 'Cache-Control': 'no-store' } })
+  } catch (error) { return NextResponse.json({ error: error instanceof OracleAccessError ? error.message : 'Connection test failed' }, { status: error instanceof OracleAccessError ? error.status : 500 }) }
 }

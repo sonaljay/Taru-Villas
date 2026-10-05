@@ -53,12 +53,15 @@ async function read(hotelId: string, path: string): Promise<OhipResult<unknown>>
   if (hotelId !== 'LO') return fail('Unsupported Oracle hotel', 400)
   const cfg = config()
   if (!cfg) return fail('Oracle OHIP not configured', 503)
+  const deadline = Date.now() + 20_000
   for (let attempt = 0; attempt < 2; attempt++) {
     const token = await accessToken(cfg)
     if (!token.ok) return token
+    const remaining = deadline - Date.now()
+    if (remaining <= 0) return fail('OHIP request timed out')
     try {
       const response = await fetch(`${cfg.gateway}${path}`, {
-        method: 'GET', redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(20_000),
+        method: 'GET', redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(remaining),
         headers: { Authorization: `Bearer ${token.data}`, 'x-app-key': cfg.appKey, 'x-hotelid': hotelId, Accept: 'application/json' },
       })
       if (response.status === 401 && attempt === 0) {

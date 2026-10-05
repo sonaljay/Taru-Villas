@@ -1,53 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { properties } from '@/lib/db/schema'
-import { isNotNull, eq, and } from 'drizzle-orm'
-import { syncPropertyArrivals, refreshPropertyStatuses } from '@/lib/oracle/sync'
-
+import { eq, and } from 'drizzle-orm'
+import { advanceLoSync } from '@/lib/oracle/sync'
+import { cleanLoStaging } from '@/lib/db/queries/oracle-sync'
+import { isCronAuthorized } from '@/lib/oracle/cron-auth'
 export const dynamic = 'force-dynamic'
-
-function bearerOk(request: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET
-  if (!secret) return false
-  return request.headers.get('authorization') === `Bearer ${secret}`
-}
-
-function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10)
-}
-
-async function run() {
-  const rows = await db
-    .select()
-    .from(properties)
-    .where(and(isNotNull(properties.oracleHotelId), eq(properties.isActive, true)))
-
-  const today = new Date()
-  const in30 = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)
-  const from = isoDate(today)
-  const to = isoDate(in30)
-
-  const details: Array<Record<string, unknown>> = []
-  for (const p of rows) {
-    if (!p.oracleHotelId) continue
-    const pull = await syncPropertyArrivals(p.orgId, p.id, p.oracleHotelId, from, to)
-    const refresh = await refreshPropertyStatuses(p.orgId, p.id, p.oracleHotelId)
-    details.push({ propertyId: p.id, ...pull, ...refresh })
-  }
-  return { properties: rows.length, details }
-}
-
+export const maxDuration = 120
 export async function POST(request: NextRequest) {
-  if (!bearerOk(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!isCronAuthorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   try {
-    const result = await run()
-    return NextResponse.json({ ok: true, ...result })
-  } catch (error) {
-    console.error('POST /api/cron/guest-profiles-sync error:', error)
-    return NextResponse.json({ error: 'Sync failed' }, { status: 500 })
-  }
+    if ((process.env.ORACLE_OHIP_ENVIRONMENT ?? 'production') !== 'production') return NextResponse.json({ error: 'Production Oracle configuration required' }, { status: 503 })
+    const rows = await db.select({ orgId: properties.orgId, propertyId: properties.id }).from(properties).where(and(eq(properties.oracleHotelId, 'LO'), eq(properties.isActive, true)))
+    const today = new Date(), started = Date.now()
+    const fromDate = today.toLocaleDateString('en-CA', { timeZone: 'Asia/Colombo' })
+    const [year, month] = fromDate.split('-').map(Number)
+    const toDate = new Date(Date.UTC(year, month + 11, 0)).toISOString().slice(0, 10)
+    const details = []
+    for (const scope of rows) {
+      if (Date.now() - started > 30_000) break
+      details.push(await advanceLoSync(scope, { fromDate, toDate, budgetMs: Math.max(21000, 45000 - (Date.now() - started)) }))
+    }
+    await cleanLoStaging()
+    return NextResponse.json({ properties: rows.length, details }, { headers: { 'Cache-Control': 'no-store' } })
+  } catch { return NextResponse.json({ error: 'Sync failed' }, { status: 500 }) }
 }
-
-export async function GET(request: NextRequest) {
-  return POST(request)
-}
+export const GET = POST

@@ -15,7 +15,7 @@ beforeEach(() => {
   fetcher = vi.fn()
   vi.stubGlobal('fetch', fetcher)
 })
-afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals() })
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.useRealTimers() })
 describe('read-only Oracle transport', () => {
   it('uses client credentials and scopes every reservation GET to LO', async () => {
     fetcher.mockResolvedValueOnce(token()).mockResolvedValueOnce(empty())
@@ -75,6 +75,13 @@ describe('read-only Oracle transport', () => {
     expect((await listReservationPage('LO', { fromDate: '2026-02-30', toDate: '2026-03-01', offset: 0, limit: 1 })).ok).toBe(false)
     expect((await readReservation('LO', '../other')).ok).toBe(false)
     expect(fetcher).not.toHaveBeenCalled()
+  })
+  it('bounds the combined authentication and data request deadline', async () => {
+    vi.useFakeTimers()
+    fetcher.mockImplementationOnce(async () => { await vi.advanceTimersByTimeAsync(20_001); return token() }).mockResolvedValueOnce(empty())
+    const { listReservationPage } = await import('./client')
+    expect(await listReservationPage('LO', { offset: 0, limit: 1 })).toMatchObject({ ok: false, error: 'OHIP request timed out' })
+    expect(fetcher).toHaveBeenCalledTimes(1)
   })
   it('maps 204 list responses to an empty page', async () => {
     fetcher.mockResolvedValueOnce(token()).mockResolvedValueOnce(new Response(null, { status: 204 }))

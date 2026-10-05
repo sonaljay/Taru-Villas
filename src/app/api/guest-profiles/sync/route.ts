@@ -1,60 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { getProfile, getUserProperties } from '@/lib/auth/guards'
-import { getPropertyById } from '@/lib/db/queries/properties'
-import { syncPropertyArrivals, refreshPropertyStatuses } from '@/lib/oracle/sync'
-
-const bodySchema = z.object({
-  propertyId: z.string().uuid(),
-  fromDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  toDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-})
-
+import { z } from 'zod/v4'
+import { requireLoPropertyAccess, OracleAccessError } from '@/lib/oracle/access'
+import { validOracleDate } from '@/lib/oracle/reservations'
+import { advanceLoSync, getLoSyncStatus, OracleProtocolError } from '@/lib/oracle/sync'
+export const dynamic = 'force-dynamic'
+export const maxDuration = 120
+const bodySchema = z.object({ propertyId: z.string().uuid(), fromDate: z.string().refine(validOracleDate), toDate: z.string().refine(validOracleDate) })
 export async function POST(request: NextRequest) {
   try {
-    const profile = await getProfile()
-    if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    if (profile.role !== 'admin' && profile.role !== 'property_manager') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const body = await request.json()
-    const parsed = bodySchema.safeParse(body)
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: parsed.error.flatten().fieldErrors },
-        { status: 400 }
-      )
-    }
-    const { propertyId, fromDate, toDate } = parsed.data
-
-    const userProps = await getUserProperties(profile.id, profile.role)
-    if (userProps && !userProps.includes(propertyId)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const property = await getPropertyById(propertyId)
-    if (!property) return NextResponse.json({ error: 'Property not found' }, { status: 404 })
-    if (!property.oracleHotelId) {
-      return NextResponse.json(
-        { error: 'This property has no Oracle Hotel ID set' },
-        { status: 400 }
-      )
-    }
-
-    const pull = await syncPropertyArrivals(
-      property.orgId,
-      propertyId,
-      property.oracleHotelId,
-      fromDate,
-      toDate
-    )
-    if (pull.error) return NextResponse.json({ error: pull.error }, { status: 502 })
-    const refresh = await refreshPropertyStatuses(property.orgId, propertyId, property.oracleHotelId)
-
-    return NextResponse.json({ pulled: pull.pulled, ...refresh })
+    const body = bodySchema.safeParse(await request.json())
+    if (!body.success) return NextResponse.json({ error: 'Invalid sync request' }, { status: 400 })
+    const scope = await requireLoPropertyAccess(body.data.propertyId)
+    const result = await advanceLoSync(scope, { fromDate: body.data.fromDate, toDate: body.data.toDate, budgetMs: 45000 })
+    return NextResponse.json(result, { status: result.state === 'failed' ? 502 : 200, headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
-    console.error('POST /api/guest-profiles/sync error:', error)
-    return NextResponse.json({ error: 'Sync failed' }, { status: 500 })
+    return NextResponse.json({ error: error instanceof OracleAccessError || error instanceof OracleProtocolError ? error.message : 'Sync failed' }, { status: error instanceof OracleAccessError ? error.status : error instanceof OracleProtocolError ? 400 : 500 })
   }
+}
+export async function GET(request: NextRequest) {
+  try {
+    const propertyId = z.string().uuid().safeParse(request.nextUrl.searchParams.get('propertyId'))
+    if (!propertyId.success) return NextResponse.json({ error: 'Property required' }, { status: 400 })
+    const scope = await requireLoPropertyAccess(propertyId.data)
+    return NextResponse.json(await getLoSyncStatus(scope.orgId, scope.propertyId), { headers: { 'Cache-Control': 'no-store' } })
+  } catch (error) { return NextResponse.json({ error: error instanceof OracleAccessError ? error.message : 'Status unavailable' }, { status: error instanceof OracleAccessError ? error.status : 500 }) }
 }
