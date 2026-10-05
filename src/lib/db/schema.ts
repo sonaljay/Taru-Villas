@@ -17,6 +17,7 @@ import {
   jsonb,
   check,
   uniqueIndex,
+  foreignKey,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import { relations } from 'drizzle-orm'
@@ -138,7 +139,7 @@ export const properties = pgTable('properties', {
   isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-})
+}, (table) => [unique('properties_scope_unique').on(table.id, table.orgId)])
 
 export const propertiesRelations = relations(properties, ({ one, many }) => ({
   organization: one(organizations, {
@@ -459,6 +460,8 @@ export const guestProfiles = pgTable(
     inventoryDisposition: varchar('inventory_disposition', { length: 30 }).$type<OracleBooking['inventoryDisposition']>().default('unresolved').notNull(),
     oracleEnvironment: varchar('oracle_environment', { length: 20 }).default('production').notNull(),
     lastSyncedRunId: uuid('last_synced_run_id').references(() => oracleSyncRuns.id, { onDelete: 'set null' }),
+    firstImportedAt: timestamp('first_imported_at', { withTimezone: true }).defaultNow().notNull(),
+    questionnaireStatus: varchar('questionnaire_status', { length: 20 }).$type<'not_started' | 'submitted' | 'reviewed'>().default('not_started').notNull(),
     arrivalDate: date('arrival_date'),
     departureDate: date('departure_date'),
     roomType: varchar('room_type', { length: 100 }),
@@ -474,6 +477,8 @@ export const guestProfiles = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
+    unique('guest_profiles_scope_unique').on(table.id, table.orgId, table.propertyId),
+    check('guest_profiles_questionnaire_status', sql`${table.questionnaireStatus} IN ('not_started','submitted','reviewed')`),
     check('guest_profiles_room_quantity', sql`${table.roomQuantity} IS NULL OR ${table.roomQuantity} > 0`),
     check('guest_profiles_adult_count', sql`${table.adultCount} IS NULL OR ${table.adultCount} >= 0`),
     check('guest_profiles_child_count', sql`${table.childCount} IS NULL OR ${table.childCount} >= 0`),
@@ -486,6 +491,166 @@ export const guestProfiles = pgTable(
     ),
   ]
 )
+
+export const guestPortalAccess = pgTable('guest_portal_access', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id),
+  propertyId: uuid('property_id').notNull().references(() => properties.id, { onDelete: 'cascade' }),
+  guestProfileId: uuid('guest_profile_id').notNull().references(() => guestProfiles.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull().unique(),
+  encryptedToken: text('encrypted_token').notNull(),
+  version: integer('version').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  issuedBy: uuid('issued_by').references(() => profiles.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique('guest_portal_access_scope_unique').on(table.id, table.orgId, table.propertyId, table.guestProfileId),
+  uniqueIndex('guest_portal_access_one_active').on(table.guestProfileId).where(sql`${table.revokedAt} IS NULL`),
+  unique('guest_portal_access_profile_version').on(table.guestProfileId, table.version),
+  foreignKey({ name: 'guest_portal_access_booking_scope', columns: [table.guestProfileId, table.orgId, table.propertyId], foreignColumns: [guestProfiles.id, guestProfiles.orgId, guestProfiles.propertyId] }).onDelete('cascade')
+  ,foreignKey({ name: 'guest_portal_access_property_scope', columns: [table.propertyId, table.orgId], foreignColumns: [properties.id, properties.orgId] }).onDelete('cascade')
+])
+
+export const guestRequests = pgTable('guest_requests', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id),
+  propertyId: uuid('property_id').notNull().references(() => properties.id, { onDelete: 'cascade' }),
+  guestProfileId: uuid('guest_profile_id').notNull().references(() => guestProfiles.id, { onDelete: 'cascade' }),
+  accessId: uuid('access_id').notNull().references(() => guestPortalAccess.id),
+  submissionId: uuid('submission_id').notNull(),
+  payloadHash: text('payload_hash').notNull(),
+  kind: text('kind').notNull(),
+  itemId: uuid('item_id'),
+  itemKind: text('item_kind'),
+  title: text('title').notNull(),
+  notes: text('notes').notNull().default(''),
+  requestedDate: date('requested_date'),
+  requestedTime: text('requested_time'),
+  partySize: integer('party_size'),
+  quantity: integer('quantity'),
+  priceNote: text('price_note'),
+  state: text('state').notNull().default('received'),
+  publicReply: text('public_reply'),
+  internalNote: text('internal_note'),
+  version: integer('version').notNull().default(1),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique('guest_requests_submission_unique').on(table.guestProfileId, table.submissionId),
+  foreignKey({ name: 'guest_requests_booking_scope', columns: [table.guestProfileId, table.orgId, table.propertyId], foreignColumns: [guestProfiles.id, guestProfiles.orgId, guestProfiles.propertyId] }).onDelete('cascade'),
+  foreignKey({ name: 'guest_requests_access_scope', columns: [table.accessId, table.orgId, table.propertyId, table.guestProfileId], foreignColumns: [guestPortalAccess.id, guestPortalAccess.orgId, guestPortalAccess.propertyId, guestPortalAccess.guestProfileId] })
+  ,foreignKey({ name: 'guest_requests_property_scope', columns: [table.propertyId, table.orgId], foreignColumns: [properties.id, properties.orgId] }).onDelete('cascade')
+  ,unique('guest_requests_scope_unique').on(table.id, table.orgId, table.propertyId, table.guestProfileId)
+])
+
+export const guestRequestEvents = pgTable('guest_request_events', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id),
+  propertyId: uuid('property_id').notNull().references(() => properties.id, { onDelete: 'cascade' }),
+  guestProfileId: uuid('guest_profile_id').notNull().references(() => guestProfiles.id, { onDelete: 'cascade' }),
+  requestId: uuid('request_id').notNull().references(() => guestRequests.id, { onDelete: 'cascade' }),
+  actorId: uuid('actor_id').notNull().references(() => profiles.id),
+  kind: text('kind').notNull(),
+  fromState: text('from_state').notNull(),
+  toState: text('to_state').notNull(),
+  publicReply: text('public_reply'),
+  internalNote: text('internal_note'),
+  reason: text('reason'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  foreignKey({ name: 'guest_request_events_booking_scope', columns: [table.guestProfileId, table.orgId, table.propertyId], foreignColumns: [guestProfiles.id, guestProfiles.orgId, guestProfiles.propertyId] }).onDelete('cascade')
+  ,foreignKey({ name: 'guest_request_events_property_scope', columns: [table.propertyId, table.orgId], foreignColumns: [properties.id, properties.orgId] }).onDelete('cascade')
+  ,foreignKey({ name: 'guest_request_events_request_scope', columns: [table.requestId, table.orgId, table.propertyId, table.guestProfileId], foreignColumns: [guestRequests.id, guestRequests.orgId, guestRequests.propertyId, guestRequests.guestProfileId] }).onDelete('cascade')
+])
+
+export const guestEmailSettings = pgTable('guest_email_settings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id),
+  propertyId: uuid('property_id').notNull().references(() => properties.id, { onDelete: 'cascade' }),
+  enabledAt: timestamp('enabled_at', { withTimezone: true }),
+  enabledBy: uuid('enabled_by').references(() => profiles.id),
+  previewVersion: uuid('preview_version'),
+  previewCount: integer('preview_count'),
+  previewAt: timestamp('preview_at', { withTimezone: true }),
+  previewKind: text('preview_kind'),
+  previewHash: text('preview_hash'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique('guest_email_settings_property_unique').on(table.propertyId)
+  ,foreignKey({ name: 'guest_email_settings_property_scope', columns: [table.propertyId, table.orgId], foreignColumns: [properties.id, properties.orgId] }).onDelete('cascade')
+])
+
+export const guestEmailDeliveries = pgTable('guest_email_deliveries', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id),
+  propertyId: uuid('property_id').notNull().references(() => properties.id, { onDelete: 'cascade' }),
+  guestProfileId: uuid('guest_profile_id').notNull().references(() => guestProfiles.id, { onDelete: 'cascade' }),
+  accessId: uuid('access_id').notNull().references(() => guestPortalAccess.id),
+  accessVersion: integer('access_version').notNull(),
+  eventKey: text('event_key').notNull().unique(),
+  kind: text('kind').notNull(),
+  dueAt: timestamp('due_at', { withTimezone: true }).notNull(),
+  state: text('state').notNull().default('queued'),
+  leaseOwner: uuid('lease_owner'),
+  leaseUntil: timestamp('lease_until', { withTimezone: true }),
+  attempts: integer('attempts').notNull().default(0),
+  nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  encryptedPayload: text('encrypted_payload'),
+  recipientHash: text('recipient_hash'),
+  providerId: text('provider_id'),
+  acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+  lastError: text('last_error'),
+  requestedBy: uuid('requested_by').references(() => profiles.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  foreignKey({ name: 'guest_email_deliveries_booking_scope', columns: [table.guestProfileId, table.orgId, table.propertyId], foreignColumns: [guestProfiles.id, guestProfiles.orgId, guestProfiles.propertyId] }).onDelete('cascade'),
+  foreignKey({ name: 'guest_email_deliveries_access_scope', columns: [table.accessId, table.orgId, table.propertyId, table.guestProfileId], foreignColumns: [guestPortalAccess.id, guestPortalAccess.orgId, guestPortalAccess.propertyId, guestPortalAccess.guestProfileId] })
+  ,foreignKey({ name: 'guest_email_deliveries_property_scope', columns: [table.propertyId, table.orgId], foreignColumns: [properties.id, properties.orgId] }).onDelete('cascade')
+])
+
+export const guestPortalUploads = pgTable('guest_portal_uploads', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id),
+  propertyId: uuid('property_id').notNull().references(() => properties.id, { onDelete: 'cascade' }),
+  guestProfileId: uuid('guest_profile_id').notNull().references(() => guestProfiles.id, { onDelete: 'cascade' }),
+  accessId: uuid('access_id').notNull().references(() => guestPortalAccess.id),
+  objectPath: text('object_path').notNull().unique(),
+  mime: text('mime').notNull(),
+  byteSize: integer('byte_size').notNull(),
+  state: text('state').notNull().default('draft'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  foreignKey({ name: 'guest_portal_uploads_booking_scope', columns: [table.guestProfileId, table.orgId, table.propertyId], foreignColumns: [guestProfiles.id, guestProfiles.orgId, guestProfiles.propertyId] }).onDelete('cascade'),
+  foreignKey({ name: 'guest_portal_uploads_access_scope', columns: [table.accessId, table.orgId, table.propertyId, table.guestProfileId], foreignColumns: [guestPortalAccess.id, guestPortalAccess.orgId, guestPortalAccess.propertyId, guestPortalAccess.guestProfileId] })
+  ,foreignKey({ name: 'guest_portal_uploads_property_scope', columns: [table.propertyId, table.orgId], foreignColumns: [properties.id, properties.orgId] }).onDelete('cascade')
+  ,unique('guest_portal_uploads_scope_unique').on(table.id, table.guestProfileId)
+])
+
+export const preArrivalSubmissions = pgTable('pre_arrival_submissions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id),
+  propertyId: uuid('property_id').notNull().references(() => properties.id, { onDelete: 'cascade' }),
+  guestProfileId: uuid('guest_profile_id').notNull().references(() => guestProfiles.id, { onDelete: 'cascade' }),
+  submissionId: uuid('submission_id').notNull(),
+  payloadHash: text('payload_hash').notNull(),
+  submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull().defaultNow(),
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+  reviewedBy: uuid('reviewed_by').references(() => profiles.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique('pre_arrival_submissions_client_unique').on(table.guestProfileId, table.submissionId),
+  foreignKey({ name: 'pre_arrival_submissions_booking_scope', columns: [table.guestProfileId, table.orgId, table.propertyId], foreignColumns: [guestProfiles.id, guestProfiles.orgId, guestProfiles.propertyId] }).onDelete('cascade')
+  ,foreignKey({ name: 'pre_arrival_submissions_property_scope', columns: [table.propertyId, table.orgId], foreignColumns: [properties.id, properties.orgId] }).onDelete('cascade')
+  ,unique('pre_arrival_submissions_scope_unique').on(table.id, table.guestProfileId)
+])
 
 export const preArrivalQuestions = pgTable('pre_arrival_questions', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -518,9 +683,16 @@ export const preArrivalAnswers = pgTable('pre_arrival_answers', {
   valueText: text('value_text'),
   valueOptions: text('value_options').array().default(sql`'{}'::text[]`).notNull(),
   fileUrl: text('file_url'),
+  submissionId: uuid('submission_id').references(() => preArrivalSubmissions.id, { onDelete: 'cascade' }),
+  uploadId: uuid('upload_id').references(() => guestPortalUploads.id),
+  typeSnapshot: text('type_snapshot'),
+  optionsSnapshot: text('options_snapshot').array().default(sql`'{}'::text[]`).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-})
+}, (table) => [
+  foreignKey({ name: 'pre_arrival_answers_upload_owner', columns: [table.uploadId, table.guestProfileId], foreignColumns: [guestPortalUploads.id, guestPortalUploads.guestProfileId] }),
+  foreignKey({ name: 'pre_arrival_answers_submission_owner', columns: [table.submissionId, table.guestProfileId], foreignColumns: [preArrivalSubmissions.id, preArrivalSubmissions.guestProfileId] }).onDelete('cascade'),
+])
 
 export const guestProfilesRelations = relations(guestProfiles, ({ one, many }) => ({
   property: one(properties, {

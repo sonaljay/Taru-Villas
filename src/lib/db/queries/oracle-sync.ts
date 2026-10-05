@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto'
 import { and, asc, desc, eq, inArray, isNotNull, lt, notExists, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { guestProfiles, oracleSyncRuns, oracleSyncStaging, properties } from '@/lib/db/schema'
+import { guestProfiles, guestPortalAccess, oracleSyncRuns, oracleSyncStaging, properties } from '@/lib/db/schema'
 import type { OracleBooking } from '@/lib/oracle/types'
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
 type Run = typeof oracleSyncRuns.$inferSelect
@@ -97,6 +97,9 @@ export async function publishLoSync(runId: string, owner: string): Promise<void>
         oracleEnvironment: 'production', lastSyncedRunId: run.id, lastPulledAt: now, updatedAt: now,
       }, setWhere: eq(guestProfiles.orgId, run.orgId) }).returning()
     }
+    await tx.update(guestPortalAccess).set({
+      expiresAt: sql`(select ((${guestProfiles.departureDate} + 1)::timestamp at time zone 'Asia/Colombo') - interval '1 millisecond' from ${guestProfiles} where ${guestProfiles.id} = ${guestPortalAccess.guestProfileId})`, updatedAt: now,
+    }).where(and(eq(guestPortalAccess.orgId, run.orgId), eq(guestPortalAccess.propertyId, run.propertyId), sql`${guestPortalAccess.revokedAt} IS NULL`, inArray(guestPortalAccess.guestProfileId, tx.select({ id: guestProfiles.id }).from(guestProfiles).where(eq(guestProfiles.lastSyncedRunId, run.id))))).returning()
     await tx.update(oracleSyncRuns).set({ state: 'complete', completedAt: now, leaseOwner: null, leaseUntil: null, error: null, updatedAt: now }).where(eq(oracleSyncRuns.id, runId)).returning()
   })
 }
