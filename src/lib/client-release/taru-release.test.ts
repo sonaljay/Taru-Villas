@@ -3,7 +3,7 @@ import config from '../../../next.config'
 import deploymentProfile from '../../../deployment-profile.json'
 import { getClientModuleRequestStatus, getEnabledClientModules, isPathEnabled } from './modules'
 
-const modules = 'dashboard,tasks,fleet,daily-records'
+const modules = 'dashboard,tasks,fleet,daily-records,guest-profiles'
 
 describe('Taru release', () => {
   it('applies the checked-in deployment profile to the build', () => {
@@ -24,6 +24,7 @@ describe('Taru release', () => {
     '/api/waste', '/api/cron/electricity-autofill',
     '/admin/users', '/admin/properties', '/api/auth/provision',
     '/login', '/callback', '/set-password',
+    '/guest-profiles', '/api/guest-profiles/sync', '/api/oracle/test-connection', '/api/cron/guest-profiles-sync', '/properties/example/guest-profiles',
   ])('keeps the required route accessible: %s', (path) => {
     expect(getClientModuleRequestStatus(path, modules)).toBeNull()
   })
@@ -32,9 +33,9 @@ describe('Taru release', () => {
     '/surveys', '/api/surveys', '/api/templates', '/g/example',
     '/sops', '/api/sops/templates', '/rostering', '/api/rostering/cycles',
     '/assets', '/api/assets', '/menus', '/m/example', '/excursions', '/e/example',
-    '/guest-profiles', '/api/oracle/test-connection', '/settings',
+    '/settings',
     '/admin/allowed-emails', '/utilities', '/u/example', '/api/utilities/public',
-    '/properties/example/menus', '/properties/example/guest-profiles',
+    '/properties/example/menus',
   ])('blocks excluded modules at their routes: %s', (path) => {
     expect(getClientModuleRequestStatus(path, modules)).toBe(404)
     expect(isPathEnabled(path, getEnabledClientModules(modules))).toBe(false)

@@ -2,7 +2,7 @@
 export function getBuildModuleEnvironment(profile: string): Record<string, string> {
   if (profile === 'development') return {}
   if (profile === 'taru-release') {
-    return { CLIENT_ENABLED_MODULES: 'dashboard,tasks,fleet,daily-records' }
+    return { CLIENT_ENABLED_MODULES: 'dashboard,tasks,fleet,daily-records,guest-profiles' }
   }
   throw new Error(`Unknown deployment profile: ${profile}`)
 }

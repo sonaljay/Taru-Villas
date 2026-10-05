@@ -7,7 +7,7 @@ Vercel team/project: `taru-vi-llas/taru-villas`.
 
 `next.config.ts` reads the profile and bakes the release policy into server,
 middleware, and client bundles. Release pins `CLIENT_ENABLED_MODULES` to
-`dashboard,tasks,fleet,daily-records`, regardless of environment overrides.
+`dashboard,tasks,fleet,daily-records,guest-profiles`, regardless of environment overrides.
 Development leaves the existing environment policy available; leave
 `CLIENT_ENABLED_MODULES` unset for all modules (invite-only deployments still
 require an explicit valid module list).
@@ -43,10 +43,12 @@ Enabled products:
 - Fleet Management, including dispatch, vehicles, drivers, distances, driver
   links, and fleet APIs, subject to existing role permissions
 - Daily Records: water, electricity, and wastage, including their backing APIs
+- Guest Profiles: scoped LO read-only imports and pre-arrival status; see
+  [LO activation runbook](lo-oracle.md) before enabling database-backed routes.
 
 Users and Property Settings remain available to admins as core infrastructure.
 Other product pages and APIs return 404, including Surveys, SOPs, Rostering,
-Assets, Menus, Excursions, Guest Profiles, and standalone Utilities pages.
+Assets, Menus, Excursions, and standalone Utilities pages.
 The sign-in provisioning endpoint remains available under its existing checks.
 Non-admin users land on Tasks instead of the disabled Surveys module.
 

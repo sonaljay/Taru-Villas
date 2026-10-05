@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, RefreshCw, PlugZap } from 'lucide-react'
 import { toast } from 'sonner'
@@ -32,17 +32,22 @@ interface Props {
   property: { id: string; name: string; oracleHotelId: string | null }
   profiles: GuestProfile[]
   isAdmin: boolean
+  syncStatus: { lastSuccessAt: string | null; fromDate: string | null; toDate: string | null; state: string; error: string | null }
 }
 
-export function GuestProfilesPageClient({ property, profiles, isAdmin }: Props) {
+export function GuestProfilesPageClient({ property, profiles, isAdmin, syncStatus }: Props) {
   const router = useRouter()
   const [pulling, setPulling] = useState(false)
   const [testing, setTesting] = useState(false)
+  const [status, setStatus] = useState(syncStatus)
+  const [progress, setProgress] = useState(0)
+  const stopped = useRef(false)
+  useEffect(() => () => { stopped.current = true }, [])
 
   async function testConnection() {
     setTesting(true)
     try {
-      const res = await fetch('/api/oracle/test-connection', { method: 'POST' })
+      const res = await fetch('/api/oracle/test-connection', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ propertyId: property.id }) })
       const data = await res.json()
       if (data.ok) {
         toast.success('Oracle connection OK')
@@ -57,28 +62,35 @@ export function GuestProfilesPageClient({ property, profiles, isAdmin }: Props) 
   }
 
   async function pull() {
+    stopped.current = false
     setPulling(true)
+    setProgress(0)
     try {
-      const today = new Date()
-      const in30 = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)
-      const res = await fetch('/api/guest-profiles/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          propertyId: property.id,
-          fromDate: today.toISOString().slice(0, 10),
-          toDate: in30.toISOString().slice(0, 10),
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Sync failed')
-      toast.success(`Pulled ${data.pulled} arrivals (${data.checkedIn ?? 0} now checked-in)`)
-      router.refresh()
+      const fromDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Colombo' })
+      const [year, month] = fromDate.split('-').map(Number)
+      const toDate = new Date(Date.UTC(year, month + 11, 0)).toISOString().slice(0, 10)
+      const started = Date.now()
+      while (!stopped.current && Date.now() - started < 10 * 60_000) {
+        const res = await fetch('/api/guest-profiles/sync', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ propertyId: property.id, fromDate, toDate }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error ?? 'Sync failed')
+        setProgress(value => value + (data.processed ?? 0))
+        const statusResponse = await fetch(`/api/guest-profiles/sync?propertyId=${property.id}`, { cache: 'no-store' })
+        if (statusResponse.ok) setStatus(await statusResponse.json())
+        if (data.state === 'complete') {
+          toast.success('Bookings refreshed')
+          router.refresh()
+          return
+        }
+        await new Promise(resolve => setTimeout(resolve, 2000))
+      }
+      toast.info('Refresh paused. Continue refresh to resume.')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Sync failed')
-    } finally {
-      setPulling(false)
-    }
+    } finally { setPulling(false) }
   }
 
   return (
@@ -100,22 +112,29 @@ export function GuestProfilesPageClient({ property, profiles, isAdmin }: Props) 
               {testing ? 'Testing…' : 'Test connection'}
             </Button>
           )}
-          <Button onClick={pull} disabled={pulling || !property.oracleHotelId}>
+          <Button onClick={pull} disabled={pulling || property.oracleHotelId !== 'LO'}>
             <RefreshCw className={cn('size-4', pulling && 'animate-spin')} />
-            {pulling ? 'Pulling…' : 'Pull arrivals'}
+            {pulling ? 'Refreshing…' : status.state === 'running' ? 'Continue refresh' : 'Refresh bookings'}
           </Button>
         </div>
       </div>
 
-      {!property.oracleHotelId && (
+      <Card><CardContent className="space-y-1 py-4 text-sm">
+        <p>{status.lastSuccessAt ? `Last complete refresh: ${new Date(status.lastSuccessAt).toLocaleString()}` : 'Bookings have not been imported yet.'}</p>
+        {status.fromDate && <p className="text-muted-foreground">Arrival coverage: {status.fromDate} to {status.toDate}; includes current in-house stays.</p>}
+        {status.error && <p role="alert" className="text-destructive">{status.error}. The last complete bookings are retained.</p>}
+        {pulling && <div role="status" className="flex items-center gap-3"><span>{progress} records processed</span><Button variant="outline" size="sm" onClick={() => { stopped.current = true }}>Pause refresh</Button></div>}
+      </CardContent></Card>
+
+      {property.oracleHotelId !== 'LO' && (
         <Card><CardContent className="py-4 text-sm text-amber-700">
-          Set this property&apos;s Oracle Hotel ID (in Property Settings) before pulling arrivals.
+          This release supports LO. Verify the Oracle hotel name before setting the Hotel ID in Property Settings.
         </CardContent></Card>
       )}
 
       {profiles.length === 0 ? (
         <Card><CardContent className="py-16 text-center text-sm text-muted-foreground">
-          No guest profiles yet. Click &ldquo;Pull arrivals&rdquo; to fetch upcoming reservations.
+          No guest profiles yet. Click &ldquo;Refresh bookings&rdquo; to import upcoming reservations.
         </CardContent></Card>
       ) : (
         <Card><CardContent className="p-0">
@@ -126,7 +145,8 @@ export function GuestProfilesPageClient({ property, profiles, isAdmin }: Props) 
                 <TableHead>Confirmation</TableHead>
                 <TableHead>Arrival</TableHead>
                 <TableHead>Room</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Stay</TableHead>
+                <TableHead>Pre-arrival</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -136,6 +156,7 @@ export function GuestProfilesPageClient({ property, profiles, isAdmin }: Props) 
                   <TableCell>{p.confirmationNumber ?? '—'}</TableCell>
                   <TableCell>{p.arrivalDate ?? '—'}</TableCell>
                   <TableCell>{p.roomNumber ?? p.roomType ?? '—'}</TableCell>
+                  <TableCell>{p.stayState.replaceAll('_', ' ')}<span className="block text-xs text-muted-foreground">{p.oracleReservationStatus}</span></TableCell>
                   <TableCell>
                     <span className={cn('inline-flex rounded-full px-2 py-0.5 text-xs font-medium', STATUS_CLASS[p.status])}>
                       {STATUS_LABEL[p.status]}

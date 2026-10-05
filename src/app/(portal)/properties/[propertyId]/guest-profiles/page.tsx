@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { requireRole, getUserProperties } from '@/lib/auth/guards'
 import { getPropertyByIdForOrganization } from '@/lib/db/queries/properties'
+import { getLoSyncStatus } from '@/lib/db/queries/oracle-sync'
 import { getGuestProfilesForProperty } from '@/lib/db/queries/guest-profiles'
 import { GuestProfilesPageClient } from '@/components/guest-profiles/guest-profiles-page-client'
 
@@ -20,14 +21,15 @@ export default async function GuestProfilesPage({
   }
 
   const property = await getPropertyByIdForOrganization(propertyId, profile.orgId)
-  if (!property) notFound()
+  if (!property || !property.isActive) notFound()
 
-  const profiles = await getGuestProfilesForProperty(profile.orgId, propertyId)
+  const [profiles, syncStatus] = await Promise.all([getGuestProfilesForProperty(profile.orgId, propertyId), getLoSyncStatus(profile.orgId, propertyId)])
 
   return (
     <GuestProfilesPageClient
       property={{ id: property.id, name: property.name, oracleHotelId: property.oracleHotelId }}
       profiles={profiles}
+      syncStatus={syncStatus}
       isAdmin={profile.role === 'admin'}
     />
   )
