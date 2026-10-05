@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
+import { RequestInbox } from './request-inbox'
 import { QuestionBuilder } from './question-builder'
 import { QuestionnaireReview } from './questionnaire-review'
 import { cn } from '@/lib/utils'
@@ -23,7 +24,7 @@ interface Props {
 
 export function GuestProfilesPageClient({ property, profiles, isAdmin, syncStatus }: Props) {
   const router = useRouter()
-  const [tab,setTab]=useState<'bookings'|'questions'>('bookings')
+  const [tab,setTab]=useState<'bookings'|'questions'|'requests'>('bookings')
   const [reviewId,setReviewId]=useState<string|null>(null)
   const [privateLink,setPrivateLink]=useState<string|null>(null)
   const [linkBusy,setLinkBusy]=useState<string|null>(null)
@@ -124,10 +125,10 @@ export function GuestProfilesPageClient({ property, profiles, isAdmin, syncStatu
         </CardContent></Card>
       )}
 
-      {property.oracleHotelId==='LO'&&<div className="flex gap-2"><Button variant={tab==='bookings'?'default':'outline'} onClick={()=>setTab('bookings')}>Bookings</Button><Button variant={tab==='questions'?'default':'outline'} onClick={()=>setTab('questions')}>Questions</Button></div>}
+      {property.oracleHotelId==='LO'&&<div className="flex gap-2"><Button variant={tab==='bookings'?'default':'outline'} onClick={()=>setTab('bookings')}>Bookings</Button><Button variant={tab==='questions'?'default':'outline'} onClick={()=>setTab('questions')}>Questions</Button><Button variant={tab==='requests'?'default':'outline'} onClick={()=>setTab('requests')}>Guest requests</Button></div>}
       {privateLink&&<Card><CardContent className="space-y-3 py-4"><p className="text-sm">Private guest link · share only with this reservation’s guests</p><input readOnly aria-label="Private guest link" value={privateLink} className="w-full rounded-md border p-2 text-sm"/><div className="flex gap-3"><Button variant="outline" onClick={()=>{void navigator.clipboard.writeText(privateLink).then(()=>toast.success('Link copied')).catch(()=>toast.error('Select the link to copy it'))}}>Copy link</Button><Button variant="ghost" onClick={()=>setPrivateLink(null)}>Close</Button></div></CardContent></Card>}
       {reviewId&&<QuestionnaireReview key={reviewId} guestProfileId={reviewId} onClose={()=>setReviewId(null)}/>}
-      {tab==='questions'?<QuestionBuilder propertyId={property.id} isAdmin={isAdmin}/>:profiles.length === 0 ? (
+      {tab==='requests'?<RequestInbox propertyId={property.id}/>:tab==='questions'?<QuestionBuilder propertyId={property.id} isAdmin={isAdmin}/>:profiles.length === 0 ? (
         <Card><CardContent className="py-16 text-center text-sm text-muted-foreground">
           No guest profiles yet. Click &ldquo;Refresh bookings&rdquo; to import upcoming reservations.
         </CardContent></Card>

@@ -3,13 +3,21 @@ import { useState } from 'react'
 import type { GuestPortalView } from '@/lib/guest-portal/queries'
 import { GuestMenu, type RequestSelection } from './guest-menu'
 import { GuestExcursions } from './guest-excursions'
+import { GuestRequestForm } from './request-form'
+import type { PublicGuestRequest } from '@/lib/guest-portal/types'
 import { QuestionnaireForm } from './questionnaire-form'
 import { Button } from '@/components/ui/button'
 const sections = ['Stay', 'Pre-arrival', 'Dining', 'Experiences', 'Requests'] as const
 export function GuestHome({ view, token }: { view: GuestPortalView; token: string }) {
   const [section, setSection] = useState<typeof sections[number]>('Stay')
+  const [history,setHistory]=useState(view.requests)
+  const [receipt,setReceipt]=useState('')
+  const [historyError,setHistoryError]=useState('')
+  const [refreshing,setRefreshing]=useState(false)
   const [selection, setSelection] = useState<RequestSelection | null>(null)
   function selectRequest(value: RequestSelection) { setSelection(value); setSection('Requests') }
+  async function refreshRequests(){setRefreshing(true);setHistoryError('');try{const response=await fetch(`/api/guest-portal/${token}/requests`,{cache:'no-store'});const data=await response.json();if(!response.ok)throw Error(data.error??'Unable to refresh');setHistory(data)}catch(error){setHistoryError(error instanceof Error?error.message:'Unable to refresh')}finally{setRefreshing(false)}}
+  function received(request:PublicGuestRequest){setHistory(current=>[request,...current.filter(row=>row.id!==request.id)]);setSelection(null);setReceipt('Your request has been received. Our team will confirm availability here.')}
   function date(value: string) { return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`)) }
   return <main className="mx-auto max-w-6xl px-5 pb-16 sm:px-10" data-guest-portal>
     <nav aria-label="Your stay navigation" className="my-6 flex flex-wrap gap-2 border-b border-[#243b32]/15 pb-5">{sections.map(item => <button key={item} onClick={() => setSection(item)} aria-current={section === item ? 'page' : undefined} className={`rounded-full px-4 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#243b32] ${section === item ? 'bg-[#243b32] text-white' : 'hover:bg-[#243b32]/10'}`}>{item}</button>)}</nav>
@@ -18,7 +26,7 @@ export function GuestHome({ view, token }: { view: GuestPortalView; token: strin
       {section === 'Dining' && <GuestMenu menus={view.menus} disabled={!view.stay.fresh} onRequest={selectRequest} />}
       {section === 'Experiences' && <GuestExcursions excursions={view.excursions} disabled={!view.stay.fresh} onRequest={selectRequest} />}
       {section === 'Pre-arrival' && <QuestionnaireForm questions={view.questions} token={token} status={view.questionnaireStatus} answers={view.questionnaireAnswers} disabled={!view.stay.fresh} />}
-      {section === 'Requests' && <div data-requests-slot>{selection && <p className="mb-4">Selected: {selection.title}</p>}{view.stay.stayState === 'in_house' && <Button variant="outline" disabled={!view.stay.fresh} onClick={() => setSelection({ kind: 'service', title: 'Guest request' })}>Request assistance</Button>}<div className="mt-6 space-y-4">{view.requests.length ? view.requests.map(request => <article key={request.id} className="rounded-xl border border-[#243b32]/15 bg-white p-5"><div className="flex flex-wrap justify-between gap-2"><h2 className="font-medium">{request.title}</h2><span className="text-xs uppercase">{request.state.replaceAll('_',' ')}</span></div><p className="mt-3 whitespace-pre-line text-sm">{request.notes}</p>{request.priceNote && <p className="mt-3 text-xs">{request.priceNote}</p>}{request.publicReply && <p className="mt-4 border-t pt-4 text-sm">Our team: {request.publicReply}</p>}</article>) : <p>Your requests and our team’s replies will appear here.</p>}</div></div>}
+      {section === 'Requests' && <div data-requests-slot>{receipt&&<p role="status" className="mb-5 rounded-lg bg-[#e5ecdf] p-4 text-sm">{receipt}</p>}{selection&&<GuestRequestForm key={`${selection.kind}:${selection.itemId??'service'}`} selection={selection} token={token} arrivalDate={view.stay.arrivalDate} departureDate={view.stay.departureDate} disabled={!view.stay.fresh} onReceived={received} onCancel={()=>setSelection(null)}/>}<Button variant="outline" disabled={refreshing} onClick={()=>void refreshRequests()}>{refreshing?'Refreshing…':'Refresh replies'}</Button>{historyError&&<p role="alert" className="mt-3 text-sm text-red-800">{historyError}</p>}{view.stay.stayState === 'in_house' && <Button variant="outline" disabled={!view.stay.fresh} onClick={() => setSelection({ kind: 'service', title: 'Guest request' })}>Request assistance</Button>}<div className="mt-6 space-y-4">{history.length ? history.map(request => <article key={request.id} className="rounded-xl border border-[#243b32]/15 bg-white p-5"><div className="flex flex-wrap justify-between gap-2"><h2 className="font-medium">{request.title}</h2><span className="text-xs uppercase">{request.state.replaceAll('_',' ')}</span></div><p className="mt-3 whitespace-pre-line text-sm">{request.notes}</p>{request.requestedDate&&<p className="mt-2 text-xs">Preferred: {request.requestedDate} {request.requestedTime??''}</p>}{request.partySize&&<p className="mt-2 text-xs">Guests: {request.partySize}{request.quantity?` · Quantity: ${request.quantity}`:''}</p>}{request.priceNote && <p className="mt-3 text-xs">{request.priceNote}</p>}{request.publicReply && <p className="mt-4 border-t pt-4 text-sm">Our team: {request.publicReply}</p>}</article>) : <p>Your requests and our team’s replies will appear here.</p>}</div></div>}
     </section>}
   </main>
 }

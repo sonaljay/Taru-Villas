@@ -9,5 +9,5 @@ export default async function StayPage({ params }: { params: Promise<{ token: st
     if (!(error instanceof GuestInputError) || error.status !== 404) throw error
   }
   if (!view) return <main className="mx-auto max-w-xl px-6 py-24"><h1 className="font-serif text-4xl">This stay link is unavailable</h1><p className="mt-5 leading-relaxed">Please contact the Taru Villas team for your current private link.</p></main>
-  return <GuestHome view={view} token={token} />
+  return <GuestHome key={token} view={view} token={token} />
 }
