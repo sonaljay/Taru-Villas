@@ -27,6 +27,7 @@ export async function syncPropertyArrivals(
 
 /** Refresh Oracle status for profiles still awaiting check-in. */
 export async function refreshPropertyStatuses(
+  orgId: string,
   propertyId: string,
   hotelId: string
 ): Promise<{ refreshed: number; checkedIn: number }> {
@@ -35,6 +36,7 @@ export async function refreshPropertyStatuses(
     .from(guestProfiles)
     .where(
       and(
+        eq(guestProfiles.orgId, orgId),
         eq(guestProfiles.propertyId, propertyId),
         eq(guestProfiles.status, 'pending_checkin')
       )
@@ -44,7 +46,7 @@ export async function refreshPropertyStatuses(
   for (const p of pending) {
     const res = await getReservation(hotelId, p.oracleReservationId)
     if (!res.ok) continue
-    const updated = await applyReservationStatus(p.id, res.data)
+    const updated = await applyReservationStatus(orgId, propertyId, p.id, res.data)
     refreshed++
     if (updated.status === 'checked_in') checkedIn++
   }

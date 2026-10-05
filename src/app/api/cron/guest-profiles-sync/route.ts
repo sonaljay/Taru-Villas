@@ -31,7 +31,7 @@ async function run() {
   for (const p of rows) {
     if (!p.oracleHotelId) continue
     const pull = await syncPropertyArrivals(p.orgId, p.id, p.oracleHotelId, from, to)
-    const refresh = await refreshPropertyStatuses(p.id, p.oracleHotelId)
+    const refresh = await refreshPropertyStatuses(p.orgId, p.id, p.oracleHotelId)
     details.push({ propertyId: p.id, ...pull, ...refresh })
   }
   return { properties: rows.length, details }

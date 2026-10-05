@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
       toDate
     )
     if (pull.error) return NextResponse.json({ error: pull.error }, { status: 502 })
-    const refresh = await refreshPropertyStatuses(propertyId, property.oracleHotelId)
+    const refresh = await refreshPropertyStatuses(property.orgId, propertyId, property.oracleHotelId)
 
     return NextResponse.json({ pulled: pull.pulled, ...refresh })
   } catch (error) {

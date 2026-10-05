@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { requireRole, getUserProperties } from '@/lib/auth/guards'
-import { getPropertyById } from '@/lib/db/queries/properties'
+import { getPropertyByIdForOrganization } from '@/lib/db/queries/properties'
 import { getGuestProfilesForProperty } from '@/lib/db/queries/guest-profiles'
 import { GuestProfilesPageClient } from '@/components/guest-profiles/guest-profiles-page-client'
 
@@ -19,10 +19,10 @@ export default async function GuestProfilesPage({
     if (userProps && !userProps.includes(propertyId)) notFound()
   }
 
-  const property = await getPropertyById(propertyId)
+  const property = await getPropertyByIdForOrganization(propertyId, profile.orgId)
   if (!property) notFound()
 
-  const profiles = await getGuestProfilesForProperty(propertyId)
+  const profiles = await getGuestProfilesForProperty(profile.orgId, propertyId)
 
   return (
     <GuestProfilesPageClient

@@ -15,9 +15,12 @@ import {
   unique,
   index,
   jsonb,
+  check,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import { relations } from 'drizzle-orm'
+import type { OracleBooking, StayState } from '@/lib/oracle/types'
 
 // ---------------------------------------------------------------------------
 // Auth schema (Supabase auth.users reference)
@@ -394,6 +397,38 @@ export const guestSurveyLinksRelations = relations(
 // Oracle Guest Profiles + Pre-Arrival
 // ---------------------------------------------------------------------------
 
+export const oracleSyncRuns = pgTable('oracle_sync_runs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id),
+  propertyId: uuid('property_id').notNull().references(() => properties.id, { onDelete: 'cascade' }),
+  environment: varchar('environment', { length: 20 }).default('production').notNull(),
+  fromDate: date('from_date').notNull(),
+  toDate: date('to_date').notNull(),
+  phase: text('phase').default('arrivals:0').notNull(),
+  offset: integer('offset').default(0).notNull(),
+  state: varchar('state', { length: 20 }).default('running').notNull(),
+  leaseOwner: uuid('lease_owner'),
+  leaseUntil: timestamp('lease_until', { withTimezone: true }),
+  error: text('error'),
+  startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, t => [
+  uniqueIndex('oracle_sync_runs_one_running').on(t.propertyId).where(sql`${t.state} = 'running'`),
+  check('oracle_sync_runs_production', sql`${t.environment} = 'production'`),
+  check('oracle_sync_runs_range', sql`${t.toDate} >= ${t.fromDate} AND ${t.offset} >= 0`),
+  check('oracle_sync_runs_state', sql`${t.state} IN ('running', 'complete', 'failed')`),
+])
+export const oracleSyncStaging = pgTable('oracle_sync_staging', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  runId: uuid('run_id').notNull().references(() => oracleSyncRuns.id, { onDelete: 'cascade' }),
+  oracleReservationId: varchar('oracle_reservation_id', { length: 255 }).notNull(),
+  booking: jsonb('booking').$type<OracleBooking>().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, t => [unique('oracle_sync_staging_run_reservation_unique').on(t.runId, t.oracleReservationId)])
+
 export const guestProfiles = pgTable(
   'guest_profiles',
   {
@@ -408,6 +443,20 @@ export const guestProfiles = pgTable(
     confirmationNumber: varchar('confirmation_number', { length: 255 }),
     guestName: text('guest_name'),
     guestEmail: text('guest_email'),
+    guestPhone: text('guest_phone'),
+    roomQuantity: integer('room_quantity'),
+    adultCount: integer('adult_count'),
+    childCount: integer('child_count'),
+    stayState: varchar('stay_state', { length: 30 }).$type<StayState>().default('unknown').notNull(),
+    channelCode: text('channel_code'),
+    sourceCode: text('source_code'),
+    marketCode: text('market_code'),
+    isRoomReservation: boolean('is_room_reservation').default(true).notNull(),
+    isPseudoRoom: boolean('is_pseudo_room').default(false).notNull(),
+    inventoryGroupId: text('inventory_group_id'),
+    inventoryDisposition: varchar('inventory_disposition', { length: 30 }).$type<OracleBooking['inventoryDisposition']>().default('unresolved').notNull(),
+    oracleEnvironment: varchar('oracle_environment', { length: 20 }).default('production').notNull(),
+    lastSyncedRunId: uuid('last_synced_run_id').references(() => oracleSyncRuns.id, { onDelete: 'set null' }),
     arrivalDate: date('arrival_date'),
     departureDate: date('departure_date'),
     roomType: varchar('room_type', { length: 100 }),
@@ -423,6 +472,12 @@ export const guestProfiles = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
+    check('guest_profiles_room_quantity', sql`${table.roomQuantity} IS NULL OR ${table.roomQuantity} > 0`),
+    check('guest_profiles_adult_count', sql`${table.adultCount} IS NULL OR ${table.adultCount} >= 0`),
+    check('guest_profiles_child_count', sql`${table.childCount} IS NULL OR ${table.childCount} >= 0`),
+    check('guest_profiles_stay_state', sql`${table.stayState} IN ('reserved', 'in_house', 'checked_out', 'cancelled', 'no_show', 'waitlist', 'unknown')`),
+    check('guest_profiles_inventory_disposition', sql`${table.inventoryDisposition} IN ('count', 'secondary_share', 'unresolved')`),
+    check('guest_profiles_oracle_environment', sql`${table.oracleEnvironment} = 'production'`),
     unique('guest_profiles_property_reservation_unique').on(
       table.propertyId,
       table.oracleReservationId
