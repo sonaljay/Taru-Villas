@@ -214,13 +214,14 @@ DATABASE_URL="..."          # Fallback for POSTGRES_URL
 DEV_BYPASS_AUTH="true"      # Skip auth in development
 CRON_SECRET="..."           # Bearer token for /api/cron routes
 
-# Oracle OHIP (Guest Profiles / pre-arrival) — sandbox values for now
+# Oracle OHIP — LO read-only client credentials (see .env.oracle.example)
 ORACLE_OHIP_GATEWAY="https://<customer-gateway-host>"
 ORACLE_OHIP_CLIENT_ID="..."
 ORACLE_OHIP_CLIENT_SECRET="..."
 ORACLE_OHIP_APP_KEY="..."
-ORACLE_OHIP_USERNAME="..."
-ORACLE_OHIP_PASSWORD="..."
+ORACLE_OHIP_ENVIRONMENT="production"
+ORACLE_OHIP_ENTERPRISE_ID="TVPL"
+ORACLE_OHIP_SCOPE="urn:opc:hgbu:ws:__myscopes__"
 ```
 
 ## Development Commands
