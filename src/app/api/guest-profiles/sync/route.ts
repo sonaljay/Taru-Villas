@@ -1,3 +1,4 @@
+import { enqueueGuestEmails } from '@/lib/guest-portal/email-worker'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod/v4'
 import { requireLoPropertyAccess, OracleAccessError } from '@/lib/oracle/access'
@@ -12,6 +13,7 @@ export async function POST(request: NextRequest) {
     if (!body.success) return NextResponse.json({ error: 'Invalid sync request' }, { status: 400 })
     const scope = await requireLoPropertyAccess(body.data.propertyId)
     const result = await advanceLoSync(scope, { fromDate: body.data.fromDate, toDate: body.data.toDate, budgetMs: 45000 })
+    if (result.state === 'complete') await enqueueGuestEmails(new Date()).catch(() => undefined)
     return NextResponse.json(result, { status: result.state === 'failed' ? 502 : 200, headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
     return NextResponse.json({ error: error instanceof OracleAccessError || error instanceof OracleProtocolError ? error.message : 'Sync failed' }, { status: error instanceof OracleAccessError ? error.status : error instanceof OracleProtocolError ? 400 : 500 })

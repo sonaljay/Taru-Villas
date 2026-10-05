@@ -1,3 +1,4 @@
+import { enqueueGuestEmails } from '@/lib/guest-portal/email-worker'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { properties } from '@/lib/db/schema'
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
       if (Date.now() - started > 30_000) break
       details.push(await advanceLoSync(scope, { fromDate, toDate, budgetMs: Math.max(21000, 45000 - (Date.now() - started)) }))
     }
+    if (details.some(result => result.state === 'complete')) await enqueueGuestEmails(new Date()).catch(() => undefined)
     await cleanLoStaging()
     return NextResponse.json({ properties: rows.length, details }, { headers: { 'Cache-Control': 'no-store' } })
   } catch { return NextResponse.json({ error: 'Sync failed' }, { status: 500 }) }
